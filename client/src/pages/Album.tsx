@@ -14,6 +14,20 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+function CopyrightLines({ text }: { text: string }) {
+  const parts = text.split(/(?<=Reserved\.)\s+/);
+  return (
+    <p className="copyright">
+      {parts.map((line, index) => (
+        <span key={index}>
+          {index > 0 ? <br /> : null}
+          {line}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 export default function AlbumPage() {
   const [, params] = useRoute("/:slug");
   const slug = params?.slug || "";
@@ -21,7 +35,7 @@ export default function AlbumPage() {
   const [error, setError] = useState("");
   const [active, setActive] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [repeat, setRepeat] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [durations, setDurations] = useState<Record<string, string>>({});
@@ -131,15 +145,17 @@ export default function AlbumPage() {
     }
   }
 
+  function restartSong() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    audio.play().then(() => {
+      setPlaying(true);
+      acquireWake();
+    }).catch(() => undefined);
+  }
+
   function onEnded() {
-    if (repeat) {
-      const audio = audioRef.current;
-      if (audio) {
-        audio.currentTime = 0;
-        audio.play().catch(() => undefined);
-      }
-      return;
-    }
     navigate(1);
   }
 
@@ -158,25 +174,35 @@ export default function AlbumPage() {
   }
 
   return (
-    <div className="album-page">
-      <aside className="portrait-panel" id="portraitPanel">
-        {album.heroUrl ? <img id="portraitImg" src={album.heroUrl} alt={`${album.title} — ${album.artists}`} /> : null}
-        <div className="portrait-shade" />
-        <div className="portrait-title">{album.title.toUpperCase()}</div>
-        <div className="portrait-artists">{album.artists.toUpperCase()}</div>
+    <div className="layout">
+      <aside className="portrait-panel">
+        {album.heroUrl ? (
+          <img className="portrait-img" src={album.heroUrl} alt={`${album.title} — ${album.artists}`} />
+        ) : null}
       </aside>
       <section className="track-panel">
         <div className="album-head">
-          <h1 className="alb-name">{album.title}</h1>
+          <h1 className="alb-name2">{album.title}</h1>
           <p className="alb-tag">{album.tagline}</p>
           <p className="alb-credit">{album.credits}</p>
-          <div className="album-actions">
-            <button className="btn-play-all" id="btnPlayAll" onClick={() => openAt(0, true)}>▶ PLAY ALL</button>
-            <span className="song-count" id="songCount">{album.tracks.length} Songs</span>
-          </div>
-          {album.thumbUrl ? <img className="hero-thumb" id="heroThumb" src={album.thumbUrl} alt={album.artists} /> : null}
         </div>
-        <div className="tracks" id="trackList">
+        <div className="album-hero">
+          <span className="song-count">{album.tracks.length} Songs</span>
+          <button className="btn-play-all" onClick={() => openAt(0, true)}>
+            <IconPlay />
+            Play All
+          </button>
+          {album.thumbUrl ? (
+            <img
+              className="hero-thumb"
+              src={album.thumbUrl}
+              alt={album.artists}
+              title={album.artists}
+              onClick={() => setLightbox(true)}
+            />
+          ) : null}
+        </div>
+        <div className="tracks">
           {album.tracks.map((item, index) => (
             <TrackRow
               key={item.id}
@@ -188,60 +214,94 @@ export default function AlbumPage() {
             />
           ))}
         </div>
-        <footer className="album-foot">
-          <div>{album.copyright}</div>
-          <div className="sdg">† Soli Deo Gloria</div>
+        <footer className="site-footer">
+          <CopyrightLines text={album.copyright} />
+          <div className="sdg">
+            <IconCross />
+            Soli Deo Gloria
+          </div>
         </footer>
       </section>
 
       {track ? (
-        <div className="modal" id="modal" onClick={(event) => { if (event.target === event.currentTarget) closeModal(); }}>
-          <div className="modal-card" id="modalCard">
-            {track.imageUrl ? <img className="modal-cover" id="mCover" src={track.imageUrl} alt={track.title} /> : <div />}
-            <div className="modal-body">
-              <button className="close" id="btnClose" onClick={closeModal} aria-label="Close">×</button>
-              <div className="modal-eyebrow" id="mEyebrow">{track.scripture || album.title}</div>
-              <h2 className="modal-title" id="mTitle">{track.title}</h2>
-              <div className="time-row">
-                <span id="timeCur">{formatTime(currentTime)}</span>
-                <div className="prog" id="progBar" onClick={seek}>
-                  <div className="prog-fill" id="progFill" style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }} />
+        <div className="modal open">
+          <div className="modal-card">
+            <div className="modal-head">
+              <div
+                className="m-cover"
+                style={track.imageUrl ? { backgroundImage: `url("${track.imageUrl}")` } : undefined}
+              />
+              <div className="m-meta">
+                <div className="m-eyebrow">{track.scripture || album.title}</div>
+                <div className="m-title">{track.title}</div>
+              </div>
+              <button className="btn-close" onClick={closeModal} title="Close" aria-label="Close">
+                <IconClose />
+              </button>
+            </div>
+            <div className="transport">
+              <div className="progress-wrap">
+                <span className="time">{formatTime(currentTime)}</span>
+                <div className="prog-bar" onClick={seek}>
+                  <div className="prog-fill" style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }} />
                 </div>
-                <span id="timeDur">{formatTime(duration)}</span>
+                <span className="time">{formatTime(duration)}</span>
               </div>
               <div className="controls">
-                <button id="btnPrev" onClick={() => navigate(-1)} aria-label="Previous">⏮</button>
-                <button className="play" id="btnPlayModal" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
-                  {playing ? "❚❚" : "▶"}
+                <button className="ctrl" onClick={() => navigate(-1)} title="Previous" aria-label="Previous">
+                  <IconPrev />
                 </button>
-                <button id="btnNext" onClick={() => navigate(1)} aria-label="Next">⏭</button>
-                <button id="btnRepeat" className={repeat ? "on" : ""} onClick={() => setRepeat((value) => !value)} aria-label="Repeat">↺</button>
-                <input
-                  className="vol"
-                  id="volSlider"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  defaultValue="1"
-                  onChange={(event) => {
-                    if (audioRef.current) audioRef.current.volume = Number(event.target.value);
-                  }}
-                />
+                <button className="btn-play-modal" onClick={togglePlay} title="Play / Pause" aria-label={playing ? "Pause" : "Play"}>
+                  {playing ? <IconPause /> : <IconPlay />}
+                </button>
+                <button className="ctrl" onClick={() => navigate(1)} title="Next" aria-label="Next">
+                  <IconNext />
+                </button>
+                <button className="ctrl" onClick={restartSong} title="Restart song" aria-label="Restart">
+                  <IconRepeat />
+                </button>
               </div>
-              <div className="lyrics-label" id="lyricsLabel">
+            </div>
+            <div className="vol-wrap">
+              <IconVolume />
+              <input
+                className="vol-slider"
+                type="range"
+                min="0"
+                max="1"
+                step="0.02"
+                defaultValue="0.85"
+                onChange={(event) => {
+                  if (audioRef.current) audioRef.current.volume = Number(event.target.value);
+                }}
+              />
+            </div>
+            <div className="lyrics-section">
+              <div className="lyrics-label">
                 {track.instrumental ? track.scripture || "Instrumental" : "Lyrics"}
               </div>
-              <div className="lyrics" id="lyricsText">
+              <div className="lyrics-text">
                 {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
               </div>
+              <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
+                <CopyrightLines text={album.copyright} />
+                <div className="sdg">
+                  <IconCross />
+                  Soli Deo Gloria
+                </div>
+              </footer>
             </div>
           </div>
         </div>
       ) : null}
 
+      {lightbox && album.thumbUrl ? (
+        <div className="lightbox" onClick={() => setLightbox(false)}>
+          <img src={album.thumbUrl} alt={album.artists} />
+        </div>
+      ) : null}
+
       <audio
-        id="audio"
         ref={audioRef}
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
         onDurationChange={(event) => setDuration(event.currentTarget.duration || 0)}
@@ -267,15 +327,74 @@ function TrackRow({
   onPlay: () => void;
 }) {
   return (
-    <div className={`track-row${active ? " active" : ""}`} data-i={index} onClick={onPlay}>
+    <div className={`track-row${active ? " playing" : ""}`} data-i={index} onClick={onPlay}>
       <span className="t-num">{pad(track.n)}</span>
-      <div className="t-thumb" style={{ backgroundImage: track.imageUrl ? `url('${track.imageUrl}')` : undefined }} />
+      <div className="t-thumb" style={{ backgroundImage: track.imageUrl ? `url("${track.imageUrl}")` : undefined }} />
       <div className="t-info">
-        <div className="t-title">{track.title}</div>
+        <div className="t-title">
+          {track.title}
+          {track.instrumental ? (
+            <>
+              <br />
+              <span className="t-instrumental">(Instrumental)</span>
+            </>
+          ) : null}
+        </div>
         <div className="t-scripture">{track.scripture}</div>
       </div>
-      <div className="t-dur" id={`dur${index}`}>{durationLabel || "—"}</div>
-      <div className="t-play">▶</div>
+      <span className="t-dur">{durationLabel || "—"}</span>
+      <div className="t-play-icon"><IconPlay /></div>
     </div>
+  );
+}
+
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+  );
+}
+
+function IconPrev() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+  );
+}
+
+function IconNext() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z" /></svg>
+  );
+}
+
+function IconRepeat() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" /></svg>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
+  );
+}
+
+function IconVolume() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" /></svg>
+  );
+}
+
+function IconCross() {
+  return (
+    <svg className="sdg-cross" viewBox="0 0 10 11" aria-hidden="true">
+      <rect x="4" y="0" width="2" height="11" />
+      <rect x="0" y="3.5" width="10" height="2" />
+    </svg>
   );
 }
