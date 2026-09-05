@@ -12,6 +12,10 @@ test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(DEFAULT_CATALOG.albums.length, 1);
 });
 
+test("every Echoes track has lyrics from the live player", () => {
+  assert.ok(ECHOES_TRACKS.every((track) => track.lyrics.trim().length > 40));
+});
+
 test("slugify matches player deep links", () => {
   assert.equal(slugify("Echoes of the Storm"), "echoes-of-the-storm");
   assert.equal(slugify("Be Thou My Vision"), "be-thou-my-vision");

@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { albums, tracks } from "../shared/schema";
-import { DEFAULT_CATALOG } from "../shared/seed-data";
+import { DEFAULT_CATALOG, seedLyricsForTrack } from "../shared/seed-data";
 import type { Album, AlbumListItem, PublicAlbum, Track } from "../shared/types";
 import { audioUrl, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
@@ -99,7 +99,23 @@ export class JsonMusicStore implements MusicStore {
           updatedAt: nowIso(),
         })),
       });
+    } else {
+      this.backfillEmptyLyrics();
     }
+  }
+
+  private backfillEmptyLyrics(): void {
+    const catalog = this.read();
+    let changed = false;
+    for (const track of catalog.tracks) {
+      const lyrics = seedLyricsForTrack(track.id);
+      if (lyrics && !track.lyrics.trim()) {
+        track.lyrics = lyrics;
+        track.updatedAt = nowIso();
+        changed = true;
+      }
+    }
+    if (changed) this.write(catalog);
   }
 
   private read(): CatalogFile {
@@ -330,6 +346,14 @@ export class PostgresMusicStore implements MusicStore {
       }
       for (const track of DEFAULT_CATALOG.tracks) {
         await this.createTrack(track);
+      }
+      return;
+    }
+    const rows = await this.db.select({ id: tracks.id, lyrics: tracks.lyrics }).from(tracks);
+    for (const row of rows) {
+      const lyrics = seedLyricsForTrack(row.id);
+      if (lyrics && !String(row.lyrics || "").trim()) {
+        await this.db.update(tracks).set({ lyrics, updatedAt: new Date() }).where(eq(tracks.id, row.id));
       }
     }
   }
