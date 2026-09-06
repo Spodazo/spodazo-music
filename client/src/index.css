@@ -99,14 +99,14 @@ a { color: inherit; }
 }
 .home-foot-credit {
   margin: 0 0 10px;
-  font-size: 1rem;
-  color: var(--text);
+  font-size: 0.8rem;
+  color: #c8c8c8;
   letter-spacing: 0.03em;
 }
 .home-foot-copy {
   margin: 0;
-  font-size: 0.88rem;
-  color: var(--text);
+  font-size: 0.7rem;
+  color: #c8c8c8;
   letter-spacing: 0.02em;
   line-height: 1.65;
 }
