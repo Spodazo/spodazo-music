@@ -63,17 +63,16 @@ a { color: inherit; }
 }
 .home-foot-credit {
   margin: 0 0 10px;
-  font-size: 0.68rem;
-  color: var(--muted);
-  letter-spacing: 0.04em;
+  font-size: 1rem;
+  color: var(--text);
+  letter-spacing: 0.03em;
 }
 .home-foot-copy {
   margin: 0;
-  font-size: 0.6rem;
-  color: var(--muted);
-  opacity: 0.55;
-  letter-spacing: 0.04em;
-  line-height: 1.6;
+  font-size: 0.88rem;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  line-height: 1.65;
 }
 .sdg-sm { font-size: 10px; margin-top: 10px; }
 .sdg-sm .sdg-cross { width: 8px; height: 9px; }
