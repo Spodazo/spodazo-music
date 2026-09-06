@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { albums, tracks } from "../shared/schema";
-import { DEFAULT_CATALOG, seedLyricsForTrack } from "../shared/seed-data";
+import { DEFAULT_CATALOG, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, seedLyricsForTrack } from "../shared/seed-data";
 import type { Album, AlbumListItem, PublicAlbum, Track } from "../shared/types";
 import { audioUrl, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
@@ -101,7 +101,18 @@ export class JsonMusicStore implements MusicStore {
       });
     } else {
       this.backfillEmptyLyrics();
+      this.backfillEchoesCover();
     }
+  }
+
+  private backfillEchoesCover(): void {
+    const catalog = this.read();
+    const album = catalog.albums.find((item) => item.id === ECHOES_ALBUM.id);
+    if (!album) return;
+    if (album.thumb && album.thumb !== LEGACY_ECHOES_THUMB) return;
+    album.thumb = ECHOES_ALBUM.thumb;
+    album.updatedAt = nowIso();
+    this.write(catalog);
   }
 
   private backfillEmptyLyrics(): void {
@@ -355,6 +366,17 @@ export class PostgresMusicStore implements MusicStore {
       if (lyrics && !String(row.lyrics || "").trim()) {
         await this.db.update(tracks).set({ lyrics, updatedAt: new Date() }).where(eq(tracks.id, row.id));
       }
+    }
+    const [echoes] = await this.db
+      .select({ id: albums.id, thumb: albums.thumb })
+      .from(albums)
+      .where(eq(albums.id, ECHOES_ALBUM.id))
+      .limit(1);
+    if (echoes && (!echoes.thumb || echoes.thumb === LEGACY_ECHOES_THUMB)) {
+      await this.db
+        .update(albums)
+        .set({ thumb: ECHOES_ALBUM.thumb, updatedAt: new Date() })
+        .where(eq(albums.id, ECHOES_ALBUM.id));
     }
   }
 

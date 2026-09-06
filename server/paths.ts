@@ -23,6 +23,16 @@ export function ensureDataDirs(): void {
   }
 }
 
+export function syncBundledImages(): void {
+  const srcDir = path.resolve(process.cwd(), "media/images");
+  if (!fs.existsSync(srcDir)) return;
+  ensureDataDirs();
+  for (const name of fs.readdirSync(srcDir)) {
+    if (name.startsWith(".")) continue;
+    fs.copyFileSync(path.join(srcDir, name), path.join(imagesDir(), name));
+  }
+}
+
 export function musicOrigin(): string {
   return (process.env.MUSIC_ORIGIN || "https://music.spodazo.com").replace(/\/$/, "");
 }

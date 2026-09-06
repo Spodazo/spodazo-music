@@ -21,9 +21,11 @@ export const ECHOES_ALBUM: Album = {
   copyright:
     "Produced by Spodazo LLC, trading as Spodazo Music Ltd © 2026. All Rights Reserved. This material may not be copied — in whole or in part — or distributed without previous permission from the Producers.",
   heroPortrait: "Echoes of Storms Web Portrait.webp",
-  thumb: "Brody and Eden.webp",
+  thumb: "Echoes of Storms.webp",
   sortOrder: 1,
 };
+
+export const LEGACY_ECHOES_THUMB = "Brody and Eden.webp";
 
 const TRACK_META: Array<{
   n: number;

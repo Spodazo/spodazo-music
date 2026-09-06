@@ -4,7 +4,7 @@ import session from "express-session";
 import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
-import { ensureDataDirs } from "./paths";
+import { ensureDataDirs, syncBundledImages } from "./paths";
 import { getStore } from "./storage";
 
 process.on("unhandledRejection", (reason) => {
@@ -32,6 +32,7 @@ app.use(
 );
 
 ensureDataDirs();
+syncBundledImages();
 registerRoutes(app);
 
 async function start() {
