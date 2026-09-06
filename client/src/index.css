@@ -36,6 +36,27 @@ a { color: inherit; }
   display: flex;
   flex-direction: column;
 }
+.admin-login {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: rgba(13, 17, 23, 0.72);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.admin-login:hover {
+  color: var(--amber);
+  border-color: var(--amber);
+  background: rgba(18, 26, 36, 0.92);
+}
+.admin-login svg { width: 16px; height: 16px; fill: currentColor; }
 .home-kicker {
   color: var(--amber);
   letter-spacing: 0.28em;
