@@ -69,6 +69,7 @@ a { color: inherit; }
 }
 .admin-login svg { width: 16px; height: 16px; fill: currentColor; }
 .home-kicker {
+  flex: 0 0 auto;
   color: var(--amber);
   letter-spacing: 0.28em;
   text-transform: uppercase;
@@ -80,7 +81,6 @@ a { color: inherit; }
   flex-wrap: wrap;
   justify-content: center;
   gap: 28px;
-  margin-top: 28px;
   width: 100%;
 }
 .home-foot {

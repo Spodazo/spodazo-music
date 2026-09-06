@@ -17,8 +17,8 @@ export default function HomePage() {
   return (
     <main className="home">
       <AdminLoginLink />
+      <p className="home-kicker">Spodazo Music</p>
       <div className="home-main">
-        <p className="home-kicker">Spodazo Music</p>
         {error ? <p className="error">{error}</p> : null}
         <div className="album-grid">
           {albums.map((album) => (
