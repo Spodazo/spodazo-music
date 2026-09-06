@@ -550,7 +550,8 @@ a { color: inherit; }
   margin: 0 auto;
   padding: 36px 24px 80px;
 }
-.admin h1, .admin h2 { font-family: Cinzel, serif; }
+.admin h1 { font-family: "Playfair Display", serif; font-weight: 700; }
+.admin h2 { font-family: "Playfair Display", serif; }
 .admin form, .admin .card {
   background: #121a24;
   border: 1px solid var(--border);
