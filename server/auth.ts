@@ -27,11 +27,22 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   res.status(401).json({ error: "Admin login required" });
 }
 
-export function loginAdmin(req: Request, password: string): boolean {
+export function loginAdmin(req: Request, password: string): Promise<boolean> {
   const expected = adminPassword();
-  if (!passwordsMatch(password, expected)) return false;
-  req.session.admin = true;
-  return true;
+  if (!passwordsMatch(password, expected)) return Promise.resolve(false);
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      req.session.admin = true;
+      req.session.save((saveErr) => {
+        if (saveErr) reject(saveErr);
+        else resolve(true);
+      });
+    });
+  });
 }
 
 export function logoutAdmin(req: Request): Promise<void> {

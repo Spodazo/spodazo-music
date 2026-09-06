@@ -1,10 +1,10 @@
 import "dotenv/config";
 import express from "express";
-import session from "express-session";
 import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { ensureDataDirs, syncBundledImages } from "./paths";
+import { sessionMiddleware } from "./session";
 import { getStore } from "./storage";
 
 process.on("unhandledRejection", (reason) => {
@@ -18,18 +18,7 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "spodazo-music-dev-secret",
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-    },
-  }),
-);
+app.use(sessionMiddleware());
 
 ensureDataDirs();
 syncBundledImages();

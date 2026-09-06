@@ -94,17 +94,22 @@ export function registerRoutes(app: Express): void {
     res.json({ admin: Boolean(req.session?.admin) });
   });
 
-  app.post("/api/admin/login", (req, res) => {
+  app.post("/api/admin/login", async (req, res) => {
     const password = String(req.body?.password || "");
     if (!process.env.ADMIN_PASSWORD) {
       res.status(500).json({ error: "ADMIN_PASSWORD is not set" });
       return;
     }
-    if (!loginAdmin(req, password)) {
-      res.status(401).json({ error: "Wrong password" });
-      return;
+    try {
+      if (!(await loginAdmin(req, password))) {
+        res.status(401).json({ error: "Wrong password" });
+        return;
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[admin] login session error:", err);
+      res.status(500).json({ error: "Could not start admin session" });
     }
-    res.json({ ok: true });
   });
 
   app.post("/api/admin/logout", async (req, res) => {
