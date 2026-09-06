@@ -37,8 +37,15 @@ a { color: inherit; }
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   text-align: center;
+}
+.home-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 .admin-login {
   position: fixed;
@@ -77,7 +84,8 @@ a { color: inherit; }
   width: 100%;
 }
 .home-foot {
-  margin-top: 48px;
+  flex: 0 0 auto;
+  margin-top: 32px;
   padding-top: 0;
   text-align: center;
   width: 100%;

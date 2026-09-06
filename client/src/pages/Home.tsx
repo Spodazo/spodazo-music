@@ -17,19 +17,21 @@ export default function HomePage() {
   return (
     <main className="home">
       <AdminLoginLink />
-      <p className="home-kicker">Spodazo Music</p>
-      {error ? <p className="error">{error}</p> : null}
-      <div className="album-grid">
-        {albums.map((album) => (
-          <Link key={album.id} href={`/${album.slug}`} className="album-card">
-            {album.thumbUrl ? <img src={album.thumbUrl} alt={album.title} /> : <div style={{ aspectRatio: "1", background: "#1b2330" }} />}
-            <div className="album-card-body">
-              <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
-              <p>{album.artists || album.tagline}</p>
-              <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
-            </div>
-          </Link>
-        ))}
+      <div className="home-main">
+        <p className="home-kicker">Spodazo Music</p>
+        {error ? <p className="error">{error}</p> : null}
+        <div className="album-grid">
+          {albums.map((album) => (
+            <Link key={album.id} href={`/${album.slug}`} className="album-card">
+              {album.thumbUrl ? <img src={album.thumbUrl} alt={album.title} /> : <div style={{ aspectRatio: "1", background: "#1b2330" }} />}
+              <div className="album-card-body">
+                <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
+                <p>{album.artists || album.tagline}</p>
+                <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
       </div>
       <footer className="home-foot">
         <p className="home-foot-tag">Crisis of faith answered through the Word of God</p>
