@@ -9,6 +9,26 @@ export function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+export function titleFromAudioFile(filename: string): { title: string; scripture: string } {
+  const slash = Math.max(filename.lastIndexOf("/"), filename.lastIndexOf("\\"));
+  const base = filename.slice(slash + 1).replace(/\.[^.]+$/, "");
+  const cleaned = base.replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
+  const match = cleaned.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
+  if (match) return { title: match[1].trim(), scripture: match[2].trim() };
+  return { title: cleaned || "Untitled", scripture: "" };
+}
+
+export function uniqueSlug(base: string, used: Set<string>): string {
+  const root = slugify(base) || "track";
+  let candidate = root;
+  let n = 2;
+  while (used.has(candidate)) {
+    candidate = `${root}-${n++}`;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
 const ECHOES_ALBUM_ID = "album-echoes";
 
 export const ECHOES_ALBUM: Album = {

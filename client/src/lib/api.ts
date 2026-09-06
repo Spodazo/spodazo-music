@@ -54,6 +54,12 @@ export function createTrack(albumId: string, form: FormData): Promise<Track> {
   );
 }
 
+export function createTracksBulk(albumId: string, form: FormData): Promise<Track[]> {
+  return fetch(`/api/admin/albums/${encodeURIComponent(albumId)}/tracks/bulk`, { method: "POST", body: form })
+    .then((res) => parse<{ tracks: Track[] }>(res))
+    .then((body) => body.tracks);
+}
+
 export function updateTrack(id: string, form: FormData): Promise<Track> {
   return fetch(`/api/admin/tracks/${encodeURIComponent(id)}`, { method: "PATCH", body: form }).then((res) =>
     parse<Track>(res),

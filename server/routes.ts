@@ -2,9 +2,9 @@ import type { Express, Request } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
-import { slugify } from "../shared/seed-data";
+import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
-import { imagesDir, safeFileName, songsDir } from "./paths";
+import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
 const upload = multer({
@@ -15,7 +15,8 @@ const upload = multer({
       cb(null, dir);
     },
     filename: (_req, file, cb) => {
-      cb(null, safeFileName(file.originalname));
+      const dir = file.fieldname === "audio" ? songsDir() : imagesDir();
+      cb(null, uniqueFileName(dir, file.originalname));
     },
   }),
   limits: { fileSize: 80 * 1024 * 1024 },
@@ -186,6 +187,43 @@ export function registerRoutes(app: Express): void {
     if (!fields.n) fields.n = album.tracks.length + 1;
     const created = await store.createTrack(fields as Parameters<typeof store.createTrack>[0]);
     res.status(201).json(created);
+  });
+
+  app.post("/api/admin/albums/:id/tracks/bulk", requireAdmin, upload.array("audio", 40), async (req, res) => {
+    const store = await getStore();
+    const album = await store.getAlbumById(req.params.id);
+    if (!album) {
+      res.status(404).json({ error: "Album not found" });
+      return;
+    }
+    const files = ((req.files as Express.Multer.File[] | undefined) || []).slice();
+    if (!files.length) {
+      res.status(400).json({ error: "Choose one or more MP3 files" });
+      return;
+    }
+    files.sort((a, b) => a.originalname.localeCompare(b.originalname, undefined, { numeric: true, sensitivity: "base" }));
+    const used = new Set(album.tracks.map((track) => track.slug).filter(Boolean));
+    const created = [];
+    let n = album.tracks.length + 1;
+    for (const file of files) {
+      const { title, scripture } = titleFromAudioFile(file.originalname);
+      const slug = uniqueSlug(title, used);
+      created.push(
+        await store.createTrack({
+          albumId: album.id,
+          n: n++,
+          title,
+          scripture,
+          file: file.filename,
+          img: "",
+          key: slug,
+          lyrics: "",
+          instrumental: false,
+          slug,
+        }),
+      );
+    }
+    res.status(201).json({ tracks: created });
   });
 
   app.patch("/api/admin/tracks/:id", requireAdmin, upload.fields([

@@ -590,6 +590,22 @@ a { color: inherit; }
   border-bottom: 1px solid var(--border);
 }
 .track-admin img { width: 56px; height: 56px; object-fit: cover; }
+.track-admin-placeholder {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  background: #0f141c;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  line-height: 1.2;
+}
+.admin .hint { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.admin form.bulk-upload {
+  border-color: var(--amber);
+}
 
 @media (max-width: 600px) {
   html, body { overflow-y: auto; overflow-x: hidden; }

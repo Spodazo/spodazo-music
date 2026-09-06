@@ -6,6 +6,7 @@ import {
   adminMe,
   createAlbum,
   createTrack,
+  createTracksBulk,
   deleteAlbum,
   deleteTrack,
   fetchAlbum,
@@ -103,16 +104,16 @@ export default function AdminPage() {
         ))}
       </div>
 
-      <AlbumForm
-        onSaved={async () => {
-          setSelected(null);
-          await refresh();
-        }}
-      />
-
       {selected ? (
         <>
+          <BulkTrackUpload
+            albumId={selected.id}
+            albumTitle={selected.title}
+            onSaved={async () => setSelected(await fetchAlbum(selected.slug))}
+          />
+          <TrackAdmin album={selected} onChange={async () => setSelected(await fetchAlbum(selected.slug))} />
           <AlbumForm
+            key={selected.id}
             album={selected}
             onSaved={async (slug) => {
               const list = await fetchAlbums();
@@ -124,9 +125,15 @@ export default function AdminPage() {
               await refresh();
             }}
           />
-          <TrackAdmin album={selected} onChange={async () => setSelected(await fetchAlbum(selected.slug))} />
         </>
       ) : null}
+
+      <AlbumForm
+        onSaved={async () => {
+          setSelected(null);
+          await refresh();
+        }}
+      />
     </main>
   );
 }
@@ -215,10 +222,10 @@ function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => P
       {album.tracks.map((track) => (
         <div className="track-admin" key={track.id}>
           <div>{String(track.n).padStart(2, "0")}</div>
-          {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div />}
+          {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div className="track-admin-placeholder">No cover</div>}
           <div>
             <strong>{track.title}</strong>
-            <div>{track.scripture}</div>
+            <div>{track.scripture || (track.lyrics ? "" : "Add scripture, lyrics, and cover later")}</div>
           </div>
           <div>
             <button type="button" className="ghost" onClick={() => setEditing(track)}>Edit</button>
@@ -248,6 +255,64 @@ function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => P
         onCancel={() => setEditing(null)}
       />
     </section>
+  );
+}
+
+function BulkTrackUpload({
+  albumId,
+  albumTitle,
+  onSaved,
+}: {
+  albumId: string;
+  albumTitle: string;
+  onSaved: () => Promise<void>;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [picked, setPicked] = useState(0);
+  return (
+    <form
+      className="card bulk-upload"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setError("");
+        const form = new FormData(event.currentTarget);
+        const files = form.getAll("audio").filter((item) => item instanceof File && item.size > 0);
+        if (!files.length) {
+          setError("Choose one or more MP3 files");
+          return;
+        }
+        setBusy(true);
+        try {
+          await createTracksBulk(albumId, form);
+          await onSaved();
+          event.currentTarget.reset();
+          setPicked(0);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Upload failed");
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <h2>Upload several songs</h2>
+      <p className="hint">
+        Add MP3s to {albumTitle}. Hold Command (Mac) or Ctrl (Windows) to select more than one file. Titles come from
+        the filenames. Add covers, lyrics, and scripture later with Edit on each track.
+      </p>
+      <label>MP3 files (select more than one)</label>
+      <input
+        name="audio"
+        type="file"
+        accept="audio/mpeg,audio/*"
+        multiple
+        onChange={(event) => setPicked(event.currentTarget.files?.length || 0)}
+      />
+      <button type="submit" disabled={busy}>
+        {busy ? "Uploading…" : picked ? `Upload ${picked} song${picked === 1 ? "" : "s"}` : "Upload songs"}
+      </button>
+      {error ? <p className="error">{error}</p> : null}
+    </form>
   );
 }
 
@@ -281,7 +346,7 @@ function TrackForm({
         }
       }}
     >
-      <h3>{track ? `Edit ${track.title}` : "Add song"}</h3>
+      <h3>{track ? `Edit ${track.title}` : "Add one song"}</h3>
       <div className="row-2">
         <div>
           <label>Title</label>

@@ -40,3 +40,15 @@ export function musicOrigin(): string {
 export function safeFileName(name: string): string {
   return path.basename(name).replace(/[^a-zA-Z0-9._ ()|-]/g, "_");
 }
+
+export function uniqueFileName(dir: string, original: string): string {
+  const safe = safeFileName(original);
+  let name = safe;
+  let i = 2;
+  while (fs.existsSync(path.join(dir, name))) {
+    const ext = path.extname(safe);
+    const stem = ext ? safe.slice(0, -ext.length) : safe;
+    name = `${stem}-${i++}${ext}`;
+  }
+  return name;
+}
