@@ -49,6 +49,8 @@ export default function AlbumPage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [durations, setDurations] = useState<Record<string, string>>({});
+  const [repeatAll, setRepeatAll] = useState(false);
+  const [repeatOne, setRepeatOne] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
 
@@ -155,18 +157,23 @@ export default function AlbumPage() {
     }
   }
 
-  function restartSong() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.currentTime = 0;
-    audio.play().then(() => {
-      setPlaying(true);
-      acquireWake();
-    }).catch(() => undefined);
-  }
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.loop = repeatOne;
+  }, [repeatOne]);
 
   function onEnded() {
-    navigate(1);
+    if (repeatOne) return;
+    if (!album || active === null) return;
+    if (active < album.tracks.length - 1) {
+      openAt(active + 1, true);
+      return;
+    }
+    if (repeatAll) {
+      openAt(0, true);
+      return;
+    }
+    setPlaying(false);
+    releaseWake();
   }
 
   function seek(event: MouseEvent<HTMLDivElement>) {
@@ -199,10 +206,22 @@ export default function AlbumPage() {
         </div>
         <div className="album-hero">
           <span className="song-count">{album.tracks.length} Songs</span>
-          <button className="btn-play-all" onClick={() => openAt(0, true)}>
-            <IconPlay />
-            Play All
-          </button>
+          <div className="hero-play">
+            <button className="btn-play-all" onClick={() => openAt(0, true)}>
+              <IconPlay />
+              Play All
+            </button>
+            <button
+              className={`btn-repeat-all${repeatAll ? " on" : ""}`}
+              onClick={() => setRepeatAll((on) => !on)}
+              title={repeatAll ? "Repeat all on" : "Repeat all"}
+              aria-pressed={repeatAll}
+              aria-label="Repeat all"
+            >
+              <IconRepeat />
+              All
+            </button>
+          </div>
           {album.artistUrl ? (
             <img
               className="hero-thumb"
@@ -268,8 +287,23 @@ export default function AlbumPage() {
                 <button className="ctrl" onClick={() => navigate(1)} title="Next" aria-label="Next">
                   <IconNext />
                 </button>
-                <button className="ctrl" onClick={restartSong} title="Restart song" aria-label="Restart">
+                <button
+                  className={`ctrl${repeatAll ? " on" : ""}`}
+                  onClick={() => setRepeatAll((on) => !on)}
+                  title={repeatAll ? "Repeat all on" : "Repeat all"}
+                  aria-pressed={repeatAll}
+                  aria-label="Repeat all"
+                >
                   <IconRepeat />
+                </button>
+                <button
+                  className={`ctrl repeat-one${repeatOne ? " on" : ""}`}
+                  onClick={() => setRepeatOne((on) => !on)}
+                  title={repeatOne ? "Repeat song on" : "Repeat song"}
+                  aria-pressed={repeatOne}
+                  aria-label="Repeat song"
+                >
+                  <IconRepeatOne />
                 </button>
               </div>
             </div>
@@ -386,6 +420,15 @@ function IconNext() {
 function IconRepeat() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" /></svg>
+  );
+}
+
+function IconRepeatOne() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" />
+      <path d="M13 15V9h-1.1L10 10.1v1.1l1.4-.9H11.5V15H13z" />
+    </svg>
   );
 }
 

@@ -206,6 +206,11 @@ a { color: inherit; }
   letter-spacing: 0.15em;
   text-transform: uppercase;
 }
+.hero-play {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .btn-play-all {
   background: var(--amber);
   color: #0d1117;
@@ -224,6 +229,29 @@ a { color: inherit; }
 }
 .btn-play-all:hover { background: var(--amber2); transform: scale(1.03); }
 .btn-play-all svg { width: 10px; height: 10px; fill: currentColor; }
+.btn-repeat-all {
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.btn-repeat-all:hover { color: var(--amber); border-color: var(--amber); }
+.btn-repeat-all.on {
+  color: #0d1117;
+  background: var(--amber);
+  border-color: var(--amber);
+}
+.btn-repeat-all svg { width: 12px; height: 12px; fill: currentColor; }
 .hero-thumb {
   width: 64px;
   height: 64px;
@@ -446,7 +474,7 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 16px;
 }
 .ctrl {
   background: transparent;
