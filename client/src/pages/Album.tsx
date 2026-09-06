@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useRoute } from "wouter";
+import AdminLoginLink from "../components/AdminLoginLink";
 import { fetchAlbum } from "../lib/api";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
@@ -176,14 +177,15 @@ export default function AlbumPage() {
   }
 
   if (error) {
-    return <main className="home"><p className="error">{error}</p></main>;
+    return <main className="home"><AdminLoginLink /><p className="error">{error}</p></main>;
   }
   if (!album) {
-    return <main className="home"><p>Loading…</p></main>;
+    return <main className="home"><AdminLoginLink /><p>Loading…</p></main>;
   }
 
   return (
     <div className="layout">
+      <AdminLoginLink />
       <aside className="portrait-panel">
         {album.heroUrl ? (
           <img className="portrait-img" src={album.heroUrl} alt={`${album.title} — ${album.artists}`} />
