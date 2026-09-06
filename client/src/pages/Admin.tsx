@@ -497,18 +497,19 @@ function TrackForm({
           <input name="scripture" defaultValue={track?.scripture} />
         </div>
       </div>
-      <label>Lyrics</label>
-      <textarea name="lyrics" defaultValue={track?.lyrics} />
       <div className="row-2">
         <div>
-          <label>Audio file</label>
-          <input name="audio" type="file" accept="audio/*" />
+          <label>{track ? "Replace MP3" : "Audio file"}</label>
+          <input name="audio" type="file" accept="audio/mpeg,audio/*" />
+          {track?.file ? <p className="hint">Current file: {track.file}. Leave empty to keep it.</p> : null}
         </div>
         <div>
-          <label>Artwork</label>
+          <label>{track ? "Replace artwork" : "Artwork"}</label>
           <input name="artwork" type="file" accept="image/*" />
         </div>
       </div>
+      <label>Lyrics</label>
+      <textarea name="lyrics" defaultValue={track?.lyrics} />
       <label>
         <input name="instrumental" type="checkbox" value="true" defaultChecked={track?.instrumental} /> Instrumental
       </label>
