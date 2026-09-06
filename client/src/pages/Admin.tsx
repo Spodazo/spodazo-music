@@ -11,6 +11,7 @@ import {
   deleteTrack,
   fetchAlbum,
   fetchAlbums,
+  reorderTracks,
   updateAlbum,
   updateTrack,
 } from "../lib/api";
@@ -209,17 +210,76 @@ function AlbumForm({
   );
 }
 
+function moveTrack(tracks: PublicTrack[], fromId: string, toId: string): PublicTrack[] {
+  if (fromId === toId) return tracks;
+  const from = tracks.findIndex((track) => track.id === fromId);
+  const to = tracks.findIndex((track) => track.id === toId);
+  if (from < 0 || to < 0) return tracks;
+  const next = tracks.slice();
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
 function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => Promise<void> }) {
   const [editing, setEditing] = useState<PublicTrack | null>(null);
+  const [rows, setRows] = useState(album.tracks);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRows(album.tracks);
+  }, [album.tracks]);
+
+  async function dropOn(fromId: string | null, targetId: string) {
+    setDraggingId(null);
+    if (!fromId) return;
+    const next = moveTrack(rows, fromId, targetId);
+    if (next === rows) return;
+    setRows(next);
+    try {
+      await reorderTracks(album.id, next.map((track) => track.id));
+      await onChange();
+    } catch {
+      setRows(album.tracks);
+    }
+  }
+
   return (
     <section className="card">
       <div className="track-head">
         <h2>Tracks — {album.title}</h2>
         <BulkTrackUpload albumId={album.id} onSaved={onChange} />
       </div>
-      {album.tracks.map((track) => (
-        <div className="track-admin" key={track.id}>
-          <div>{String(track.n).padStart(2, "0")}</div>
+      <p className="hint">Drag the handle to reorder songs.</p>
+      {rows.map((track, index) => (
+        <div
+          className={`track-admin${draggingId === track.id ? " dragging" : ""}`}
+          key={track.id}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            void dropOn(event.dataTransfer.getData("text/plain") || draggingId, track.id);
+          }}
+        >
+          <button
+            type="button"
+            className="drag-handle"
+            draggable
+            title="Drag to reorder"
+            aria-label={`Reorder ${track.title}`}
+            onDragStart={(event) => {
+              setDraggingId(track.id);
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", track.id);
+            }}
+            onDragEnd={() => setDraggingId(null)}
+          >
+            ⋮⋮
+          </button>
+          <div>{String(index + 1).padStart(2, "0")}</div>
           {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div className="track-admin-placeholder">No cover</div>}
           <div>
             <strong>{track.title}</strong>

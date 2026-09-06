@@ -583,12 +583,25 @@ a { color: inherit; }
 .error { color: #f0b4b4; }
 .track-admin {
   display: grid;
-  grid-template-columns: 48px 56px 1fr auto;
+  grid-template-columns: 22px 48px 56px 1fr auto;
   gap: 10px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
+.track-admin.dragging { opacity: 0.4; }
+.admin .drag-handle {
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  padding: 4px 0;
+  margin: 0;
+  letter-spacing: -2px;
+  cursor: grab;
+  line-height: 1;
+  user-select: none;
+}
+.admin .drag-handle:active { cursor: grabbing; }
 .track-admin img { width: 56px; height: 56px; object-fit: cover; }
 .track-admin-placeholder {
   width: 56px;
