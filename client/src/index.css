@@ -29,12 +29,16 @@ a { color: inherit; }
 
 /* ── HOME ── */
 .home {
+  box-sizing: border-box;
+  width: 100%;
   min-height: 100vh;
   padding: 48px 32px 32px;
-  max-width: 1100px;
-  margin: 0 auto;
+  margin: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 .admin-login {
   position: fixed;
@@ -65,15 +69,18 @@ a { color: inherit; }
   margin: 0;
 }
 .album-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 28px;
   margin-top: 28px;
+  width: 100%;
 }
 .home-foot {
-  margin-top: auto;
-  padding-top: 48px;
+  margin-top: 48px;
+  padding-top: 0;
   text-align: center;
+  width: 100%;
 }
 .home-foot-tag {
   margin: 0 0 8px;
@@ -103,6 +110,8 @@ a { color: inherit; }
   background: #121a24;
   border: 1px solid var(--border);
   overflow: hidden;
+  width: min(320px, 100%);
+  text-align: left;
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 .album-card:hover { transform: translateY(-3px); border-color: var(--amber); }
