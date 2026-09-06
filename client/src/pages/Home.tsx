@@ -16,10 +16,6 @@ export default function HomePage() {
   return (
     <main className="home">
       <p className="home-kicker">Spodazo Music</p>
-      <h1>Albums</h1>
-      <p className="home-lead">
-        Music, lyrics and graphics by Spodazo. Open an album to listen.
-      </p>
       {error ? <p className="error">{error}</p> : null}
       <div className="album-grid">
         {albums.map((album) => (
@@ -33,6 +29,22 @@ export default function HomePage() {
           </Link>
         ))}
       </div>
+      <footer className="home-foot">
+        <p className="home-foot-tag">Crisis of faith answered through the Word of God</p>
+        <p className="home-foot-credit">Music, lyrics and graphics by Spodazo. &nbsp;|&nbsp; Vocals by Brody Vale &amp; Eden Blue</p>
+        <p className="home-foot-copy">
+          Produced by Spodazo LLC, trading as Spodazo Music Ltd © 2026. All Rights Reserved.
+          <br />
+          This material may not be copied — in whole or in part — or distributed without previous permission from the Producers.
+        </p>
+        <div className="sdg sdg-sm">
+          <svg className="sdg-cross" viewBox="0 0 10 11" aria-hidden="true">
+            <rect x="4" y="0" width="2" height="11" />
+            <rect x="0" y="3.5" width="10" height="2" />
+          </svg>
+          Soli Deo Gloria
+        </div>
+      </footer>
     </main>
   );
 }
