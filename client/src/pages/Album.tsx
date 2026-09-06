@@ -14,8 +14,17 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+function copyrightParts(text: string): string[] {
+  const marker = "Reserved.";
+  const at = text.indexOf(marker);
+  if (at < 0) return [text];
+  const first = text.slice(0, at + marker.length).trim();
+  const rest = text.slice(at + marker.length).trim();
+  return rest ? [first, rest] : [first];
+}
+
 function CopyrightLines({ text }: { text: string }) {
-  const parts = text.split(/(?<=Reserved\.)\s+/);
+  const parts = copyrightParts(text);
   return (
     <p className="copyright">
       {parts.map((line, index) => (

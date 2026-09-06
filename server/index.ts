@@ -31,12 +31,32 @@ async function start() {
 
   if (process.env.NODE_ENV === "production") {
     const publicDir = path.resolve(process.cwd(), "dist/public");
-    app.use(express.static(publicDir));
+    app.use(
+      express.static(publicDir, {
+        index: false,
+        setHeaders(res, filePath) {
+          if (filePath.endsWith(".html")) {
+            res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+            res.setHeader("Pragma", "no-cache");
+            res.setHeader("Expires", "0");
+            return;
+          }
+          if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
+        },
+      }),
+    );
     app.get("*", (req, res) => {
       if (req.path.startsWith("/api") || req.path.startsWith("/media")) {
         res.status(404).json({ error: "Not found" });
         return;
       }
+      res.set({
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
+      });
       res.sendFile(path.join(publicDir, "index.html"));
     });
   } else {
