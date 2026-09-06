@@ -106,11 +106,6 @@ export default function AdminPage() {
 
       {selected ? (
         <>
-          <BulkTrackUpload
-            albumId={selected.id}
-            albumTitle={selected.title}
-            onSaved={async () => setSelected(await fetchAlbum(selected.slug))}
-          />
           <TrackAdmin album={selected} onChange={async () => setSelected(await fetchAlbum(selected.slug))} />
           <AlbumForm
             key={selected.id}
@@ -218,7 +213,10 @@ function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => P
   const [editing, setEditing] = useState<PublicTrack | null>(null);
   return (
     <section className="card">
-      <h2>Tracks — {album.title}</h2>
+      <div className="track-head">
+        <h2>Tracks — {album.title}</h2>
+        <BulkTrackUpload albumId={album.id} onSaved={onChange} />
+      </div>
       {album.tracks.map((track) => (
         <div className="track-admin" key={track.id}>
           <div>{String(track.n).padStart(2, "0")}</div>
@@ -258,21 +256,13 @@ function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => P
   );
 }
 
-function BulkTrackUpload({
-  albumId,
-  albumTitle,
-  onSaved,
-}: {
-  albumId: string;
-  albumTitle: string;
-  onSaved: () => Promise<void>;
-}) {
+function BulkTrackUpload({ albumId, onSaved }: { albumId: string; onSaved: () => Promise<void> }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState(0);
   return (
     <form
-      className="card bulk-upload"
+      className="bulk-upload-inline"
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
@@ -295,17 +285,12 @@ function BulkTrackUpload({
         }
       }}
     >
-      <h2>Upload several songs</h2>
-      <p className="hint">
-        Add MP3s to {albumTitle}. Hold Command (Mac) or Ctrl (Windows) to select more than one file. Titles come from
-        the filenames. Add covers, lyrics, and scripture later with Edit on each track.
-      </p>
-      <label>MP3 files (select more than one)</label>
       <input
         name="audio"
         type="file"
         accept="audio/mpeg,audio/*"
         multiple
+        aria-label="Choose multiple MP3s"
         onChange={(event) => setPicked(event.currentTarget.files?.length || 0)}
       />
       <button type="submit" disabled={busy}>

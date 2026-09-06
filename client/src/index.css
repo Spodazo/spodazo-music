@@ -603,8 +603,31 @@ a { color: inherit; }
   line-height: 1.2;
 }
 .admin .hint { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
-.admin form.bulk-upload {
-  border-color: var(--amber);
+.track-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.track-head h2 { margin: 0; }
+.admin form.bulk-upload-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.admin form.bulk-upload-inline input[type="file"] {
+  width: auto;
+  max-width: 240px;
+}
+.admin form.bulk-upload-inline button,
+.admin form.bulk-upload-inline .error {
+  margin: 0;
 }
 
 @media (max-width: 600px) {
