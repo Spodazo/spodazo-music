@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { ensureDataDirs, syncBundledImages } from "./paths";
-import { sessionMiddleware } from "./session";
+import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore } from "./storage";
 
 process.on("unhandledRejection", (reason) => {
@@ -25,6 +25,7 @@ syncBundledImages();
 registerRoutes(app);
 
 async function start() {
+  await ensureSessionTable();
   await getStore();
   const port = Number(process.env.PORT || 3000);
 
