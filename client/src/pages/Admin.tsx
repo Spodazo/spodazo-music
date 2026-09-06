@@ -11,6 +11,7 @@ import {
   deleteTrack,
   fetchAlbum,
   fetchAlbums,
+  reorderAlbums,
   reorderTracks,
   updateAlbum,
   updateTrack,
@@ -92,18 +93,12 @@ export default function AdminPage() {
       </p>
       {error ? <p className="error">{error}</p> : null}
 
-      <div className="card">
-        <h2>Albums</h2>
-        {albums.map((album) => (
-          <button
-            key={album.id}
-            className={selected?.id === album.id ? "" : "ghost"}
-            onClick={async () => setSelected(await fetchAlbum(album.slug))}
-          >
-            {album.title}
-          </button>
-        ))}
-      </div>
+      <AlbumList
+        albums={albums}
+        selectedId={selected?.id || null}
+        onSelect={async (slug) => setSelected(await fetchAlbum(slug))}
+        onReordered={setAlbums}
+      />
 
       {selected ? (
         <>
@@ -192,6 +187,10 @@ function AlbumForm({
       </div>
       <label>Artist photo (player thumbnail)</label>
       <input name="artist" type="file" accept="image/*" />
+      <label>
+        <input name="hidden" type="checkbox" value="true" defaultChecked={album ? album.hidden : true} /> Hide from the
+        public site. You can still play it while signed in as admin.
+      </label>
       <button type="submit">{album ? "Save album" : "Create album"}</button>
       {album && onDeleted ? (
         <button
@@ -211,15 +210,91 @@ function AlbumForm({
   );
 }
 
-function moveTrack(tracks: PublicTrack[], fromId: string, toId: string): PublicTrack[] {
-  if (fromId === toId) return tracks;
-  const from = tracks.findIndex((track) => track.id === fromId);
-  const to = tracks.findIndex((track) => track.id === toId);
-  if (from < 0 || to < 0) return tracks;
-  const next = tracks.slice();
+function moveById<T extends { id: string }>(items: T[], fromId: string, toId: string): T[] {
+  if (fromId === toId) return items;
+  const from = items.findIndex((item) => item.id === fromId);
+  const to = items.findIndex((item) => item.id === toId);
+  if (from < 0 || to < 0) return items;
+  const next = items.slice();
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item);
   return next;
+}
+
+function AlbumList({
+  albums,
+  selectedId,
+  onSelect,
+  onReordered,
+}: {
+  albums: AlbumListItem[];
+  selectedId: string | null;
+  onSelect: (slug: string) => Promise<void>;
+  onReordered: (albums: AlbumListItem[]) => void;
+}) {
+  const [rows, setRows] = useState(albums);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRows(albums);
+  }, [albums]);
+
+  async function dropOn(fromId: string | null, targetId: string) {
+    setDraggingId(null);
+    if (!fromId) return;
+    const next = moveById(rows, fromId, targetId);
+    if (next === rows) return;
+    setRows(next);
+    try {
+      onReordered(await reorderAlbums(next.map((album) => album.id)));
+    } catch {
+      setRows(albums);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>Albums</h2>
+      <p className="hint">Drag to reorder. Hidden albums stay off the public homepage.</p>
+      {rows.map((album) => (
+        <div
+          className={`album-admin${selectedId === album.id ? " selected" : ""}${draggingId === album.id ? " dragging" : ""}`}
+          key={album.id}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            void dropOn(event.dataTransfer.getData("text/plain") || draggingId, album.id);
+          }}
+        >
+          <button
+            type="button"
+            className="drag-handle"
+            draggable
+            title="Drag to reorder"
+            aria-label={`Reorder ${album.title}`}
+            onDragStart={(event) => {
+              setDraggingId(album.id);
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", album.id);
+            }}
+            onDragEnd={() => setDraggingId(null)}
+          >
+            ⋮⋮
+          </button>
+          <button type="button" className={selectedId === album.id ? "" : "ghost"} onClick={() => void onSelect(album.slug)}>
+            {album.title}
+          </button>
+          {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
+          <a href={`/${album.slug}`} className="ghost" style={{ textDecoration: "none" }}>
+            Play
+          </a>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => Promise<void> }) {
@@ -234,7 +309,7 @@ function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => P
   async function dropOn(fromId: string | null, targetId: string) {
     setDraggingId(null);
     if (!fromId) return;
-    const next = moveTrack(rows, fromId, targetId);
+    const next = moveById(rows, fromId, targetId);
     if (next === rows) return;
     setRows(next);
     try {

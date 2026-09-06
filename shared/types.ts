@@ -10,6 +10,7 @@ export type Album = {
   thumb: string;
   artistThumb: string;
   sortOrder: number;
+  hidden: boolean;
   createdAt?: string;
   updatedAt?: string;
 };

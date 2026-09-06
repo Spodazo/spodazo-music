@@ -12,6 +12,7 @@ export const albums = pgTable("albums", {
   thumb: text("thumb").notNull().default(""),
   artistThumb: text("artist_thumb").notNull().default(""),
   sortOrder: integer("sort_order").notNull().default(0),
+  hidden: boolean("hidden").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

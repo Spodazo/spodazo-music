@@ -44,6 +44,7 @@ export const ECHOES_ALBUM: Album = {
   thumb: "Echoes of Storms.webp",
   artistThumb: "Brody and Eden.webp",
   sortOrder: 1,
+  hidden: false,
 };
 
 export const LEGACY_ECHOES_THUMB = "Brody and Eden.webp";

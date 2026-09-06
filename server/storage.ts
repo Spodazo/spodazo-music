@@ -20,6 +20,7 @@ export type AlbumInput = {
   thumb?: string;
   artistThumb?: string;
   sortOrder?: number;
+  hidden?: boolean;
 };
 
 export type TrackInput = {
@@ -47,6 +48,7 @@ export interface MusicStore {
   updateTrack(id: string, input: Partial<TrackInput>): Promise<Track | null>;
   deleteTrack(id: string): Promise<boolean>;
   reorderTracks(albumId: string, trackIds: string[]): Promise<Track[]>;
+  reorderAlbums(albumIds: string[]): Promise<Album[]>;
 }
 
 function nowIso(): string {
@@ -144,7 +146,7 @@ export class JsonMusicStore implements MusicStore {
   private read(): CatalogFile {
     const raw = JSON.parse(fs.readFileSync(catalogPath(), "utf8")) as CatalogFile;
     return {
-      albums: raw.albums || [],
+      albums: (raw.albums || []).map((album) => ({ ...album, hidden: Boolean(album.hidden) })),
       tracks: raw.tracks || [],
     };
   }
@@ -201,6 +203,7 @@ export class JsonMusicStore implements MusicStore {
       thumb: input.thumb || "",
       artistThumb: input.artistThumb || "",
       sortOrder: input.sortOrder ?? catalog.albums.length + 1,
+      hidden: Boolean(input.hidden),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
@@ -284,6 +287,16 @@ export class JsonMusicStore implements MusicStore {
     this.write(catalog);
     return catalog.tracks.filter((item) => item.albumId === albumId).sort((a, b) => a.n - b.n);
   }
+
+  async reorderAlbums(albumIds: string[]): Promise<Album[]> {
+    const catalog = this.read();
+    albumIds.forEach((id, index) => {
+      const album = catalog.albums.find((item) => item.id === id);
+      if (album) album.sortOrder = index + 1;
+    });
+    this.write(catalog);
+    return catalog.albums.slice().sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title));
+  }
 }
 
 function rowAlbum(row: typeof albums.$inferSelect): Album {
@@ -299,6 +312,7 @@ function rowAlbum(row: typeof albums.$inferSelect): Album {
     thumb: row.thumb,
     artistThumb: row.artistThumb,
     sortOrder: row.sortOrder,
+    hidden: Boolean(row.hidden),
     createdAt: row.createdAt?.toISOString(),
     updatedAt: row.updatedAt?.toISOString(),
   };
@@ -344,6 +358,7 @@ export class PostgresMusicStore implements MusicStore {
         thumb TEXT NOT NULL DEFAULT '',
         artist_thumb TEXT NOT NULL DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
+        hidden BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ DEFAULT now(),
         updated_at TIMESTAMPTZ DEFAULT now()
       )
@@ -366,6 +381,7 @@ export class PostgresMusicStore implements MusicStore {
       )
     `);
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS artist_thumb TEXT NOT NULL DEFAULT ''`);
+    await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`);
     const existing = await this.db.select({ id: albums.id }).from(albums).limit(1);
     if (existing.length === 0) {
       for (const album of DEFAULT_CATALOG.albums) {
@@ -462,6 +478,7 @@ export class PostgresMusicStore implements MusicStore {
         thumb: input.thumb || "",
         artistThumb: input.artistThumb || "",
         sortOrder: input.sortOrder ?? 0,
+        hidden: Boolean(input.hidden),
       })
       .returning();
     return rowAlbum(row);
@@ -479,6 +496,7 @@ export class PostgresMusicStore implements MusicStore {
     if (input.thumb !== undefined) patch.thumb = input.thumb;
     if (input.artistThumb !== undefined) patch.artistThumb = input.artistThumb;
     if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
+    if (input.hidden !== undefined) patch.hidden = input.hidden;
     const [row] = await this.db.update(albums).set(patch).where(eq(albums.id, id)).returning();
     return row ? rowAlbum(row) : null;
   }
@@ -552,6 +570,14 @@ export class PostgresMusicStore implements MusicStore {
       .where(eq(tracks.albumId, albumId))
       .orderBy(asc(tracks.n));
     return rows.map(rowTrack);
+  }
+
+  async reorderAlbums(albumIds: string[]): Promise<Album[]> {
+    for (const [index, id] of albumIds.entries()) {
+      await this.db.update(albums).set({ sortOrder: index + 1, updatedAt: new Date() }).where(eq(albums.id, id));
+    }
+    const rows = await this.db.select().from(albums).orderBy(asc(albums.sortOrder), asc(albums.title));
+    return rows.map(rowAlbum);
   }
 }
 

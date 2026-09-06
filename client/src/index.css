@@ -602,6 +602,28 @@ a { color: inherit; }
   user-select: none;
 }
 .admin .drag-handle:active { cursor: grabbing; }
+.album-admin {
+  display: grid;
+  grid-template-columns: 22px 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.album-admin.dragging { opacity: 0.4; }
+.album-admin button { margin-top: 0; }
+.hidden-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
 .track-admin img { width: 56px; height: 56px; object-fit: cover; }
 .track-admin-placeholder {
   width: 56px;

@@ -27,7 +27,7 @@ export default function HomePage() {
           <Link key={album.id} href={`/${album.slug}`} className="album-card">
             {album.thumbUrl ? <img src={album.thumbUrl} alt={album.title} /> : <div style={{ aspectRatio: "1", background: "#1b2330" }} />}
             <div className="album-card-body">
-              <h2>{album.title}</h2>
+              <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
               <p>{album.artists || album.tagline}</p>
               <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
             </div>

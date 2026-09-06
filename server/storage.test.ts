@@ -64,6 +64,13 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(reordered?.tracks[0].title, "Second Light");
   assert.equal(reordered?.tracks[1].title, "First Light (edit)");
 
+  await store.updateAlbum(album.id, { hidden: true });
+  const hidden = await store.getAlbumBySlug("second-watch");
+  assert.equal(hidden?.hidden, true);
+
+  await store.reorderAlbums([album.id, albums[0].id]);
   const listed = await store.listAlbums();
   assert.equal(listed.length, 2);
+  assert.equal(listed[0].slug, "second-watch");
+  assert.equal(listed[1].slug, "echoes");
 });

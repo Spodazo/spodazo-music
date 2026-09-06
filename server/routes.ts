@@ -34,6 +34,7 @@ function albumFields(body: Request["body"]) {
     thumb?: string;
     artistThumb?: string;
     sortOrder?: number;
+    hidden: boolean;
   } = {
     slug: String(body.slug || slugify(body.title || "")).trim(),
     title: String(body.title || "").trim(),
@@ -41,6 +42,7 @@ function albumFields(body: Request["body"]) {
     credits: String(body.credits || ""),
     artists: String(body.artists || ""),
     copyright: String(body.copyright || ""),
+    hidden: body.hidden === true || body.hidden === "true",
   };
   if (body.heroPortrait) fields.heroPortrait = String(body.heroPortrait);
   if (body.thumb) fields.thumb = String(body.thumb);
@@ -76,15 +78,16 @@ export function registerRoutes(app: Express): void {
     });
   });
 
-  app.get("/api/albums", async (_req, res) => {
+  app.get("/api/albums", async (req, res) => {
     const store = await getStore();
-    res.json(await store.listAlbums());
+    const list = await store.listAlbums();
+    res.json(req.session?.admin ? list : list.filter((album) => !album.hidden));
   });
 
   app.get("/api/albums/:slug", async (req, res) => {
     const store = await getStore();
     const album = await store.getAlbumBySlug(req.params.slug);
-    if (!album) {
+    if (!album || (album.hidden && !req.session?.admin)) {
       res.status(404).json({ error: "Album not found" });
       return;
     }
@@ -257,6 +260,13 @@ export function registerRoutes(app: Express): void {
     const store = await getStore();
     const trackIds = Array.isArray(req.body?.trackIds) ? req.body.trackIds.map(String) : [];
     res.json(await store.reorderTracks(req.params.id, trackIds));
+  });
+
+  app.post("/api/admin/reorder-albums", requireAdmin, async (req, res) => {
+    const store = await getStore();
+    const albumIds = Array.isArray(req.body?.albumIds) ? req.body.albumIds.map(String) : [];
+    await store.reorderAlbums(albumIds);
+    res.json(await store.listAlbums());
   });
 
   app.get("/media/images/:file", (req, res) => {

@@ -12,6 +12,7 @@ test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(DEFAULT_CATALOG.albums.length, 1);
   assert.equal(ECHOES_ALBUM.thumb, "Echoes of Storms.webp");
   assert.equal(ECHOES_ALBUM.artistThumb, "Brody and Eden.webp");
+  assert.equal(ECHOES_ALBUM.hidden, false);
 });
 
 test("every Echoes track has lyrics from the live player", () => {

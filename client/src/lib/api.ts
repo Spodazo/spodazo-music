@@ -79,3 +79,11 @@ export function reorderTracks(albumId: string, trackIds: string[]): Promise<Trac
     body: JSON.stringify({ trackIds }),
   }).then((res) => parse<Track[]>(res));
 }
+
+export function reorderAlbums(albumIds: string[]): Promise<AlbumListItem[]> {
+  return fetch("/api/admin/reorder-albums", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ albumIds }),
+  }).then((res) => parse<AlbumListItem[]>(res));
+}
