@@ -150,11 +150,12 @@ function AlbumForm({
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
-        const form = new FormData(event.currentTarget);
+        const formEl = event.currentTarget;
+        const form = new FormData(formEl);
         try {
           const saved = album ? await updateAlbum(album.id, form) : await createAlbum(form);
           await onSaved(saved.slug);
-          if (!album) event.currentTarget.reset();
+          if (!album) formEl.reset();
         } catch (err) {
           setError(err instanceof Error ? err.message : "Save failed");
         }
@@ -326,7 +327,8 @@ function BulkTrackUpload({ albumId, onSaved }: { albumId: string; onSaved: () =>
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
-        const form = new FormData(event.currentTarget);
+        const formEl = event.currentTarget;
+        const form = new FormData(formEl);
         const files = form.getAll("audio").filter((item) => item instanceof File && item.size > 0);
         if (!files.length) {
           setError("Choose one or more MP3 files");
@@ -336,7 +338,7 @@ function BulkTrackUpload({ albumId, onSaved }: { albumId: string; onSaved: () =>
         try {
           await createTracksBulk(albumId, form);
           await onSaved();
-          event.currentTarget.reset();
+          formEl.reset();
           setPicked(0);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Upload failed");
@@ -380,12 +382,13 @@ function TrackForm({
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
-        const form = new FormData(event.currentTarget);
+        const formEl = event.currentTarget;
+        const form = new FormData(formEl);
         try {
           if (track) await updateTrack(track.id, form);
           else await createTrack(albumId, form);
           await onSaved();
-          event.currentTarget.reset();
+          formEl.reset();
         } catch (err) {
           setError(err instanceof Error ? err.message : "Save failed");
         }
