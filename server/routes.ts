@@ -262,6 +262,17 @@ export function registerRoutes(app: Express): void {
     res.json(await store.reorderTracks(req.params.id, trackIds));
   });
 
+  app.post("/api/admin/albums/:id/visibility", requireAdmin, async (req, res) => {
+    const store = await getStore();
+    const hidden = req.body?.hidden === true || req.body?.hidden === "true";
+    const updated = await store.updateAlbum(req.params.id, { hidden });
+    if (!updated) {
+      res.status(404).json({ error: "Album not found" });
+      return;
+    }
+    res.json(await store.getAlbumById(updated.id));
+  });
+
   app.post("/api/admin/reorder-albums", requireAdmin, async (req, res) => {
     const store = await getStore();
     const albumIds = Array.isArray(req.body?.albumIds) ? req.body.albumIds.map(String) : [];

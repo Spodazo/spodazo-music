@@ -604,7 +604,7 @@ a { color: inherit; }
 .admin .drag-handle:active { cursor: grabbing; }
 .album-admin {
   display: grid;
-  grid-template-columns: 22px 1fr auto auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   padding: 6px 0;

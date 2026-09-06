@@ -42,6 +42,14 @@ export function updateAlbum(id: string, form: FormData): Promise<PublicAlbum> {
   );
 }
 
+export function setAlbumHidden(id: string, hidden: boolean): Promise<PublicAlbum> {
+  return fetch(`/api/admin/albums/${encodeURIComponent(id)}/visibility`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hidden }),
+  }).then((res) => parse<PublicAlbum>(res));
+}
+
 export function deleteAlbum(id: string): Promise<void> {
   return fetch(`/api/admin/albums/${encodeURIComponent(id)}`, { method: "DELETE" })
     .then((res) => parse(res))

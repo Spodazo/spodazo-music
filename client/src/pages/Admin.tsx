@@ -13,6 +13,7 @@ import {
   fetchAlbums,
   reorderAlbums,
   reorderTracks,
+  setAlbumHidden,
   updateAlbum,
   updateTrack,
 } from "../lib/api";
@@ -79,7 +80,6 @@ export default function AdminPage() {
     <main className="admin">
       <h1>Spodazo Music Admin</h1>
       <p>
-        Add albums and songs here. No index file rewrite.{" "}
         <a href="/" className="ghost" style={{ display: "inline-block", textDecoration: "none" }}>View site</a>
         <button
           className="ghost"
@@ -98,6 +98,11 @@ export default function AdminPage() {
         selectedId={selected?.id || null}
         onSelect={async (slug) => setSelected(await fetchAlbum(slug))}
         onReordered={setAlbums}
+        onChanged={async () => {
+          const list = await fetchAlbums();
+          setAlbums(list);
+          if (selected) setSelected(await fetchAlbum(selected.slug));
+        }}
       />
 
       {selected ? (
@@ -226,11 +231,13 @@ function AlbumList({
   selectedId,
   onSelect,
   onReordered,
+  onChanged,
 }: {
   albums: AlbumListItem[];
   selectedId: string | null;
   onSelect: (slug: string) => Promise<void>;
   onReordered: (albums: AlbumListItem[]) => void;
+  onChanged: () => Promise<void>;
 }) {
   const [rows, setRows] = useState(albums);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -286,8 +293,18 @@ function AlbumList({
           </button>
           <button type="button" className={selectedId === album.id ? "" : "ghost"} onClick={() => void onSelect(album.slug)}>
             {album.title}
+            {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
           </button>
-          {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
+          <button
+            type="button"
+            className={album.hidden ? "" : "ghost"}
+            onClick={async () => {
+              await setAlbumHidden(album.id, !album.hidden);
+              await onChanged();
+            }}
+          >
+            {album.hidden ? "Show on site" : "Hide from site"}
+          </button>
           <a href={`/${album.slug}`} className="ghost" style={{ textDecoration: "none" }}>
             Play
           </a>
