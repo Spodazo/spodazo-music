@@ -182,10 +182,12 @@ function AlbumForm({
           <input name="hero" type="file" accept="image/*" />
         </div>
         <div>
-          <label>Thumbnail</label>
+          <label>Album cover</label>
           <input name="thumb" type="file" accept="image/*" />
         </div>
       </div>
+      <label>Artist photo (player thumbnail)</label>
+      <input name="artist" type="file" accept="image/*" />
       <button type="submit">{album ? "Save album" : "Create album"}</button>
       {album && onDeleted ? (
         <button

@@ -192,10 +192,10 @@ export default function AlbumPage() {
             <IconPlay />
             Play All
           </button>
-          {album.thumbUrl ? (
+          {album.artistUrl ? (
             <img
               className="hero-thumb"
-              src={album.thumbUrl}
+              src={album.artistUrl}
               alt={album.artists}
               title={album.artists}
               onClick={() => setLightbox(true)}
@@ -295,9 +295,9 @@ export default function AlbumPage() {
         </div>
       ) : null}
 
-      {lightbox && album.thumbUrl ? (
+      {lightbox && album.artistUrl ? (
         <div className="lightbox" onClick={() => setLightbox(false)}>
-          <img src={album.thumbUrl} alt={album.artists} />
+          <img src={album.artistUrl} alt={album.artists} />
         </div>
       ) : null}
 

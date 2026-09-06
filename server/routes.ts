@@ -31,6 +31,7 @@ function albumFields(body: Request["body"]) {
     copyright: string;
     heroPortrait?: string;
     thumb?: string;
+    artistThumb?: string;
     sortOrder?: number;
   } = {
     slug: String(body.slug || slugify(body.title || "")).trim(),
@@ -42,6 +43,7 @@ function albumFields(body: Request["body"]) {
   };
   if (body.heroPortrait) fields.heroPortrait = String(body.heroPortrait);
   if (body.thumb) fields.thumb = String(body.thumb);
+  if (body.artistThumb) fields.artistThumb = String(body.artistThumb);
   if (body.sortOrder !== undefined && body.sortOrder !== "") fields.sortOrder = Number(body.sortOrder);
   return fields;
 }
@@ -113,6 +115,7 @@ export function registerRoutes(app: Express): void {
   app.post("/api/admin/albums", requireAdmin, upload.fields([
     { name: "hero", maxCount: 1 },
     { name: "thumb", maxCount: 1 },
+    { name: "artist", maxCount: 1 },
   ]), async (req, res) => {
     const store = await getStore();
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
@@ -123,6 +126,7 @@ export function registerRoutes(app: Express): void {
     }
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
     if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
+    if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
     const created = await store.createAlbum(fields);
     res.status(201).json(await store.getAlbumById(created.id));
   });
@@ -130,12 +134,14 @@ export function registerRoutes(app: Express): void {
   app.patch("/api/admin/albums/:id", requireAdmin, upload.fields([
     { name: "hero", maxCount: 1 },
     { name: "thumb", maxCount: 1 },
+    { name: "artist", maxCount: 1 },
   ]), async (req, res) => {
     const store = await getStore();
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const fields = albumFields(req.body);
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
     if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
+    if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
     const updated = await store.updateAlbum(req.params.id, fields);
     if (!updated) {
       res.status(404).json({ error: "Album not found" });

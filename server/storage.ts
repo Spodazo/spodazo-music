@@ -18,6 +18,7 @@ export type AlbumInput = {
   copyright?: string;
   heroPortrait?: string;
   thumb?: string;
+  artistThumb?: string;
   sortOrder?: number;
 };
 
@@ -61,6 +62,7 @@ function hydrateAlbum(album: Album, albumTracks: Track[]): PublicAlbum {
     ...album,
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
+    artistUrl: imageUrl(album.artistThumb || album.thumb || album.heroPortrait),
     tracks: albumTracks
       .slice()
       .sort((a, b) => a.n - b.n)
@@ -102,6 +104,7 @@ export class JsonMusicStore implements MusicStore {
     } else {
       this.backfillEmptyLyrics();
       this.backfillEchoesCover();
+      this.backfillEchoesArtistPhoto();
     }
   }
 
@@ -111,6 +114,15 @@ export class JsonMusicStore implements MusicStore {
     if (!album) return;
     if (album.thumb && album.thumb !== LEGACY_ECHOES_THUMB) return;
     album.thumb = ECHOES_ALBUM.thumb;
+    album.updatedAt = nowIso();
+    this.write(catalog);
+  }
+
+  private backfillEchoesArtistPhoto(): void {
+    const catalog = this.read();
+    const album = catalog.albums.find((item) => item.id === ECHOES_ALBUM.id);
+    if (!album || album.artistThumb) return;
+    album.artistThumb = ECHOES_ALBUM.artistThumb;
     album.updatedAt = nowIso();
     this.write(catalog);
   }
@@ -187,6 +199,7 @@ export class JsonMusicStore implements MusicStore {
       copyright: input.copyright || "",
       heroPortrait: input.heroPortrait || "",
       thumb: input.thumb || "",
+      artistThumb: input.artistThumb || "",
       sortOrder: input.sortOrder ?? catalog.albums.length + 1,
       createdAt: nowIso(),
       updatedAt: nowIso(),
@@ -284,6 +297,7 @@ function rowAlbum(row: typeof albums.$inferSelect): Album {
     copyright: row.copyright,
     heroPortrait: row.heroPortrait,
     thumb: row.thumb,
+    artistThumb: row.artistThumb,
     sortOrder: row.sortOrder,
     createdAt: row.createdAt?.toISOString(),
     updatedAt: row.updatedAt?.toISOString(),
@@ -328,6 +342,7 @@ export class PostgresMusicStore implements MusicStore {
         copyright TEXT NOT NULL DEFAULT '',
         hero_portrait TEXT NOT NULL DEFAULT '',
         thumb TEXT NOT NULL DEFAULT '',
+        artist_thumb TEXT NOT NULL DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
         created_at TIMESTAMPTZ DEFAULT now(),
         updated_at TIMESTAMPTZ DEFAULT now()
@@ -350,6 +365,7 @@ export class PostgresMusicStore implements MusicStore {
         updated_at TIMESTAMPTZ DEFAULT now()
       )
     `);
+    await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS artist_thumb TEXT NOT NULL DEFAULT ''`);
     const existing = await this.db.select({ id: albums.id }).from(albums).limit(1);
     if (existing.length === 0) {
       for (const album of DEFAULT_CATALOG.albums) {
@@ -376,6 +392,17 @@ export class PostgresMusicStore implements MusicStore {
       await this.db
         .update(albums)
         .set({ thumb: ECHOES_ALBUM.thumb, updatedAt: new Date() })
+        .where(eq(albums.id, ECHOES_ALBUM.id));
+    }
+    const [echoesPhoto] = await this.db
+      .select({ id: albums.id, artistThumb: albums.artistThumb })
+      .from(albums)
+      .where(eq(albums.id, ECHOES_ALBUM.id))
+      .limit(1);
+    if (echoesPhoto && !echoesPhoto.artistThumb) {
+      await this.db
+        .update(albums)
+        .set({ artistThumb: ECHOES_ALBUM.artistThumb, updatedAt: new Date() })
         .where(eq(albums.id, ECHOES_ALBUM.id));
     }
   }
@@ -433,6 +460,7 @@ export class PostgresMusicStore implements MusicStore {
         copyright: input.copyright || "",
         heroPortrait: input.heroPortrait || "",
         thumb: input.thumb || "",
+        artistThumb: input.artistThumb || "",
         sortOrder: input.sortOrder ?? 0,
       })
       .returning();
@@ -449,6 +477,7 @@ export class PostgresMusicStore implements MusicStore {
     if (input.copyright !== undefined) patch.copyright = input.copyright;
     if (input.heroPortrait !== undefined) patch.heroPortrait = input.heroPortrait;
     if (input.thumb !== undefined) patch.thumb = input.thumb;
+    if (input.artistThumb !== undefined) patch.artistThumb = input.artistThumb;
     if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
     const [row] = await this.db.update(albums).set(patch).where(eq(albums.id, id)).returning();
     return row ? rowAlbum(row) : null;

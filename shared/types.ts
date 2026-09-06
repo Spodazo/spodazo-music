@@ -8,6 +8,7 @@ export type Album = {
   copyright: string;
   heroPortrait: string;
   thumb: string;
+  artistThumb: string;
   sortOrder: number;
   createdAt?: string;
   updatedAt?: string;
@@ -38,6 +39,7 @@ export type PublicTrack = Track & {
 export type PublicAlbum = Album & {
   heroUrl: string;
   thumbUrl: string;
+  artistUrl: string;
   tracks: PublicTrack[];
 };
 

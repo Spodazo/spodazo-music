@@ -10,6 +10,7 @@ export const albums = pgTable("albums", {
   copyright: text("copyright").notNull().default(""),
   heroPortrait: text("hero_portrait").notNull().default(""),
   thumb: text("thumb").notNull().default(""),
+  artistThumb: text("artist_thumb").notNull().default(""),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
