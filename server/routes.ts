@@ -52,15 +52,19 @@ function albumFields(body: Request["body"]) {
 }
 
 function trackFields(body: Request["body"], albumId?: string) {
-  const title = String(body.title || "").trim();
-  const fields: Record<string, unknown> = {
-    title,
-    scripture: String(body.scripture || ""),
-    lyrics: String(body.lyrics || ""),
-    instrumental: body.instrumental === true || body.instrumental === "true",
-    slug: String(body.slug || slugify(title)),
-  };
+  const fields: Record<string, unknown> = {};
   if (albumId) fields.albumId = albumId;
+  if (body.title !== undefined) {
+    const title = String(body.title || "").trim();
+    fields.title = title;
+    if (body.slug === undefined) fields.slug = slugify(title);
+  }
+  if (body.slug !== undefined) fields.slug = String(body.slug || slugify(String(body.title || "")));
+  if (body.scripture !== undefined) fields.scripture = String(body.scripture || "");
+  if (body.lyrics !== undefined) fields.lyrics = String(body.lyrics || "");
+  if (body.instrumental !== undefined) {
+    fields.instrumental = body.instrumental === true || body.instrumental === "true";
+  }
   if (body.n !== undefined && body.n !== "") fields.n = Number(body.n);
   if (body.file) fields.file = String(body.file);
   if (body.img) fields.img = String(body.img);

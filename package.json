@@ -14,8 +14,7 @@
     "check": "tsc",
     "test": "tsx --test server/*.test.ts shared/*.test.ts",
     "db:push": "drizzle-kit push",
-    "db:backup": "bash scripts/backup-database.sh",
-    "seed:wordpress": "node scripts/seed-from-wordpress.mjs"
+    "db:backup": "bash scripts/backup-database.sh"
   },
   "dependencies": {
     "connect-pg-simple": "^10.0.0",

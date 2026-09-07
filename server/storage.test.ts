@@ -18,8 +18,8 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.ok(echoes);
   assert.equal(echoes.tracks.length, 12);
   assert.equal(echoes.tracks[0].title, "Echoes of the Storm");
-  assert.match(echoes.tracks[0].audioUrl, /music\.spodazo\.com\/Songs/);
-  assert.match(echoes.heroUrl, /music\.spodazo\.com\/Images/);
+  assert.match(echoes.tracks[0].audioUrl, /^\/media\/songs\//);
+  assert.match(echoes.heroUrl, /^\/media\/images\//);
 
   const album = await store.createAlbum({
     slug: "second-watch",

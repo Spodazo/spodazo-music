@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { imagesDir, musicOrigin, songsDir } from "./paths";
+import { imagesDir, songsDir } from "./paths";
 
 function usableFile(full: string): string | null {
   if (!fs.existsSync(full)) return null;
@@ -20,16 +20,10 @@ export function localSongPath(filename: string): string | null {
 
 export function imageUrl(filename: string): string {
   if (!filename) return "";
-  if (localImagePath(filename)) {
-    return `/media/images/${encodeURIComponent(filename)}`;
-  }
-  return `${musicOrigin()}/Images/${encodeURIComponent(filename).replace(/%20/g, "%20")}`;
+  return `/media/images/${encodeURIComponent(filename)}`;
 }
 
 export function audioUrl(filename: string): string {
   if (!filename) return "";
-  if (localSongPath(filename)) {
-    return `/media/songs/${encodeURIComponent(filename)}`;
-  }
-  return `${musicOrigin()}/Songs/${encodeURIComponent(filename).replace(/%20/g, "%20")}`;
+  return `/media/songs/${encodeURIComponent(filename)}`;
 }

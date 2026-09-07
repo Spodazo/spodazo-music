@@ -33,10 +33,6 @@ export function syncBundledImages(): void {
   }
 }
 
-export function musicOrigin(): string {
-  return (process.env.MUSIC_ORIGIN || "https://music.spodazo.com").replace(/\/$/, "");
-}
-
 export function safeFileName(name: string): string {
   return path.basename(name).replace(/[^a-zA-Z0-9._ ()|-]/g, "_");
 }
