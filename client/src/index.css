@@ -709,6 +709,112 @@ a { color: inherit; }
 .admin form.bulk-upload-inline .error {
   margin: 0;
 }
+.admin.has-player { padding-bottom: 140px; }
+.track-head-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.track-head-actions > button { margin: 0; }
+.track-admin.playing { background: rgba(232, 184, 109, 0.06); }
+.track-admin-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.track-admin-actions button { margin: 0; }
+.admin-track-play {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-track-play.on {
+  background: var(--amber);
+  color: #111;
+  border-color: var(--amber);
+}
+.admin-track-play svg { width: 16px; height: 16px; fill: currentColor; }
+.admin-track-play:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.admin-player {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "art meta controls"
+    "progress progress progress";
+  gap: 8px 14px;
+  align-items: center;
+  padding: 12px 20px 14px;
+  background: #121a24;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+.admin-player-art {
+  grid-area: art;
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  background: #0f141c;
+  border: 1px solid var(--border);
+}
+.admin-player-art.placeholder { background: #0f141c; }
+.admin-player-meta { grid-area: meta; min-width: 0; }
+.admin-player-title {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-player-album {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-player-controls {
+  grid-area: controls;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-player button { margin: 0; }
+.admin-player-ctrl {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-player-ctrl svg { width: 18px; height: 18px; fill: currentColor; }
+.admin-player-play {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.admin-player-play svg { width: 18px; height: 18px; fill: currentColor; }
+.admin-player-progress {
+  grid-area: progress;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 @media (max-width: 600px) {
   html, body { overflow-y: auto; overflow-x: hidden; }
@@ -735,4 +841,18 @@ a { color: inherit; }
   .lyrics-section { padding: 0 18px 20px; }
   .vol-wrap { padding: 0 18px 2px; }
   .row-2 { grid-template-columns: 1fr; }
+  .admin-player {
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-areas:
+      "art meta"
+      "controls controls"
+      "progress progress";
+    padding: 10px 12px 12px;
+  }
+  .admin-player-art { width: 44px; height: 44px; }
+  .admin-player-controls { justify-content: center; }
+  .track-admin {
+    grid-template-columns: 22px 32px 44px 1fr;
+  }
+  .track-admin-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }

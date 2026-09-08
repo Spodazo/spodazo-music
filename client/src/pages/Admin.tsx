@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 import type { AlbumListItem, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
@@ -18,6 +18,166 @@ import {
   updateTrack,
 } from "../lib/api";
 
+type AdminQueue = {
+  albumId: string;
+  albumTitle: string;
+  tracks: PublicTrack[];
+  index: number;
+};
+
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function useAdminPlayer() {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [queue, setQueue] = useState<AdminQueue | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const current = queue?.tracks[queue.index] ?? null;
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!current?.audioUrl) {
+      audio.pause();
+      audio.removeAttribute("src");
+      delete audio.dataset.trackId;
+      audio.load();
+      setPlaying(false);
+      setCurrentTime(0);
+      setDuration(0);
+      return;
+    }
+    if (audio.dataset.trackId === current.id) return;
+    audio.dataset.trackId = current.id;
+    audio.src = current.audioUrl;
+    setCurrentTime(0);
+    setDuration(0);
+    audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+  }, [current]);
+
+  function toggle() {
+    const audio = audioRef.current;
+    if (!audio || !current) return;
+    if (audio.paused) {
+      audio.play().then(() => setPlaying(true)).catch(() => undefined);
+    } else {
+      audio.pause();
+      setPlaying(false);
+    }
+  }
+
+  function playAlbumTracks(album: PublicAlbum, index: number, toggleSame = true) {
+    const track = album.tracks[index];
+    if (!track?.audioUrl) return;
+    if (toggleSame && current?.id === track.id) {
+      toggle();
+      return;
+    }
+    setQueue({
+      albumId: album.id,
+      albumTitle: album.title,
+      tracks: album.tracks,
+      index,
+    });
+  }
+
+  function playAlbum(album: PublicAlbum) {
+    if (queue?.albumId === album.id && current) {
+      toggle();
+      return;
+    }
+    const index = album.tracks.findIndex((track) => track.audioUrl);
+    if (index >= 0) playAlbumTracks(album, index, false);
+  }
+
+  function syncQueue(album: PublicAlbum) {
+    setQueue((currentQueue) => {
+      if (!currentQueue || currentQueue.albumId !== album.id) return currentQueue;
+      const playingId = currentQueue.tracks[currentQueue.index]?.id;
+      const index = album.tracks.findIndex((track) => track.id === playingId);
+      if (!album.tracks.length) return null;
+      return {
+        albumId: album.id,
+        albumTitle: album.title,
+        tracks: album.tracks,
+        index: index >= 0 ? index : 0,
+      };
+    });
+  }
+
+  function skip(delta: number) {
+    if (!queue) return;
+    if (delta > 0) {
+      const found = queue.tracks.findIndex((track, index) => index > queue.index && track.audioUrl);
+      if (found >= 0) setQueue({ ...queue, index: found });
+      return;
+    }
+    for (let index = queue.index - 1; index >= 0; index -= 1) {
+      if (queue.tracks[index]?.audioUrl) {
+        setQueue({ ...queue, index });
+        return;
+      }
+    }
+  }
+
+  function onEnded() {
+    if (!queue) return;
+    const next = queue.tracks.findIndex((track, index) => index > queue.index && track.audioUrl);
+    if (next >= 0) {
+      setQueue({ ...queue, index: next });
+      return;
+    }
+    setPlaying(false);
+  }
+
+  function seek(event: MouseEvent<HTMLDivElement>) {
+    const audio = audioRef.current;
+    if (!audio || !duration) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    audio.currentTime = ((event.clientX - rect.left) / rect.width) * duration;
+  }
+
+  function stop() {
+    const audio = audioRef.current;
+    audio?.pause();
+    if (audio) {
+      audio.removeAttribute("src");
+      delete audio.dataset.trackId;
+      audio.load();
+    }
+    setQueue(null);
+    setPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+  }
+
+  return {
+    audioRef,
+    queue,
+    current,
+    playing,
+    currentTime,
+    duration,
+    playAlbum,
+    playAlbumTracks,
+    syncQueue,
+    toggle,
+    skip,
+    seek,
+    stop,
+    onEnded,
+    setCurrentTime,
+    setDuration,
+    setPlaying,
+  };
+}
+
 export default function AdminPage() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -25,6 +185,7 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [albums, setAlbums] = useState<AlbumListItem[]>([]);
   const [selected, setSelected] = useState<PublicAlbum | null>(null);
+  const player = useAdminPlayer();
 
   async function refresh() {
     const list = await fetchAlbums();
@@ -76,14 +237,22 @@ export default function AdminPage() {
     );
   }
 
+  async function loadAlbum(slug: string): Promise<PublicAlbum> {
+    const album = await fetchAlbum(slug);
+    setSelected(album);
+    player.syncQueue(album);
+    return album;
+  }
+
   return (
-    <main className="admin">
+    <main className={`admin${player.current ? " has-player" : ""}`}>
       <h1>Spodazo Music Admin</h1>
       <p>
         <a href="/" className="ghost" style={{ display: "inline-block", textDecoration: "none" }}>View site</a>
         <button
           className="ghost"
           onClick={async () => {
+            player.stop();
             await adminLogout();
             setAuthed(false);
           }}
@@ -96,27 +265,44 @@ export default function AdminPage() {
       <AlbumList
         albums={albums}
         selectedId={selected?.id || null}
-        onSelect={async (slug) => setSelected(await fetchAlbum(slug))}
+        playingId={player.queue?.albumId || null}
+        playing={player.playing}
+        onSelect={async (slug) => { await loadAlbum(slug); }}
+        onPlay={async (slug) => {
+          const album = selected?.slug === slug ? selected : await loadAlbum(slug);
+          player.playAlbum(album);
+        }}
         onReordered={setAlbums}
         onChanged={async () => {
           const list = await fetchAlbums();
           setAlbums(list);
-          if (selected) setSelected(await fetchAlbum(selected.slug));
+          if (selected) await loadAlbum(selected.slug);
         }}
       />
 
       {selected ? (
         <>
-          <TrackAdmin album={selected} onChange={async () => setSelected(await fetchAlbum(selected.slug))} />
+          <TrackAdmin
+            album={selected}
+            currentTrackId={player.current?.id || null}
+            playing={player.playing}
+            onPlay={(trackId) => {
+              const index = selected.tracks.findIndex((track) => track.id === trackId);
+              if (index >= 0) player.playAlbumTracks(selected, index);
+            }}
+            onPlayAll={() => player.playAlbum(selected)}
+            onChange={async () => { await loadAlbum(selected.slug); }}
+          />
           <AlbumForm
             key={selected.id}
             album={selected}
             onSaved={async (slug) => {
               const list = await fetchAlbums();
               setAlbums(list);
-              setSelected(await fetchAlbum(slug));
+              await loadAlbum(slug);
             }}
             onDeleted={async () => {
+              if (player.queue?.albumId === selected.id) player.stop();
               setSelected(null);
               await refresh();
             }}
@@ -129,6 +315,23 @@ export default function AdminPage() {
           setSelected(null);
           await refresh();
         }}
+      />
+
+      <AdminPlayer
+        audioRef={player.audioRef}
+        current={player.current}
+        albumTitle={player.queue?.albumTitle || ""}
+        playing={player.playing}
+        currentTime={player.currentTime}
+        duration={player.duration}
+        onToggle={player.toggle}
+        onSkip={player.skip}
+        onSeek={player.seek}
+        onStop={player.stop}
+        onEnded={player.onEnded}
+        onTimeUpdate={player.setCurrentTime}
+        onDurationChange={player.setDuration}
+        onPlayingChange={player.setPlaying}
       />
     </main>
   );
@@ -229,13 +432,19 @@ function moveById<T extends { id: string }>(items: T[], fromId: string, toId: st
 function AlbumList({
   albums,
   selectedId,
+  playingId,
+  playing,
   onSelect,
+  onPlay,
   onReordered,
   onChanged,
 }: {
   albums: AlbumListItem[];
   selectedId: string | null;
+  playingId: string | null;
+  playing: boolean;
   onSelect: (slug: string) => Promise<void>;
+  onPlay: (slug: string) => Promise<void>;
   onReordered: (albums: AlbumListItem[]) => void;
   onChanged: () => Promise<void>;
 }) {
@@ -305,16 +514,30 @@ function AlbumList({
           >
             {album.hidden ? "Show on site" : "Hide from site"}
           </button>
-          <a href={`/${album.slug}`} className="ghost" style={{ textDecoration: "none" }}>
-            Play
-          </a>
+          <button type="button" className={playingId === album.id ? "" : "ghost"} onClick={() => void onPlay(album.slug)}>
+            {playingId === album.id && playing ? "Pause" : "Play"}
+          </button>
         </div>
       ))}
     </div>
   );
 }
 
-function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => Promise<void> }) {
+function TrackAdmin({
+  album,
+  currentTrackId,
+  playing,
+  onPlay,
+  onPlayAll,
+  onChange,
+}: {
+  album: PublicAlbum;
+  currentTrackId: string | null;
+  playing: boolean;
+  onPlay: (trackId: string) => void;
+  onPlayAll: () => void;
+  onChange: () => Promise<void>;
+}) {
   const [editing, setEditing] = useState<PublicTrack | null>(null);
   const [rows, setRows] = useState(album.tracks);
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -341,12 +564,17 @@ function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => P
     <section className="card">
       <div className="track-head">
         <h2>Tracks — {album.title}</h2>
-        <BulkTrackUpload albumId={album.id} onSaved={onChange} />
+        <div className="track-head-actions">
+          <button type="button" className="ghost" onClick={onPlayAll} disabled={!album.tracks.some((track) => track.audioUrl)}>
+            {currentTrackId && album.tracks.some((track) => track.id === currentTrackId) && playing ? "Pause" : "Play all"}
+          </button>
+          <BulkTrackUpload albumId={album.id} onSaved={onChange} />
+        </div>
       </div>
-      <p className="hint">Drag the handle to reorder songs.</p>
+      <p className="hint">Drag the handle to reorder songs. Play a track here without leaving Admin.</p>
       {rows.map((track, index) => (
         <div
-          className={`track-admin${draggingId === track.id ? " dragging" : ""}`}
+          className={`track-admin${draggingId === track.id ? " dragging" : ""}${currentTrackId === track.id ? " playing" : ""}`}
           key={track.id}
           onDragOver={(event) => {
             event.preventDefault();
@@ -378,7 +606,17 @@ function TrackAdmin({ album, onChange }: { album: PublicAlbum; onChange: () => P
             <strong>{track.title}</strong>
             <div>{track.scripture || (track.lyrics ? "" : "Add scripture, lyrics, and cover later")}</div>
           </div>
-          <div>
+          <div className="track-admin-actions">
+            <button
+              type="button"
+              className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
+              onClick={() => onPlay(track.id)}
+              disabled={!track.audioUrl}
+              title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
+              aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
+            >
+              {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
+            </button>
             <button type="button" className="ghost" onClick={() => setEditing(track)}>Edit</button>
             <button
               type="button"
@@ -518,5 +756,120 @@ function TrackForm({
       {track ? <button type="button" className="ghost" onClick={onCancel}>Cancel</button> : null}
       {error ? <p className="error">{error}</p> : null}
     </form>
+  );
+}
+
+function AdminPlayer({
+  audioRef,
+  current,
+  albumTitle,
+  playing,
+  currentTime,
+  duration,
+  onToggle,
+  onSkip,
+  onSeek,
+  onStop,
+  onEnded,
+  onTimeUpdate,
+  onDurationChange,
+  onPlayingChange,
+}: {
+  audioRef: RefObject<HTMLAudioElement>;
+  current: PublicTrack | null;
+  albumTitle: string;
+  playing: boolean;
+  currentTime: number;
+  duration: number;
+  onToggle: () => void;
+  onSkip: (delta: number) => void;
+  onSeek: (event: MouseEvent<HTMLDivElement>) => void;
+  onStop: () => void;
+  onEnded: () => void;
+  onTimeUpdate: (time: number) => void;
+  onDurationChange: (duration: number) => void;
+  onPlayingChange: (playing: boolean) => void;
+}) {
+  return (
+    <>
+      {current ? (
+        <div className="admin-player" role="region" aria-label="Admin player">
+          {current.imageUrl ? (
+            <img className="admin-player-art" src={current.imageUrl} alt="" />
+          ) : (
+            <div className="admin-player-art placeholder" aria-hidden="true" />
+          )}
+          <div className="admin-player-meta">
+            <div className="admin-player-title">{current.title}</div>
+            <div className="admin-player-album">{albumTitle}</div>
+          </div>
+          <div className="admin-player-controls">
+            <button type="button" className="ghost admin-player-ctrl" onClick={() => onSkip(-1)} title="Previous" aria-label="Previous">
+              <IconPrev />
+            </button>
+            <button
+              type="button"
+              className="admin-player-play"
+              onClick={onToggle}
+              title={playing ? "Pause" : "Play"}
+              aria-label={playing ? "Pause" : "Play"}
+            >
+              {playing ? <IconPause /> : <IconPlay />}
+            </button>
+            <button type="button" className="ghost admin-player-ctrl" onClick={() => onSkip(1)} title="Next" aria-label="Next">
+              <IconNext />
+            </button>
+            <button type="button" className="ghost admin-player-ctrl" onClick={onStop} title="Close player" aria-label="Close player">
+              <IconClose />
+            </button>
+          </div>
+          <div className="admin-player-progress">
+            <span className="time">{formatTime(currentTime)}</span>
+            <div className="prog-bar" onClick={onSeek}>
+              <div className="prog-fill" style={{ width: duration ? `${(currentTime / duration) * 100}%` : "0%" }} />
+            </div>
+            <span className="time">{formatTime(duration)}</span>
+          </div>
+        </div>
+      ) : null}
+      <audio
+        ref={audioRef}
+        onTimeUpdate={(event) => onTimeUpdate(event.currentTarget.currentTime)}
+        onDurationChange={(event) => onDurationChange(event.currentTarget.duration || 0)}
+        onEnded={onEnded}
+        onPlay={() => onPlayingChange(true)}
+        onPause={() => onPlayingChange(false)}
+      />
+    </>
+  );
+}
+
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+  );
+}
+
+function IconPrev() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>
+  );
+}
+
+function IconNext() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z" /></svg>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" /></svg>
   );
 }
