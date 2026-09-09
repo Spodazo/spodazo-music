@@ -648,17 +648,17 @@ function TrackAdmin({
             <strong>{track.title}</strong>
             <div>{track.scripture || (track.lyrics ? "" : "Add scripture, lyrics, and cover later")}</div>
           </div>
-          <button
-            type="button"
-            className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
-            onClick={() => onPlay(track.id)}
-            disabled={!track.audioUrl}
-            title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
-            aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
-          >
-            {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
-          </button>
           <div className="track-admin-actions">
+            <button
+              type="button"
+              className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
+              onClick={() => onPlay(track.id)}
+              disabled={!track.audioUrl}
+              title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
+              aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
+            >
+              {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
+            </button>
             <button type="button" className="ghost" onClick={() => setEditing(track)}>Edit</button>
             <button
               type="button"
@@ -746,17 +746,17 @@ function ArchiveList({
             <strong>{track.title}</strong>
             <div>{track.scripture || "Archived"}</div>
           </div>
-          <button
-            type="button"
-            className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
-            onClick={() => onPlay(track.id)}
-            disabled={!track.audioUrl}
-            title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
-            aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
-          >
-            {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
-          </button>
           <div className="track-admin-actions">
+            <button
+              type="button"
+              className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
+              onClick={() => onPlay(track.id)}
+              disabled={!track.audioUrl}
+              title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
+              aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
+            >
+              {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
+            </button>
             <button type="button" className="ghost" onClick={() => onEdit(track)}>Edit</button>
             <button type="button" onClick={() => void onRestore(track)}>Restore</button>
           </div>

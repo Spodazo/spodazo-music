@@ -228,7 +228,7 @@ a { color: inherit; }
   transition: background 0.2s, transform 0.1s;
 }
 .btn-play-all:hover { background: var(--amber2); transform: scale(1.03); }
-.btn-play-all svg { width: 10px; height: 10px; fill: currentColor; }
+.btn-play-all svg { width: 18px; height: 18px; fill: currentColor; }
 .btn-repeat-all {
   background: transparent;
   color: var(--text2);
@@ -251,7 +251,7 @@ a { color: inherit; }
   background: var(--amber);
   border-color: var(--amber);
 }
-.btn-repeat-all svg { width: 12px; height: 12px; fill: currentColor; }
+.btn-repeat-all svg { width: 20px; height: 20px; fill: currentColor; }
 .hero-thumb {
   width: 64px;
   height: 64px;
@@ -352,7 +352,7 @@ a { color: inherit; }
   opacity: 1;
   background: rgba(232, 184, 109, 0.1);
 }
-.t-play-icon svg { width: 9px; height: 9px; fill: currentColor; }
+.t-play-icon svg { width: 18px; height: 18px; fill: currentColor; }
 
 .site-footer {
   padding: 16px 32px 14px;
@@ -489,10 +489,10 @@ a { color: inherit; }
 }
 .ctrl:hover { opacity: 1; color: var(--amber); }
 .ctrl.on { opacity: 1; color: var(--amber); }
-.ctrl svg { width: 20px; height: 20px; fill: currentColor; }
+.ctrl svg { width: 32px; height: 32px; fill: currentColor; }
 .btn-play-modal {
-  width: 46px;
-  height: 46px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   background: var(--amber);
   border: none;
@@ -505,7 +505,7 @@ a { color: inherit; }
   flex-shrink: 0;
 }
 .btn-play-modal:hover { background: var(--amber2); transform: scale(1.05); }
-.btn-play-modal svg { width: 16px; height: 16px; fill: currentColor; }
+.btn-play-modal svg { width: 30px; height: 30px; fill: currentColor; }
 .vol-wrap {
   display: flex;
   align-items: center;
@@ -598,7 +598,7 @@ a { color: inherit; }
   padding-right: max(24px, env(safe-area-inset-right));
 }
 .admin.has-player {
-  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+  padding-bottom: calc(128px + env(safe-area-inset-bottom));
 }
 .admin h1 { font-family: "Playfair Display", serif; font-weight: 700; margin: 0 0 12px; }
 .admin-top h1 { margin: 0; }
@@ -688,8 +688,8 @@ a { color: inherit; }
 .label-short { display: none; }
 .track-admin {
   display: grid;
-  grid-template-columns: 28px 36px 56px minmax(0, 1fr) 48px auto;
-  grid-template-areas: "handle num art info play actions";
+  grid-template-columns: 28px 36px 56px minmax(0, 1fr) auto;
+  grid-template-areas: "handle num art info actions";
   gap: 10px;
   align-items: center;
   padding: 8px 0;
@@ -700,7 +700,6 @@ a { color: inherit; }
 .track-admin img,
 .track-admin-placeholder { grid-area: art; }
 .track-admin-info { grid-area: info; min-width: 0; }
-.admin-track-play { grid-area: play; }
 .track-admin-info strong {
   display: block;
   overflow: hidden;
@@ -837,29 +836,27 @@ a { color: inherit; }
 }
 .track-head-actions > button { margin: 0; }
 .track-admin.playing { background: rgba(232, 184, 109, 0.06); }
-.track-admin-actions {
+.admin .track-admin-actions {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  align-items: stretch;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 6px;
 }
-.track-admin-actions button,
-.admin-track-play {
+.admin .track-admin-actions > button {
   margin: 0;
-  height: 44px;
-  min-height: 44px;
+  height: 52px;
+  min-height: 52px;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
-}
-.track-admin-actions button {
   padding: 0 16px;
 }
-.admin-track-play {
-  width: 44px;
+.admin .track-admin-actions > .admin-track-play {
+  width: 52px;
+  min-width: 52px;
   padding: 0;
 }
 .admin-track-play.on {
@@ -867,7 +864,7 @@ a { color: inherit; }
   color: #111;
   border-color: var(--amber);
 }
-.admin-track-play svg { width: 26px; height: 26px; fill: currentColor; }
+.admin .admin-track-play svg { width: 36px; height: 36px; fill: currentColor; }
 .admin-track-play:disabled { opacity: 0.35; cursor: not-allowed; }
 .archive-block {
   margin-top: 24px;
@@ -879,8 +876,8 @@ a { color: inherit; }
   font-family: "Playfair Display", serif;
 }
 .archive-row {
-  grid-template-columns: 56px minmax(0, 1fr) 48px auto;
-  grid-template-areas: "art info play actions";
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-areas: "art info actions";
 }
 
 .admin-player {
@@ -932,24 +929,24 @@ a { color: inherit; }
 }
 .admin-player button { margin: 0; }
 .admin-player-ctrl {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.admin-player-ctrl svg { width: 26px; height: 26px; fill: currentColor; }
+.admin-player-ctrl svg { width: 32px; height: 32px; fill: currentColor; }
 .admin-player-play {
-  width: 48px;
-  height: 48px;
+  width: 56px;
+  height: 56px;
   padding: 0;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
-.admin-player-play svg { width: 26px; height: 26px; fill: currentColor; }
+.admin-player-play svg { width: 32px; height: 32px; fill: currentColor; }
 .admin-player-progress {
   grid-area: progress;
   display: flex;
@@ -1048,7 +1045,7 @@ a { color: inherit; }
     padding-right: max(16px, env(safe-area-inset-right));
   }
   .admin.has-player {
-    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+    padding-bottom: calc(118px + env(safe-area-inset-bottom));
   }
   .admin h1 { font-size: 1.45rem; }
   .admin h2 { font-size: 1.15rem; }
@@ -1114,10 +1111,10 @@ a { color: inherit; }
     box-sizing: border-box;
   }
   .track-admin {
-    grid-template-columns: 32px 40px minmax(0, 1fr) 48px;
+    grid-template-columns: 32px 40px minmax(0, 1fr);
     grid-template-areas:
-      "handle art info play"
-      "actions actions actions actions";
+      "handle art info"
+      "actions actions actions";
     gap: 8px 10px;
     padding: 12px 0;
   }
@@ -1127,24 +1124,25 @@ a { color: inherit; }
     width: 40px;
     height: 40px;
   }
-  .track-admin-actions {
+  .admin .track-admin-actions {
     justify-content: stretch;
   }
-  .archive-row {
-    grid-template-columns: 40px minmax(0, 1fr) 48px;
-    grid-template-areas:
-      "art info play"
-      "actions actions actions";
-  }
-  .archive-row .track-admin-actions button {
+  .admin .track-admin-actions > button {
     flex: 1;
-  }
-  .track-admin-actions .ghost,
-  .track-admin-actions .danger {
-    flex: 1;
-    height: 44px;
+    height: 52px;
+    min-height: 52px;
     padding: 0 12px;
     font-size: 14px;
+  }
+  .admin .track-admin-actions > .admin-track-play {
+    flex: 0 0 52px;
+    width: 52px;
+  }
+  .archive-row {
+    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-areas:
+      "art info"
+      "actions actions";
   }
   .form-actions {
     display: grid;
@@ -1163,12 +1161,12 @@ a { color: inherit; }
   .admin-player-title { font-size: 14px; }
   .admin-player-album { font-size: 12px; }
   .admin-player-ctrl {
-    width: 44px;
-    height: 44px;
-  }
-  .admin-player-play {
     width: 48px;
     height: 48px;
+  }
+  .admin-player-play {
+    width: 52px;
+    height: 52px;
   }
   .admin-dialog-backdrop {
     align-items: flex-end;
