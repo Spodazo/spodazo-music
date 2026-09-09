@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import type { AlbumListItem, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
@@ -655,16 +655,29 @@ function TrackAdmin({
         </div>
       ))}
       <TrackForm
-        key={editing?.id || "new"}
+        key="new"
         albumId={album.id}
-        track={editing}
+        track={null}
         nextNumber={album.tracks.length + 1}
-        onSaved={async () => {
-          setEditing(null);
-          await onChange();
-        }}
-        onCancel={() => setEditing(null)}
+        onSaved={onChange}
+        onCancel={() => undefined}
       />
+      {editing ? (
+        <AdminDialog title={`Edit ${editing.title}`} onClose={() => setEditing(null)}>
+          <TrackForm
+            key={editing.id}
+            albumId={album.id}
+            track={editing}
+            nextNumber={editing.n}
+            heading={false}
+            onSaved={async () => {
+              setEditing(null);
+              await onChange();
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        </AdminDialog>
+      ) : null}
     </section>
   );
 }
@@ -724,12 +737,14 @@ function TrackForm({
   albumId,
   track,
   nextNumber,
+  heading = true,
   onSaved,
   onCancel,
 }: {
   albumId: string;
   track: PublicTrack | null;
   nextNumber: number;
+  heading?: boolean;
   onSaved: () => Promise<void>;
   onCancel: () => void;
 }) {
@@ -751,7 +766,7 @@ function TrackForm({
         }
       }}
     >
-      <h3>{track ? `Edit ${track.title}` : "Add one song"}</h3>
+      {heading ? <h3>{track ? `Edit ${track.title}` : "Add one song"}</h3> : null}
       <div className="row-2">
         <div>
           <label>Title</label>
@@ -785,6 +800,56 @@ function TrackForm({
       </div>
       {error ? <p className="error">{error}</p> : null}
     </form>
+  );
+}
+
+function AdminDialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCloseRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    const focusable = panelRef.current?.querySelector<HTMLElement>("input:not([type='hidden']), textarea, select");
+    focusable?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, []);
+
+  return (
+    <div className="admin-dialog-backdrop" onClick={onClose} role="presentation">
+      <div
+        ref={panelRef}
+        className="admin-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="admin-dialog-head">
+          <h3>{title}</h3>
+          <button type="button" className="ghost admin-dialog-close" onClick={onClose} aria-label="Close">
+            <IconClose />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 
