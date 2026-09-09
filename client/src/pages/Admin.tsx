@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type MouseEvent, type RefObject } from "react";
 import type { AlbumListItem, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
@@ -246,20 +246,22 @@ export default function AdminPage() {
 
   return (
     <main className={`admin${player.current ? " has-player" : ""}`}>
-      <h1>Spodazo Music Admin</h1>
-      <p>
-        <a href="/" className="ghost" style={{ display: "inline-block", textDecoration: "none" }}>View site</a>
-        <button
-          className="ghost"
-          onClick={async () => {
-            player.stop();
-            await adminLogout();
-            setAuthed(false);
-          }}
-        >
-          Sign out
-        </button>
-      </p>
+      <header className="admin-top">
+        <h1>Spodazo Music Admin</h1>
+        <div className="admin-top-actions">
+          <a href="/" className="ghost">View site</a>
+          <button
+            className="ghost"
+            onClick={async () => {
+              player.stop();
+              await adminLogout();
+              setAuthed(false);
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
       {error ? <p className="error">{error}</p> : null}
 
       <AlbumList
@@ -399,20 +401,22 @@ function AlbumForm({
         <input name="hidden" type="checkbox" value="true" defaultChecked={album ? album.hidden : true} /> Hide from the
         public site. You can still play it while signed in as admin.
       </label>
-      <button type="submit">{album ? "Save album" : "Create album"}</button>
-      {album && onDeleted ? (
-        <button
-          type="button"
-          className="danger"
-          onClick={async () => {
-            if (!confirm(`Delete ${album.title}?`)) return;
-            await deleteAlbum(album.id);
-            await onDeleted();
-          }}
-        >
-          Delete album
-        </button>
-      ) : null}
+      <div className="form-actions">
+        <button type="submit">{album ? "Save album" : "Create album"}</button>
+        {album && onDeleted ? (
+          <button
+            type="button"
+            className="danger"
+            onClick={async () => {
+              if (!confirm(`Delete ${album.title}?`)) return;
+              await deleteAlbum(album.id);
+              await onDeleted();
+            }}
+          >
+            Delete album
+          </button>
+        ) : null}
+      </div>
       {error ? <p className="error">{error}</p> : null}
     </form>
   );
@@ -500,21 +504,39 @@ function AlbumList({
           >
             ⋮⋮
           </button>
-          <button type="button" className={selectedId === album.id ? "" : "ghost"} onClick={() => void onSelect(album.slug)}>
-            {album.title}
+          <button
+            type="button"
+            className={`album-admin-select${selectedId === album.id ? " selected" : ""}`}
+            onClick={() => void onSelect(album.slug)}
+          >
+            <span className="album-admin-name">{album.title}</span>
             {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
           </button>
           <button
             type="button"
-            className={album.hidden ? "" : "ghost"}
+            className={`album-admin-visibility${album.hidden ? "" : " ghost"}`}
             onClick={async () => {
               await setAlbumHidden(album.id, !album.hidden);
               await onChanged();
             }}
           >
-            {album.hidden ? "Show on site" : "Hide from site"}
+            {album.hidden ? (
+              <>
+                <span className="label-full">Show on site</span>
+                <span className="label-short">Show</span>
+              </>
+            ) : (
+              <>
+                <span className="label-full">Hide from site</span>
+                <span className="label-short">Hide</span>
+              </>
+            )}
           </button>
-          <button type="button" className={playingId === album.id ? "" : "ghost"} onClick={() => void onPlay(album.slug)}>
+          <button
+            type="button"
+            className={`album-admin-play${playingId === album.id ? "" : " ghost"}`}
+            onClick={() => void onPlay(album.slug)}
+          >
             {playingId === album.id && playing ? "Pause" : "Play"}
           </button>
         </div>
@@ -600,23 +622,23 @@ function TrackAdmin({
           >
             ⋮⋮
           </button>
-          <div>{String(index + 1).padStart(2, "0")}</div>
+          <div className="track-admin-num">{String(index + 1).padStart(2, "0")}</div>
           {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div className="track-admin-placeholder">No cover</div>}
-          <div>
+          <div className="track-admin-info">
             <strong>{track.title}</strong>
             <div>{track.scripture || (track.lyrics ? "" : "Add scripture, lyrics, and cover later")}</div>
           </div>
+          <button
+            type="button"
+            className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
+            onClick={() => onPlay(track.id)}
+            disabled={!track.audioUrl}
+            title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
+            aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
+          >
+            {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
+          </button>
           <div className="track-admin-actions">
-            <button
-              type="button"
-              className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
-              onClick={() => onPlay(track.id)}
-              disabled={!track.audioUrl}
-              title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
-              aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
-            >
-              {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
-            </button>
             <button type="button" className="ghost" onClick={() => setEditing(track)}>Edit</button>
             <button
               type="button"
@@ -651,6 +673,7 @@ function BulkTrackUpload({ albumId, onSaved }: { albumId: string; onSaved: () =>
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [picked, setPicked] = useState(0);
+  const inputId = useId();
   return (
     <form
       className="bulk-upload-inline"
@@ -678,15 +701,19 @@ function BulkTrackUpload({ albumId, onSaved }: { albumId: string; onSaved: () =>
       }}
     >
       <input
+        id={inputId}
+        className="file-input-hidden"
         name="audio"
         type="file"
         accept="audio/mpeg,audio/*"
         multiple
-        aria-label="Choose multiple MP3s"
         onChange={(event) => setPicked(event.currentTarget.files?.length || 0)}
       />
+      <label htmlFor={inputId} className="ghost file-pick">
+        {picked ? `${picked} selected` : "Choose files"}
+      </label>
       <button type="submit" disabled={busy}>
-        {busy ? "Uploading…" : picked ? `Upload ${picked} song${picked === 1 ? "" : "s"}` : "Upload songs"}
+        {busy ? "Uploading…" : picked ? `Upload ${picked}` : "Upload"}
       </button>
       {error ? <p className="error">{error}</p> : null}
     </form>
@@ -752,8 +779,10 @@ function TrackForm({
         <input name="instrumental" type="checkbox" value="true" defaultChecked={track?.instrumental} /> Instrumental
       </label>
       <input type="hidden" name="n" value={track?.n || nextNumber} />
-      <button type="submit">{track ? "Save song" : "Add song"}</button>
-      {track ? <button type="button" className="ghost" onClick={onCancel}>Cancel</button> : null}
+      <div className="form-actions">
+        <button type="submit">{track ? "Save song" : "Add song"}</button>
+        {track ? <button type="button" className="ghost" onClick={onCancel}>Cancel</button> : null}
+      </div>
       {error ? <p className="error">{error}</p> : null}
     </form>
   );

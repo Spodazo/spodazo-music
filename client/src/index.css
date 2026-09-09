@@ -594,9 +594,33 @@ a { color: inherit; }
   max-width: 980px;
   margin: 0 auto;
   padding: 36px 24px 80px;
+  padding-left: max(24px, env(safe-area-inset-left));
+  padding-right: max(24px, env(safe-area-inset-right));
 }
-.admin h1 { font-family: "Playfair Display", serif; font-weight: 700; }
+.admin.has-player {
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
+.admin h1 { font-family: "Playfair Display", serif; font-weight: 700; margin: 0 0 12px; }
+.admin-top h1 { margin: 0; }
 .admin h2 { font-family: "Playfair Display", serif; }
+.admin-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.admin-top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.admin-top-actions a,
+.admin-top-actions button {
+  margin: 0;
+  text-decoration: none;
+}
 .admin form, .admin .card {
   background: #121a24;
   border: 1px solid var(--border);
@@ -610,6 +634,16 @@ a { color: inherit; }
   color: var(--text);
   border: 1px solid var(--border);
   padding: 10px;
+}
+.admin input[type="checkbox"] {
+  width: auto;
+  margin-right: 8px;
+}
+.admin label:has(input[type="checkbox"]) {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.4;
 }
 .admin textarea { min-height: 140px; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -626,40 +660,129 @@ a { color: inherit; }
 .ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
 .danger { background: #8b2e2e; color: #fff; }
 .error { color: #f0b4b4; }
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.form-actions button { margin: 0; }
+.file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.file-pick {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.label-short { display: none; }
 .track-admin {
   display: grid;
-  grid-template-columns: 22px 48px 56px 1fr auto;
+  grid-template-columns: 28px 36px 56px minmax(0, 1fr) 40px auto;
+  grid-template-areas: "handle num art info play actions";
   gap: 10px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
+.track-admin .drag-handle { grid-area: handle; }
+.track-admin-num { grid-area: num; color: var(--muted); font-variant-numeric: tabular-nums; }
+.track-admin img,
+.track-admin-placeholder { grid-area: art; }
+.track-admin-info { grid-area: info; min-width: 0; }
+.admin-track-play { grid-area: play; }
+.track-admin-info strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track-admin-info div {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.track-admin-actions { grid-area: actions; }
 .track-admin.dragging { opacity: 0.4; }
 .admin .drag-handle {
   background: transparent;
   color: var(--muted);
   border: 0;
-  padding: 4px 0;
+  padding: 8px 0;
   margin: 0;
   letter-spacing: -2px;
   cursor: grab;
   line-height: 1;
   user-select: none;
+  min-height: 44px;
 }
 .admin .drag-handle:active { cursor: grabbing; }
 .album-admin {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+  grid-template-areas: "handle title visibility play";
   gap: 10px;
   align-items: center;
-  padding: 6px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
+.album-admin .drag-handle { grid-area: handle; }
+.album-admin-select { grid-area: title; }
+.album-admin-visibility { grid-area: visibility; }
+.album-admin-play { grid-area: play; }
 .album-admin.dragging { opacity: 0.4; }
-.album-admin button { margin-top: 0; }
+.album-admin button { margin: 0; }
+.admin .album-admin-select {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+.admin .album-admin-select.selected {
+  color: var(--amber);
+  background: rgba(232, 184, 109, 0.08);
+  border-color: var(--border);
+}
+.admin .album-admin .ghost,
+.admin .track-admin .ghost,
+.admin .track-head-actions > .ghost,
+.admin .file-pick {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.album-admin-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.album-admin-visibility,
+.album-admin-play {
+  min-width: 72px;
+}
 .hidden-badge {
   display: inline-block;
-  margin-left: 8px;
   padding: 2px 8px;
   border: 1px solid var(--border);
   color: var(--muted);
@@ -668,6 +791,7 @@ a { color: inherit; }
   letter-spacing: 0.04em;
   text-transform: uppercase;
   vertical-align: middle;
+  flex: none;
 }
 .track-admin img { width: 56px; height: 56px; object-fit: cover; }
 .track-admin-placeholder {
@@ -701,15 +825,10 @@ a { color: inherit; }
   background: transparent;
   border: 0;
 }
-.admin form.bulk-upload-inline input[type="file"] {
-  width: auto;
-  max-width: 240px;
-}
 .admin form.bulk-upload-inline button,
 .admin form.bulk-upload-inline .error {
   margin: 0;
 }
-.admin.has-player { padding-bottom: 140px; }
 .track-head-actions {
   display: flex;
   align-items: center;
@@ -727,8 +846,8 @@ a { color: inherit; }
 }
 .track-admin-actions button { margin: 0; }
 .admin-track-play {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -755,7 +874,7 @@ a { color: inherit; }
     "progress progress progress";
   gap: 8px 14px;
   align-items: center;
-  padding: 12px 20px 14px;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
   background: #121a24;
   border-top: 1px solid var(--border);
   box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
@@ -841,18 +960,125 @@ a { color: inherit; }
   .lyrics-section { padding: 0 18px 20px; }
   .vol-wrap { padding: 0 18px 2px; }
   .row-2 { grid-template-columns: 1fr; }
-  .admin-player {
-    grid-template-columns: 44px minmax(0, 1fr);
+}
+
+@media (max-width: 720px) {
+  .admin {
+    padding: 20px 16px 48px;
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+  .admin.has-player {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  .admin h1 { font-size: 1.45rem; }
+  .admin h2 { font-size: 1.15rem; }
+  .admin-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .admin-top-actions {
+    justify-content: stretch;
+  }
+  .admin-top-actions a,
+  .admin-top-actions button {
+    flex: 1;
+    text-align: center;
+  }
+  .admin form, .admin .card {
+    padding: 14px;
+    margin: 12px 0;
+  }
+  .label-full { display: none; }
+  .label-short { display: inline; }
+  .album-admin {
+    grid-template-columns: 36px 1fr 1fr;
     grid-template-areas:
-      "art meta"
-      "controls controls"
-      "progress progress";
-    padding: 10px 12px 12px;
+      "handle title title"
+      "handle visibility play";
+    gap: 8px 10px;
+    padding: 12px 0;
   }
-  .admin-player-art { width: 44px; height: 44px; }
-  .admin-player-controls { justify-content: center; }
+  .admin .album-admin-select { padding: 8px 10px; min-height: 44px; }
+  .album-admin-visibility,
+  .album-admin-play {
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+  .track-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .track-head-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .track-head-actions > button,
+  .admin form.bulk-upload-inline {
+    width: 100%;
+  }
+  .admin form.bulk-upload-inline {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin form.bulk-upload-inline .error {
+    grid-column: 1 / -1;
+  }
+  .file-pick,
+  .track-head-actions > button {
+    width: 100%;
+    box-sizing: border-box;
+  }
   .track-admin {
-    grid-template-columns: 22px 32px 44px 1fr;
+    grid-template-columns: 32px 40px minmax(0, 1fr) 44px;
+    grid-template-areas:
+      "handle art info play"
+      "actions actions actions actions";
+    gap: 8px 10px;
+    padding: 12px 0;
   }
-  .track-admin-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .track-admin-num { display: none; }
+  .track-admin img,
+  .track-admin-placeholder {
+    width: 40px;
+    height: 40px;
+  }
+  .track-admin-actions {
+    justify-content: stretch;
+  }
+  .track-admin-actions .ghost,
+  .track-admin-actions .danger {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  .form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .form-actions button { width: 100%; }
+  .admin-player {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "art meta controls"
+      "progress progress progress";
+    gap: 6px 10px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  }
+  .admin-player-art { width: 40px; height: 40px; }
+  .admin-player-title { font-size: 14px; }
+  .admin-player-album { font-size: 12px; }
+  .admin-player-ctrl {
+    width: 34px;
+    height: 34px;
+  }
+  .admin-player-play {
+    width: 36px;
+    height: 36px;
+  }
 }
