@@ -312,6 +312,12 @@ export function registerRoutes(app: Express): void {
       res.status(404).end();
       return;
     }
-    res.sendFile(full);
+    res.sendFile(full, {
+      acceptRanges: true,
+      headers: {
+        "Content-Type": "audio/mpeg",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
+    });
   });
 }

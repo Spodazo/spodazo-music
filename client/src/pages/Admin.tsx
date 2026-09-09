@@ -40,6 +40,18 @@ function useAdminPlayer() {
   const [duration, setDuration] = useState(0);
   const current = queue?.tracks[queue.index] ?? null;
 
+  function startTrack(track: PublicTrack) {
+    const audio = audioRef.current;
+    if (!audio || !track.audioUrl) return;
+    if (audio.dataset.trackId !== track.id) {
+      audio.dataset.trackId = track.id;
+      audio.src = track.audioUrl;
+      setCurrentTime(0);
+      setDuration(0);
+    }
+    void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+  }
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -51,21 +63,14 @@ function useAdminPlayer() {
       setPlaying(false);
       setCurrentTime(0);
       setDuration(0);
-      return;
     }
-    if (audio.dataset.trackId === current.id) return;
-    audio.dataset.trackId = current.id;
-    audio.src = current.audioUrl;
-    setCurrentTime(0);
-    setDuration(0);
-    audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
   }, [current]);
 
   function toggle() {
     const audio = audioRef.current;
     if (!audio || !current) return;
     if (audio.paused) {
-      audio.play().then(() => setPlaying(true)).catch(() => undefined);
+      void audio.play().then(() => setPlaying(true)).catch(() => undefined);
     } else {
       audio.pause();
       setPlaying(false);
@@ -85,6 +90,7 @@ function useAdminPlayer() {
       tracks: album.tracks,
       index,
     });
+    startTrack(track);
   }
 
   function playAlbum(album: PublicAlbum) {
@@ -127,12 +133,16 @@ function useAdminPlayer() {
     if (!queue) return;
     if (delta > 0) {
       const found = queue.tracks.findIndex((track, index) => index > queue.index && track.audioUrl);
-      if (found >= 0) setQueue({ ...queue, index: found });
+      if (found >= 0) {
+        setQueue({ ...queue, index: found });
+        startTrack(queue.tracks[found]);
+      }
       return;
     }
     for (let index = queue.index - 1; index >= 0; index -= 1) {
       if (queue.tracks[index]?.audioUrl) {
         setQueue({ ...queue, index });
+        startTrack(queue.tracks[index]);
         return;
       }
     }
@@ -143,6 +153,7 @@ function useAdminPlayer() {
     const next = queue.tracks.findIndex((track, index) => index > queue.index && track.audioUrl);
     if (next >= 0) {
       setQueue({ ...queue, index: next });
+      startTrack(queue.tracks[next]);
       return;
     }
     setPlaying(false);
@@ -1026,6 +1037,8 @@ function AdminPlayer({
       ) : null}
       <audio
         ref={audioRef}
+        preload="auto"
+        playsInline
         onTimeUpdate={(event) => onTimeUpdate(event.currentTarget.currentTime)}
         onDurationChange={(event) => onDurationChange(event.currentTarget.duration || 0)}
         onEnded={onEnded}

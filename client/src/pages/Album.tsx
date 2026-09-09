@@ -53,6 +53,30 @@ export default function AlbumPage() {
   const [repeatOne, setRepeatOne] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
+  const albumRef = useRef<PublicAlbum | null>(null);
+  const preloadRef = useRef<HTMLAudioElement | null>(null);
+  const probeStopRef = useRef(false);
+
+  function sameSrc(audio: HTMLAudioElement, src: string): boolean {
+    try {
+      return audio.src === new URL(src, window.location.href).href;
+    } catch {
+      return false;
+    }
+  }
+
+  function prefetch(url: string) {
+    if (!url) return;
+    let el = preloadRef.current;
+    if (!el) {
+      el = new Audio();
+      el.preload = "auto";
+      preloadRef.current = el;
+    }
+    if (el.dataset.url === url) return;
+    el.dataset.url = url;
+    el.src = url;
+  }
 
   useEffect(() => {
     fetchAlbum(slug)
@@ -69,16 +93,39 @@ export default function AlbumPage() {
   );
 
   useEffect(() => {
+    albumRef.current = album;
+    if (album?.tracks[0]?.audioUrl) prefetch(album.tracks[0].audioUrl);
+  }, [album]);
+
+  useEffect(() => {
     if (!album) return;
-    album.tracks.forEach((item) => {
-      if (!item.audioUrl) return;
+    probeStopRef.current = false;
+    const items = album.tracks.filter((item) => item.audioUrl);
+    let index = 0;
+    let timer = 0;
+    const probeNext = () => {
+      if (probeStopRef.current) return;
+      const item = items[index++];
+      if (!item) return;
       const probe = new Audio();
       probe.preload = "metadata";
-      probe.src = item.audioUrl;
+      const finish = () => {
+        probe.removeAttribute("src");
+        probe.load();
+        timer = window.setTimeout(probeNext, 400);
+      };
       probe.onloadedmetadata = () => {
         setDurations((prev) => ({ ...prev, [item.id]: formatTime(probe.duration) }));
+        finish();
       };
-    });
+      probe.onerror = finish;
+      probe.src = item.audioUrl;
+    };
+    timer = window.setTimeout(probeNext, 600);
+    return () => {
+      probeStopRef.current = true;
+      window.clearTimeout(timer);
+    };
   }, [album]);
 
   useEffect(() => {
@@ -110,13 +157,19 @@ export default function AlbumPage() {
   }
 
   function load(index: number, autoplay: boolean) {
-    const next = album?.tracks[index];
+    const catalog = albumRef.current;
+    const next = catalog?.tracks[index];
     const audio = audioRef.current;
     if (!next || !audio) return;
-    audio.src = next.audioUrl;
+    if (!sameSrc(audio, next.audioUrl)) {
+      audio.src = next.audioUrl;
+    }
     history.replaceState(null, "", `#${next.slug}`);
+    const upcoming = catalog?.tracks[(index + 1) % catalog.tracks.length];
+    if (upcoming?.audioUrl) prefetch(upcoming.audioUrl);
     if (autoplay) {
-      audio.play().then(() => {
+      probeStopRef.current = true;
+      void audio.play().then(() => {
         setPlaying(true);
         acquireWake();
       }).catch(() => setPlaying(false));
@@ -125,7 +178,7 @@ export default function AlbumPage() {
 
   function openAt(index: number, autoplay: boolean) {
     setActive(index);
-    setTimeout(() => load(index, autoplay), 0);
+    load(index, autoplay);
   }
 
   function closeModal() {
@@ -358,8 +411,16 @@ export default function AlbumPage() {
 
       <audio
         ref={audioRef}
+        preload="auto"
+        playsInline
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-        onDurationChange={(event) => setDuration(event.currentTarget.duration || 0)}
+        onDurationChange={(event) => {
+          const seconds = event.currentTarget.duration || 0;
+          setDuration(seconds);
+          if (track && seconds) {
+            setDurations((prev) => ({ ...prev, [track.id]: formatTime(seconds) }));
+          }
+        }}
         onEnded={onEnded}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
