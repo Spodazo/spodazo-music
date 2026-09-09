@@ -83,8 +83,6 @@ export default function AlbumPage() {
   useEffect(() => {
     fetchAlbum(slug)
       .then((data) => {
-        const first = data.tracks[0]?.audioUrl;
-        if (first && audioRef.current) assignSrc(audioRef.current, first);
         setAlbum(data);
         document.title = `${data.title} — ${data.artists}`;
       })
@@ -98,8 +96,6 @@ export default function AlbumPage() {
 
   useEffect(() => {
     albumRef.current = album;
-    const first = album?.tracks[0]?.audioUrl;
-    if (first && audioRef.current) assignSrc(audioRef.current, first);
   }, [album]);
 
   useEffect(() => {

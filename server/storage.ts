@@ -82,21 +82,12 @@ function hydrateAlbum(album: Album, albumTracks: Track[]): PublicAlbum {
   };
 }
 
-function firstLiveAudioUrl(albumTracks: Track[]): string {
-  const first = albumTracks
-    .filter((track) => !track.archived && track.file)
-    .sort((a, b) => a.n - b.n)[0];
-  return first ? audioUrl(first.file) : "";
-}
-
-function toListItem(album: Album, albumTracks: Track[]): AlbumListItem {
-  const live = albumTracks.filter((track) => !track.archived);
+function toListItem(album: Album, trackCount: number): AlbumListItem {
   return {
     ...album,
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
-    trackCount: live.length,
-    firstAudioUrl: firstLiveAudioUrl(live),
+    trackCount,
   };
 }
 
@@ -179,7 +170,7 @@ export class JsonMusicStore implements MusicStore {
       .map((album) =>
         toListItem(
           album,
-          catalog.tracks.filter((track) => track.albumId === album.id),
+          catalog.tracks.filter((track) => track.albumId === album.id && !track.archived).length,
         ),
       );
   }
@@ -469,7 +460,7 @@ export class PostgresMusicStore implements MusicStore {
     return rows.map((row) =>
       toListItem(
         rowAlbum(row),
-        trackRows.filter((track) => track.albumId === row.id).map(rowTrack),
+        trackRows.filter((track) => track.albumId === row.id && !track.archived).length,
       ),
     );
   }

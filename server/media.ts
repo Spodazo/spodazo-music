@@ -25,5 +25,5 @@ export function imageUrl(filename: string): string {
 
 export function audioUrl(filename: string): string {
   if (!filename) return "";
-  return `/media/songs/${encodeURIComponent(filename)}`;
+  return `/media/songs/${encodeURIComponent(filename)}?v=2`;
 }
