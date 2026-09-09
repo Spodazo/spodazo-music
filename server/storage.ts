@@ -35,6 +35,7 @@ export type TrackInput = {
   lyrics?: string;
   instrumental?: boolean;
   slug?: string;
+  archived?: boolean;
 };
 
 export interface MusicStore {
@@ -47,6 +48,7 @@ export interface MusicStore {
   createTrack(input: TrackInput): Promise<Track>;
   updateTrack(id: string, input: Partial<TrackInput>): Promise<Track | null>;
   deleteTrack(id: string): Promise<boolean>;
+  setTrackArchived(id: string, archived: boolean): Promise<Track | null>;
   reorderTracks(albumId: string, trackIds: string[]): Promise<Track[]>;
   reorderAlbums(albumIds: string[]): Promise<Album[]>;
 }
@@ -59,20 +61,24 @@ function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+function hydrateTrack(track: Track) {
+  return {
+    ...track,
+    archived: Boolean(track.archived),
+    imageUrl: imageUrl(track.img),
+    audioUrl: audioUrl(track.file),
+  };
+}
+
 function hydrateAlbum(album: Album, albumTracks: Track[]): PublicAlbum {
+  const mapped = albumTracks.map(hydrateTrack);
   return {
     ...album,
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
     artistUrl: imageUrl(album.artistThumb || album.thumb || album.heroPortrait),
-    tracks: albumTracks
-      .slice()
-      .sort((a, b) => a.n - b.n)
-      .map((track) => ({
-        ...track,
-        imageUrl: imageUrl(track.img),
-        audioUrl: audioUrl(track.file),
-      })),
+    tracks: mapped.filter((track) => !track.archived).sort((a, b) => a.n - b.n),
+    archivedTracks: mapped.filter((track) => track.archived).sort((a, b) => a.title.localeCompare(b.title)),
   };
 }
 
@@ -147,7 +153,7 @@ export class JsonMusicStore implements MusicStore {
     const raw = JSON.parse(fs.readFileSync(catalogPath(), "utf8")) as CatalogFile;
     return {
       albums: (raw.albums || []).map((album) => ({ ...album, hidden: Boolean(album.hidden) })),
-      tracks: raw.tracks || [],
+      tracks: (raw.tracks || []).map((track) => ({ ...track, archived: Boolean(track.archived) })),
     };
   }
 
@@ -164,7 +170,7 @@ export class JsonMusicStore implements MusicStore {
       .map((album) =>
         toListItem(
           album,
-          catalog.tracks.filter((track) => track.albumId === album.id).length,
+          catalog.tracks.filter((track) => track.albumId === album.id && !track.archived).length,
         ),
       );
   }
@@ -232,7 +238,7 @@ export class JsonMusicStore implements MusicStore {
 
   async createTrack(input: TrackInput): Promise<Track> {
     const catalog = this.read();
-    const siblings = catalog.tracks.filter((item) => item.albumId === input.albumId);
+    const siblings = catalog.tracks.filter((item) => item.albumId === input.albumId && !item.archived);
     const track: Track = {
       id: input.id || newId("track"),
       albumId: input.albumId,
@@ -245,6 +251,7 @@ export class JsonMusicStore implements MusicStore {
       lyrics: input.lyrics || "",
       instrumental: Boolean(input.instrumental),
       slug: input.slug || "",
+      archived: Boolean(input.archived),
       createdAt: nowIso(),
       updatedAt: nowIso(),
     };
@@ -268,13 +275,34 @@ export class JsonMusicStore implements MusicStore {
     if (!track) return false;
     catalog.tracks = catalog.tracks.filter((item) => item.id !== id);
     catalog.tracks
-      .filter((item) => item.albumId === track.albumId)
+      .filter((item) => item.albumId === track.albumId && !item.archived)
       .sort((a, b) => a.n - b.n)
       .forEach((item, index) => {
         item.n = index + 1;
       });
     this.write(catalog);
     return true;
+  }
+
+  async setTrackArchived(id: string, archived: boolean): Promise<Track | null> {
+    const catalog = this.read();
+    const track = catalog.tracks.find((item) => item.id === id);
+    if (!track) return null;
+    track.archived = archived;
+    track.updatedAt = nowIso();
+    const live = catalog.tracks.filter((item) => item.albumId === track.albumId && !item.archived);
+    if (archived) {
+      live
+        .sort((a, b) => a.n - b.n)
+        .forEach((item, index) => {
+          item.n = index + 1;
+        });
+    } else {
+      const others = live.filter((item) => item.id !== track.id);
+      track.n = others.reduce((max, item) => Math.max(max, item.n), 0) + 1;
+    }
+    this.write(catalog);
+    return track;
   }
 
   async reorderTracks(albumId: string, trackIds: string[]): Promise<Track[]> {
@@ -331,6 +359,7 @@ function rowTrack(row: typeof tracks.$inferSelect): Track {
     lyrics: row.lyrics,
     instrumental: row.instrumental,
     slug: row.slug,
+    archived: Boolean(row.archived),
     createdAt: row.createdAt?.toISOString(),
     updatedAt: row.updatedAt?.toISOString(),
   };
@@ -376,12 +405,14 @@ export class PostgresMusicStore implements MusicStore {
         lyrics TEXT NOT NULL DEFAULT '',
         instrumental BOOLEAN NOT NULL DEFAULT false,
         slug TEXT NOT NULL DEFAULT '',
+        archived BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ DEFAULT now(),
         updated_at TIMESTAMPTZ DEFAULT now()
       )
     `);
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS artist_thumb TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`);
+    await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
     const existing = await this.db.select({ id: albums.id }).from(albums).limit(1);
     if (existing.length === 0) {
       for (const album of DEFAULT_CATALOG.albums) {
@@ -429,7 +460,7 @@ export class PostgresMusicStore implements MusicStore {
     return rows.map((row) =>
       toListItem(
         rowAlbum(row),
-        trackRows.filter((track) => track.albumId === row.id).length,
+        trackRows.filter((track) => track.albumId === row.id && !track.archived).length,
       ),
     );
   }
@@ -522,6 +553,7 @@ export class PostgresMusicStore implements MusicStore {
         lyrics: input.lyrics || "",
         instrumental: Boolean(input.instrumental),
         slug: input.slug || "",
+        archived: Boolean(input.archived),
       })
       .returning();
     return rowTrack(row);
@@ -538,6 +570,7 @@ export class PostgresMusicStore implements MusicStore {
     if (input.lyrics !== undefined) patch.lyrics = input.lyrics;
     if (input.instrumental !== undefined) patch.instrumental = input.instrumental;
     if (input.slug !== undefined) patch.slug = input.slug;
+    if (input.archived !== undefined) patch.archived = input.archived;
     if (input.albumId !== undefined) patch.albumId = input.albumId;
     const [row] = await this.db.update(tracks).set(patch).where(eq(tracks.id, id)).returning();
     return row ? rowTrack(row) : null;
@@ -549,12 +582,44 @@ export class PostgresMusicStore implements MusicStore {
     const remaining = await this.db
       .select()
       .from(tracks)
-      .where(eq(tracks.albumId, removed.albumId))
+      .where(and(eq(tracks.albumId, removed.albumId), eq(tracks.archived, false)))
       .orderBy(asc(tracks.n));
     for (const [index, track] of remaining.entries()) {
       await this.db.update(tracks).set({ n: index + 1 }).where(eq(tracks.id, track.id));
     }
     return true;
+  }
+
+  async setTrackArchived(id: string, archived: boolean): Promise<Track | null> {
+    const [current] = await this.db.select().from(tracks).where(eq(tracks.id, id)).limit(1);
+    if (!current) return null;
+    const [row] = await this.db
+      .update(tracks)
+      .set({ archived, updatedAt: new Date() })
+      .where(eq(tracks.id, id))
+      .returning();
+    if (!row) return null;
+    const live = await this.db
+      .select()
+      .from(tracks)
+      .where(and(eq(tracks.albumId, row.albumId), eq(tracks.archived, false)))
+      .orderBy(asc(tracks.n));
+    if (archived) {
+      for (const [index, track] of live.entries()) {
+        await this.db.update(tracks).set({ n: index + 1, updatedAt: new Date() }).where(eq(tracks.id, track.id));
+      }
+    } else {
+      const others = live.filter((track) => track.id !== row.id);
+      const n = others.reduce((max, track) => Math.max(max, track.n), 0) + 1;
+      const [restored] = await this.db
+        .update(tracks)
+        .set({ n, updatedAt: new Date() })
+        .where(eq(tracks.id, id))
+        .returning();
+      return restored ? rowTrack(restored) : rowTrack(row);
+    }
+    const [updated] = await this.db.select().from(tracks).where(eq(tracks.id, id)).limit(1);
+    return updated ? rowTrack(updated) : rowTrack(row);
   }
 
   async reorderTracks(albumId: string, trackIds: string[]): Promise<Track[]> {

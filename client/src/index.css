@@ -869,6 +869,19 @@ a { color: inherit; }
 }
 .admin-track-play svg { width: 26px; height: 26px; fill: currentColor; }
 .admin-track-play:disabled { opacity: 0.35; cursor: not-allowed; }
+.archive-block {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.archive-block h3 {
+  margin: 0 0 6px;
+  font-family: "Playfair Display", serif;
+}
+.archive-row {
+  grid-template-columns: 56px minmax(0, 1fr) 48px auto;
+  grid-template-areas: "art info play actions";
+}
 
 .admin-player {
   position: fixed;
@@ -1116,6 +1129,15 @@ a { color: inherit; }
   }
   .track-admin-actions {
     justify-content: stretch;
+  }
+  .archive-row {
+    grid-template-columns: 40px minmax(0, 1fr) 48px;
+    grid-template-areas:
+      "art info play"
+      "actions actions actions";
+  }
+  .archive-row .track-admin-actions button {
+    flex: 1;
   }
   .track-admin-actions .ghost,
   .track-admin-actions .danger {

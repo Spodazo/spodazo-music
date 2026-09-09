@@ -665,6 +665,7 @@ export const ECHOES_TRACKS: Track[] = TRACK_META.map((track) => ({
   lyrics: track.lyrics || "",
   instrumental: Boolean(track.instrumental),
   slug: slugify(track.title),
+  archived: false,
 }));
 
 export const DEFAULT_CATALOG = {

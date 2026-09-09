@@ -73,4 +73,20 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(listed.length, 2);
   assert.equal(listed[0].slug, "second-watch");
   assert.equal(listed[1].slug, "echoes");
+
+  await store.setTrackArchived(track.id, true);
+  const afterArchive = await store.getAlbumBySlug("second-watch");
+  assert.equal(afterArchive?.tracks.length, 1);
+  assert.equal(afterArchive?.tracks[0].title, "Second Light");
+  assert.equal(afterArchive?.archivedTracks.length, 1);
+  assert.equal(afterArchive?.archivedTracks[0].id, track.id);
+  assert.equal(afterArchive?.archivedTracks[0].archived, true);
+  const listedAfterArchive = await store.listAlbums();
+  assert.equal(listedAfterArchive.find((item) => item.id === album.id)?.trackCount, 1);
+
+  await store.setTrackArchived(track.id, false);
+  const afterRestore = await store.getAlbumBySlug("second-watch");
+  assert.equal(afterRestore?.archivedTracks.length, 0);
+  assert.equal(afterRestore?.tracks.length, 2);
+  assert.ok(afterRestore?.tracks.some((item) => item.id === track.id && !item.archived));
 });

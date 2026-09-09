@@ -27,6 +27,7 @@ export type Track = {
   lyrics: string;
   instrumental: boolean;
   slug: string;
+  archived: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -42,6 +43,7 @@ export type PublicAlbum = Album & {
   thumbUrl: string;
   artistUrl: string;
   tracks: PublicTrack[];
+  archivedTracks: PublicTrack[];
 };
 
 export type AlbumListItem = Album & {

@@ -260,6 +260,17 @@ export function registerRoutes(app: Express): void {
     res.json({ ok: true });
   });
 
+  app.post("/api/admin/tracks/:id/archive", requireAdmin, async (req, res) => {
+    const store = await getStore();
+    const archived = req.body?.archived === true || req.body?.archived === "true";
+    const updated = await store.setTrackArchived(req.params.id, archived);
+    if (!updated) {
+      res.status(404).json({ error: "Track not found" });
+      return;
+    }
+    res.json(updated);
+  });
+
   app.post("/api/admin/albums/:id/reorder", requireAdmin, async (req, res) => {
     const store = await getStore();
     const trackIds = Array.isArray(req.body?.trackIds) ? req.body.trackIds.map(String) : [];

@@ -80,6 +80,14 @@ export function deleteTrack(id: string): Promise<void> {
     .then(() => undefined);
 }
 
+export function setTrackArchived(id: string, archived: boolean): Promise<Track> {
+  return fetch(`/api/admin/tracks/${encodeURIComponent(id)}/archive`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ archived }),
+  }).then((res) => parse<Track>(res));
+}
+
 export function reorderTracks(albumId: string, trackIds: string[]): Promise<Track[]> {
   return fetch(`/api/admin/albums/${encodeURIComponent(albumId)}/reorder`, {
     method: "POST",

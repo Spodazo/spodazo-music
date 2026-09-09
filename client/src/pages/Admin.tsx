@@ -8,12 +8,12 @@ import {
   createTrack,
   createTracksBulk,
   deleteAlbum,
-  deleteTrack,
   fetchAlbum,
   fetchAlbums,
   reorderAlbums,
   reorderTracks,
   setAlbumHidden,
+  setTrackArchived,
   updateAlbum,
   updateTrack,
 } from "../lib/api";
@@ -100,14 +100,26 @@ function useAdminPlayer() {
     setQueue((currentQueue) => {
       if (!currentQueue || currentQueue.albumId !== album.id) return currentQueue;
       const playingId = currentQueue.tracks[currentQueue.index]?.id;
-      const index = album.tracks.findIndex((track) => track.id === playingId);
-      if (!album.tracks.length) return null;
-      return {
-        albumId: album.id,
-        albumTitle: album.title,
-        tracks: album.tracks,
-        index: index >= 0 ? index : 0,
-      };
+      const liveIndex = album.tracks.findIndex((track) => track.id === playingId);
+      if (liveIndex >= 0) {
+        return {
+          albumId: album.id,
+          albumTitle: album.title,
+          tracks: album.tracks,
+          index: liveIndex,
+        };
+      }
+      const archived = album.archivedTracks || [];
+      const archivedIndex = archived.findIndex((track) => track.id === playingId);
+      if (archivedIndex >= 0) {
+        return {
+          albumId: album.id,
+          albumTitle: `${album.title} (Archive)`,
+          tracks: archived,
+          index: archivedIndex,
+        };
+      }
+      return null;
     });
   }
 
@@ -289,8 +301,16 @@ export default function AdminPage() {
             currentTrackId={player.current?.id || null}
             playing={player.playing}
             onPlay={(trackId) => {
-              const index = selected.tracks.findIndex((track) => track.id === trackId);
-              if (index >= 0) player.playAlbumTracks(selected, index);
+              const liveIndex = selected.tracks.findIndex((track) => track.id === trackId);
+              if (liveIndex >= 0) {
+                player.playAlbumTracks(selected, liveIndex);
+                return;
+              }
+              const archived = selected.archivedTracks || [];
+              const archivedIndex = archived.findIndex((track) => track.id === trackId);
+              if (archivedIndex >= 0) {
+                player.playAlbumTracks({ ...selected, tracks: archived }, archivedIndex);
+              }
             }}
             onPlayAll={() => player.playAlbum(selected)}
             onChange={async () => { await loadAlbum(selected.slug); }}
@@ -644,12 +664,12 @@ function TrackAdmin({
               type="button"
               className="danger"
               onClick={async () => {
-                if (!confirm(`Remove ${track.title}?`)) return;
-                await deleteTrack(track.id);
+                if (!confirm(`Archive ${track.title}? You can restore it later from Archive.`)) return;
+                await setTrackArchived(track.id, true);
                 await onChange();
               }}
             >
-              Remove
+              Archive
             </button>
           </div>
         </div>
@@ -661,6 +681,17 @@ function TrackAdmin({
         nextNumber={album.tracks.length + 1}
         onSaved={onChange}
         onCancel={() => undefined}
+      />
+      <ArchiveList
+        tracks={album.archivedTracks || []}
+        currentTrackId={currentTrackId}
+        playing={playing}
+        onPlay={onPlay}
+        onRestore={async (track) => {
+          await setTrackArchived(track.id, false);
+          await onChange();
+        }}
+        onEdit={setEditing}
       />
       {editing ? (
         <AdminDialog title={`Edit ${editing.title}`} onClose={() => setEditing(null)}>
@@ -679,6 +710,59 @@ function TrackAdmin({
         </AdminDialog>
       ) : null}
     </section>
+  );
+}
+
+function ArchiveList({
+  tracks,
+  currentTrackId,
+  playing,
+  onPlay,
+  onRestore,
+  onEdit,
+}: {
+  tracks: PublicTrack[];
+  currentTrackId: string | null;
+  playing: boolean;
+  onPlay: (trackId: string) => void;
+  onRestore: (track: PublicTrack) => Promise<void>;
+  onEdit: (track: PublicTrack) => void;
+}) {
+  return (
+    <div className="archive-block">
+      <h3>Archive</h3>
+      <p className="hint">
+        {tracks.length
+          ? "These songs are hidden from the album. Restore one to put it back live."
+          : "Archived songs will appear here so you can restore them later."}
+      </p>
+      {tracks.map((track) => (
+        <div
+          className={`track-admin archive-row${currentTrackId === track.id ? " playing" : ""}`}
+          key={track.id}
+        >
+          {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div className="track-admin-placeholder">No cover</div>}
+          <div className="track-admin-info">
+            <strong>{track.title}</strong>
+            <div>{track.scripture || "Archived"}</div>
+          </div>
+          <button
+            type="button"
+            className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
+            onClick={() => onPlay(track.id)}
+            disabled={!track.audioUrl}
+            title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
+            aria-label={`${currentTrackId === track.id && playing ? "Pause" : "Play"} ${track.title}`}
+          >
+            {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
+          </button>
+          <div className="track-admin-actions">
+            <button type="button" className="ghost" onClick={() => onEdit(track)}>Edit</button>
+            <button type="button" onClick={() => void onRestore(track)}>Restore</button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

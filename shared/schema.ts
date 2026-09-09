@@ -31,6 +31,7 @@ export const tracks = pgTable("tracks", {
   lyrics: text("lyrics").notNull().default(""),
   instrumental: boolean("instrumental").notNull().default(false),
   slug: text("slug").notNull().default(""),
+  archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
