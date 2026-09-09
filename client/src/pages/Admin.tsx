@@ -46,10 +46,20 @@ function useAdminPlayer() {
     if (audio.dataset.trackId !== track.id) {
       audio.dataset.trackId = track.id;
       audio.src = track.audioUrl;
+      audio.load();
       setCurrentTime(0);
       setDuration(0);
     }
     void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+  }
+
+  function warmTrack(track: PublicTrack) {
+    const audio = audioRef.current;
+    if (!audio || !track.audioUrl || !audio.paused) return;
+    if (audio.dataset.trackId === track.id) return;
+    audio.dataset.trackId = track.id;
+    audio.src = track.audioUrl;
+    audio.load();
   }
 
   useEffect(() => {
@@ -196,6 +206,7 @@ function useAdminPlayer() {
     duration,
     playAlbum,
     playAlbumTracks,
+    warmTrack,
     syncQueue,
     toggle,
     skip,
@@ -319,6 +330,12 @@ export default function AdminPage() {
             album={selected}
             currentTrackId={player.current?.id || null}
             playing={player.playing}
+            onWarm={(trackId) => {
+              const track =
+                selected.tracks.find((item) => item.id === trackId) ||
+                selected.archivedTracks?.find((item) => item.id === trackId);
+              if (track) player.warmTrack(track);
+            }}
             onPlay={(trackId) => {
               const liveIndex = selected.tracks.findIndex((track) => track.id === trackId);
               if (liveIndex >= 0) {
@@ -589,6 +606,7 @@ function TrackAdmin({
   album,
   currentTrackId,
   playing,
+  onWarm,
   onPlay,
   onPlayAll,
   onChange,
@@ -596,6 +614,7 @@ function TrackAdmin({
   album: PublicAlbum;
   currentTrackId: string | null;
   playing: boolean;
+  onWarm: (trackId: string) => void;
   onPlay: (trackId: string) => void;
   onPlayAll: () => void;
   onChange: () => Promise<void>;
@@ -627,7 +646,15 @@ function TrackAdmin({
       <div className="track-head">
         <h2>Tracks — {album.title}</h2>
         <div className="track-head-actions">
-          <button type="button" className="ghost" onClick={onPlayAll} disabled={!album.tracks.some((track) => track.audioUrl)}>
+          <button
+            type="button"
+            className="ghost"
+            onPointerDown={() => {
+              if (album.tracks[0]) onWarm(album.tracks[0].id);
+            }}
+            onClick={onPlayAll}
+            disabled={!album.tracks.some((track) => track.audioUrl)}
+          >
             {currentTrackId && album.tracks.some((track) => track.id === currentTrackId) && playing ? "Pause" : "Play all"}
           </button>
           <BulkTrackUpload albumId={album.id} onSaved={onChange} />
@@ -672,6 +699,7 @@ function TrackAdmin({
             <button
               type="button"
               className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
+              onPointerDown={() => onWarm(track.id)}
               onClick={() => onPlay(track.id)}
               disabled={!track.audioUrl}
               title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}
@@ -706,6 +734,7 @@ function TrackAdmin({
         tracks={album.archivedTracks || []}
         currentTrackId={currentTrackId}
         playing={playing}
+        onWarm={onWarm}
         onPlay={onPlay}
         onRestore={async (track) => {
           await setTrackArchived(track.id, false);
@@ -737,6 +766,7 @@ function ArchiveList({
   tracks,
   currentTrackId,
   playing,
+  onWarm,
   onPlay,
   onRestore,
   onEdit,
@@ -744,6 +774,7 @@ function ArchiveList({
   tracks: PublicTrack[];
   currentTrackId: string | null;
   playing: boolean;
+  onWarm: (trackId: string) => void;
   onPlay: (trackId: string) => void;
   onRestore: (track: PublicTrack) => Promise<void>;
   onEdit: (track: PublicTrack) => void;
@@ -770,6 +801,7 @@ function ArchiveList({
             <button
               type="button"
               className={`ghost admin-track-play${currentTrackId === track.id && playing ? " on" : ""}`}
+              onPointerDown={() => onWarm(track.id)}
               onClick={() => onPlay(track.id)}
               disabled={!track.audioUrl}
               title={track.audioUrl ? (currentTrackId === track.id && playing ? "Pause" : "Play") : "No audio file"}

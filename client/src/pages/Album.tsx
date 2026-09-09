@@ -54,8 +54,7 @@ export default function AlbumPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
-  const preloadRef = useRef<HTMLAudioElement | null>(null);
-  const probeStopRef = useRef(false);
+  const prefetchAbortRef = useRef<AbortController | null>(null);
 
   function sameSrc(audio: HTMLAudioElement, src: string): boolean {
     try {
@@ -65,17 +64,20 @@ export default function AlbumPage() {
     }
   }
 
-  function prefetch(url: string) {
+  function assignSrc(audio: HTMLAudioElement, src: string) {
+    if (sameSrc(audio, src)) return;
+    audio.src = src;
+    audio.load();
+  }
+
+  function prefetchRange(url: string, signal?: AbortSignal) {
     if (!url) return;
-    let el = preloadRef.current;
-    if (!el) {
-      el = new Audio();
-      el.preload = "auto";
-      preloadRef.current = el;
-    }
-    if (el.dataset.url === url) return;
-    el.dataset.url = url;
-    el.src = url;
+    void fetch(url, {
+      headers: { Range: "bytes=0-1048575" },
+      cache: "force-cache",
+      credentials: "same-origin",
+      signal,
+    }).catch(() => undefined);
   }
 
   useEffect(() => {
@@ -94,37 +96,29 @@ export default function AlbumPage() {
 
   useEffect(() => {
     albumRef.current = album;
-    if (album?.tracks[0]?.audioUrl) prefetch(album.tracks[0].audioUrl);
+    const audio = audioRef.current;
+    const first = album?.tracks[0]?.audioUrl;
+    if (audio && first && audio.paused && !audio.src) assignSrc(audio, first);
   }, [album]);
 
   useEffect(() => {
     if (!album) return;
-    probeStopRef.current = false;
-    const items = album.tracks.filter((item) => item.audioUrl);
+    const controller = new AbortController();
+    prefetchAbortRef.current = controller;
+    const urls = album.tracks.map((item) => item.audioUrl).filter(Boolean);
     let index = 0;
     let timer = 0;
-    const probeNext = () => {
-      if (probeStopRef.current) return;
-      const item = items[index++];
-      if (!item) return;
-      const probe = new Audio();
-      probe.preload = "metadata";
-      const finish = () => {
-        probe.removeAttribute("src");
-        probe.load();
-        timer = window.setTimeout(probeNext, 400);
-      };
-      probe.onloadedmetadata = () => {
-        setDurations((prev) => ({ ...prev, [item.id]: formatTime(probe.duration) }));
-        finish();
-      };
-      probe.onerror = finish;
-      probe.src = item.audioUrl;
+    const pump = () => {
+      if (controller.signal.aborted) return;
+      const url = urls[index++];
+      if (!url) return;
+      prefetchRange(url, controller.signal);
+      timer = window.setTimeout(pump, 350);
     };
-    timer = window.setTimeout(probeNext, 600);
+    timer = window.setTimeout(pump, 200);
     return () => {
-      probeStopRef.current = true;
       window.clearTimeout(timer);
+      controller.abort();
     };
   }, [album]);
 
@@ -156,29 +150,36 @@ export default function AlbumPage() {
     wakeRef.current = null;
   }
 
+  function warm(index: number) {
+    const next = albumRef.current?.tracks[index];
+    const audio = audioRef.current;
+    if (!next?.audioUrl || !audio || !audio.paused) return;
+    assignSrc(audio, next.audioUrl);
+  }
+
   function load(index: number, autoplay: boolean) {
     const catalog = albumRef.current;
     const next = catalog?.tracks[index];
     const audio = audioRef.current;
     if (!next || !audio) return;
-    if (!sameSrc(audio, next.audioUrl)) {
-      audio.src = next.audioUrl;
-    }
-    history.replaceState(null, "", `#${next.slug}`);
-    const upcoming = catalog?.tracks[(index + 1) % catalog.tracks.length];
-    if (upcoming?.audioUrl) prefetch(upcoming.audioUrl);
+    assignSrc(audio, next.audioUrl);
     if (autoplay) {
-      probeStopRef.current = true;
+      prefetchAbortRef.current?.abort();
       void audio.play().then(() => {
         setPlaying(true);
-        acquireWake();
+        window.setTimeout(() => acquireWake(), 400);
       }).catch(() => setPlaying(false));
     }
+    window.setTimeout(() => {
+      history.replaceState(null, "", `#${next.slug}`);
+      const upcoming = catalog?.tracks[(index + 1) % catalog.tracks.length];
+      if (upcoming?.audioUrl) prefetchRange(upcoming.audioUrl);
+    }, 250);
   }
 
   function openAt(index: number, autoplay: boolean) {
-    setActive(index);
     load(index, autoplay);
+    setActive(index);
   }
 
   function closeModal() {
@@ -267,7 +268,11 @@ export default function AlbumPage() {
         <div className="album-hero">
           <span className="song-count">{album.tracks.length} Songs</span>
           <div className="hero-play">
-            <button className="btn-play-all" onClick={() => openAt(0, true)}>
+            <button
+              className="btn-play-all"
+              onPointerDown={() => warm(0)}
+              onClick={() => openAt(0, true)}
+            >
               <IconPlay />
               Play All
             </button>
@@ -300,6 +305,7 @@ export default function AlbumPage() {
               index={index}
               durationLabel={durations[item.id]}
               active={active === index}
+              onWarm={() => warm(index)}
               onPlay={() => openAt(index, true)}
             />
           ))}
@@ -434,16 +440,23 @@ function TrackRow({
   index,
   durationLabel,
   active,
+  onWarm,
   onPlay,
 }: {
   track: PublicTrack;
   index: number;
   durationLabel?: string;
   active: boolean;
+  onWarm: () => void;
   onPlay: () => void;
 }) {
   return (
-    <div className={`track-row${active ? " playing" : ""}`} data-i={index} onClick={onPlay}>
+    <div
+      className={`track-row${active ? " playing" : ""}`}
+      data-i={index}
+      onPointerDown={onWarm}
+      onClick={onPlay}
+    >
       <span className="t-num">{pad(track.n)}</span>
       <div className="t-thumb" style={{ backgroundImage: track.imageUrl ? `url("${track.imageUrl}")` : undefined }} />
       <div className="t-info">
