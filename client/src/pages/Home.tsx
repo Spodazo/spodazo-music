@@ -10,7 +10,17 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchAlbums()
-      .then(setAlbums)
+      .then((list) => {
+        setAlbums(list);
+        for (const album of list) {
+          if (!album.firstAudioUrl) continue;
+          void fetch(album.firstAudioUrl, {
+            headers: { Range: "bytes=0-1572863" },
+            cache: "force-cache",
+            credentials: "same-origin",
+          }).catch(() => undefined);
+        }
+      })
       .catch((err: Error) => setError(err.message));
   }, []);
 
@@ -22,7 +32,19 @@ export default function HomePage() {
         {error ? <p className="error">{error}</p> : null}
         <div className="album-grid">
           {albums.map((album) => (
-            <Link key={album.id} href={`/${album.slug}`} className="album-card">
+            <Link
+              key={album.id}
+              href={`/${album.slug}`}
+              className="album-card"
+              onPointerDown={() => {
+                if (!album.firstAudioUrl) return;
+                void fetch(album.firstAudioUrl, {
+                  headers: { Range: "bytes=0-1572863" },
+                  cache: "force-cache",
+                  credentials: "same-origin",
+                }).catch(() => undefined);
+              }}
+            >
               {album.thumbUrl ? <img src={album.thumbUrl} alt={album.title} /> : <div style={{ aspectRatio: "1", background: "#1b2330" }} />}
               <div className="album-card-body">
                 <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>

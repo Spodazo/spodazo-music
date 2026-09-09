@@ -50,4 +50,5 @@ export type AlbumListItem = Album & {
   heroUrl: string;
   thumbUrl: string;
   trackCount: number;
+  firstAudioUrl: string;
 };

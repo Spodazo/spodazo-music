@@ -83,6 +83,8 @@ export default function AlbumPage() {
   useEffect(() => {
     fetchAlbum(slug)
       .then((data) => {
+        const first = data.tracks[0]?.audioUrl;
+        if (first && audioRef.current) assignSrc(audioRef.current, first);
         setAlbum(data);
         document.title = `${data.title} — ${data.artists}`;
       })
@@ -96,16 +98,16 @@ export default function AlbumPage() {
 
   useEffect(() => {
     albumRef.current = album;
-    const audio = audioRef.current;
     const first = album?.tracks[0]?.audioUrl;
-    if (audio && first && audio.paused && !audio.src) assignSrc(audio, first);
+    if (first && audioRef.current) assignSrc(audioRef.current, first);
   }, [album]);
 
   useEffect(() => {
     if (!album) return;
     const controller = new AbortController();
     prefetchAbortRef.current = controller;
-    const urls = album.tracks.map((item) => item.audioUrl).filter(Boolean);
+    const first = album.tracks[0]?.audioUrl;
+    const urls = album.tracks.map((item) => item.audioUrl).filter((url) => url && url !== first);
     let index = 0;
     let timer = 0;
     const pump = () => {
@@ -113,9 +115,9 @@ export default function AlbumPage() {
       const url = urls[index++];
       if (!url) return;
       prefetchRange(url, controller.signal);
-      timer = window.setTimeout(pump, 350);
+      timer = window.setTimeout(pump, 450);
     };
-    timer = window.setTimeout(pump, 200);
+    timer = window.setTimeout(pump, 1200);
     return () => {
       window.clearTimeout(timer);
       controller.abort();
@@ -244,19 +246,38 @@ export default function AlbumPage() {
     audio.currentTime = ((event.clientX - rect.left) / rect.width) * duration;
   }
 
-  if (error) {
-    return <main className="home"><AdminLoginLink /><p className="error">{error}</p></main>;
-  }
-  if (!album) {
-    return <main className="home"><AdminLoginLink /><p>Loading…</p></main>;
-  }
+  const player = (
+    <audio
+      ref={audioRef}
+      preload="auto"
+      playsInline
+      onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+      onDurationChange={(event) => {
+        const seconds = event.currentTarget.duration || 0;
+        setDuration(seconds);
+        if (track && seconds) {
+          setDurations((prev) => ({ ...prev, [track.id]: formatTime(seconds) }));
+        }
+      }}
+      onEnded={onEnded}
+      onPlay={() => setPlaying(true)}
+      onPause={() => setPlaying(false)}
+    />
+  );
 
   return (
+    <>
+      {player}
+      {error ? (
+        <main className="home"><AdminLoginLink /><p className="error">{error}</p></main>
+      ) : !album ? (
+        <main className="home"><AdminLoginLink /><p>Loading…</p></main>
+      ) : (
     <div className="layout">
       <AdminLoginLink />
       <aside className="portrait-panel">
         {album.heroUrl ? (
-          <img className="portrait-img" src={album.heroUrl} alt={`${album.title} — ${album.artists}`} />
+          <img className="portrait-img" src={album.heroUrl} alt={`${album.title} — ${album.artists}`} fetchPriority="low" decoding="async" />
         ) : null}
       </aside>
       <section className="track-panel">
@@ -293,6 +314,8 @@ export default function AlbumPage() {
               src={album.artistUrl}
               alt={album.artists}
               title={album.artists}
+              fetchPriority="low"
+              decoding="async"
               onClick={() => setLightbox(true)}
             />
           ) : null}
@@ -415,23 +438,9 @@ export default function AlbumPage() {
         </div>
       ) : null}
 
-      <audio
-        ref={audioRef}
-        preload="auto"
-        playsInline
-        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-        onDurationChange={(event) => {
-          const seconds = event.currentTarget.duration || 0;
-          setDuration(seconds);
-          if (track && seconds) {
-            setDurations((prev) => ({ ...prev, [track.id]: formatTime(seconds) }));
-          }
-        }}
-        onEnded={onEnded}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-      />
     </div>
+      )}
+    </>
   );
 }
 
@@ -458,7 +467,11 @@ function TrackRow({
       onClick={onPlay}
     >
       <span className="t-num">{pad(track.n)}</span>
-      <div className="t-thumb" style={{ backgroundImage: track.imageUrl ? `url("${track.imageUrl}")` : undefined }} />
+      <div className="t-thumb">
+        {track.imageUrl ? (
+          <img src={track.imageUrl} alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+        ) : null}
+      </div>
       <div className="t-info">
         <div className="t-title">
           {track.title}
