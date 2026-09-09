@@ -142,6 +142,13 @@ export default function AlbumPage() {
     openAt(next, true);
   }
 
+  function restartSong() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    setCurrentTime(0);
+  }
+
   function togglePlay() {
     const audio = audioRef.current;
     if (!audio) return;
@@ -278,6 +285,9 @@ export default function AlbumPage() {
                 <span className="time">{formatTime(duration)}</span>
               </div>
               <div className="controls">
+                <button className="ctrl" onClick={restartSong} title="Back to beginning" aria-label="Back to beginning">
+                  <IconRestart />
+                </button>
                 <button className="ctrl" onClick={() => navigate(-1)} title="Previous" aria-label="Previous">
                   <IconPrev />
                 </button>
@@ -402,6 +412,14 @@ function IconPlay() {
 function IconPause() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+  );
+}
+
+function IconRestart() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+    </svg>
   );
 }
 

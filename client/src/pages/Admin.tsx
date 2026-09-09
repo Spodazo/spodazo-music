@@ -148,6 +148,13 @@ function useAdminPlayer() {
     setPlaying(false);
   }
 
+  function restart() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    setCurrentTime(0);
+  }
+
   function seek(event: MouseEvent<HTMLDivElement>) {
     const audio = audioRef.current;
     if (!audio || !duration) return;
@@ -181,6 +188,7 @@ function useAdminPlayer() {
     syncQueue,
     toggle,
     skip,
+    restart,
     seek,
     stop,
     onEnded,
@@ -348,6 +356,7 @@ export default function AdminPage() {
         duration={player.duration}
         onToggle={player.toggle}
         onSkip={player.skip}
+        onRestart={player.restart}
         onSeek={player.seek}
         onStop={player.stop}
         onEnded={player.onEnded}
@@ -946,6 +955,7 @@ function AdminPlayer({
   duration,
   onToggle,
   onSkip,
+  onRestart,
   onSeek,
   onStop,
   onEnded,
@@ -961,6 +971,7 @@ function AdminPlayer({
   duration: number;
   onToggle: () => void;
   onSkip: (delta: number) => void;
+  onRestart: () => void;
   onSeek: (event: MouseEvent<HTMLDivElement>) => void;
   onStop: () => void;
   onEnded: () => void;
@@ -982,6 +993,9 @@ function AdminPlayer({
             <div className="admin-player-album">{albumTitle}</div>
           </div>
           <div className="admin-player-controls">
+            <button type="button" className="ghost admin-player-ctrl" onClick={onRestart} title="Back to beginning" aria-label="Back to beginning">
+              <IconRestart />
+            </button>
             <button type="button" className="ghost admin-player-ctrl" onClick={() => onSkip(-1)} title="Previous" aria-label="Previous">
               <IconPrev />
             </button>
@@ -1031,6 +1045,14 @@ function IconPlay() {
 function IconPause() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+  );
+}
+
+function IconRestart() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+    </svg>
   );
 }
 
