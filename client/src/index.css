@@ -545,7 +545,7 @@ a { color: inherit; }
   scrollbar-color: var(--amber2) transparent;
 }
 .introduction-text {
-  font-size: 1.05rem;
+  font-size: 0.945rem;
   line-height: 1.65;
   color: var(--text2);
   white-space: pre-wrap;
@@ -565,7 +565,7 @@ a { color: inherit; }
   margin-top: 22px;
 }
 .lyrics-text {
-  font-size: 1.05rem;
+  font-size: 0.945rem;
   line-height: 1.7;
   color: var(--text2);
   white-space: pre-wrap;
