@@ -8,7 +8,6 @@ import {
   playSong,
   setPlaybackSession,
   unlockAudio,
-  waitForAudible,
 } from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
@@ -78,8 +77,6 @@ export default function AlbumPage() {
   const currentUrlRef = useRef("");
   const resumeTimeRef = useRef(0);
   const userVolRef = useRef(0.85);
-  const fadeRef = useRef(0);
-  const firstPlayRef = useRef(true);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
   const lyricsTrackRef = useRef<HTMLDivElement | null>(null);
@@ -171,34 +168,12 @@ export default function AlbumPage() {
     wakeRef.current = null;
   }
 
-  function fadeIn() {
-    const audio = audioRef.current;
-    if (!audio) return;
-    window.cancelAnimationFrame(fadeRef.current);
-    const target = userVolRef.current;
-    const started = performance.now();
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - started) / 90);
-      audio.volume = target * t;
-      if (t < 1) fadeRef.current = window.requestAnimationFrame(tick);
-    };
-    audio.volume = 0;
-    fadeRef.current = window.requestAnimationFrame(tick);
-  }
-
-  function startPlay(fromStart: boolean) {
+  function startPlay() {
     const audio = audioRef.current;
     if (!audio) return Promise.resolve();
     unlockAudio();
-    if (fromStart) audio.volume = 0;
-    else audio.volume = userVolRef.current;
-    return audio.play().then(async () => {
-      if (fromStart && firstPlayRef.current) {
-        await waitForAudible(audio, 0.22);
-        firstPlayRef.current = false;
-      }
-      if (fromStart) fadeIn();
-    });
+    audio.volume = userVolRef.current;
+    return audio.play().then(() => undefined);
   }
 
   function warm(index: number) {
@@ -219,7 +194,7 @@ export default function AlbumPage() {
     resumeTimeRef.current = 0;
     assignSrc(audio, next.audioUrl);
     if (autoplay) {
-      void startPlay(true).then(() => {
+      void startPlay().then(() => {
         setPlaying(true);
         window.setTimeout(() => acquireWake(), 400);
       }).catch(() => setPlaying(false));
@@ -452,7 +427,7 @@ export default function AlbumPage() {
       const resumeTime = audio.currentTime > 0.15 ? audio.currentTime : resumeTimeRef.current;
       const fromStart = resumeTime < 0.2;
       const play = fromStart
-        ? startPlay(true)
+        ? startPlay()
         : pipelineIsDead(audio)
           ? playSong(audio, url, resumeTime, true)
           : audio.play().then(() => undefined);

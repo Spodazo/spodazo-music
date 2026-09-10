@@ -3,7 +3,20 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import test from "node:test";
-import { assetVersion, audioUrl, imageUrl, mp3DataOffset, shouldStripAudioUpload, stripMp3Tags, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, imageUrl, isVbrMp3, mp3DataOffset, prepareMp3, shouldStripAudioUpload, stripMp3Tags, xingFrameLength } from "./media";
+
+function mpegFrame(header: number[], size: number, fill = 0x22) {
+  const frame = Buffer.alloc(size, fill);
+  frame[0] = header[0];
+  frame[1] = header[1];
+  frame[2] = header[2];
+  frame[3] = header[3];
+  return frame;
+}
+
+const CBR192 = [0xff, 0xfb, 0xb4, 0x44];
+const VBR320 = [0xff, 0xfb, 0xe4, 0x64];
+const VBR160 = [0xff, 0xfb, 0xa4, 0x64];
 
 test("media urls stay on this app", () => {
   const v = assetVersion();
@@ -55,7 +68,7 @@ test("stripMp3Tags removes tags only when the audio frame is still valid", () =>
   assert.equal(mp3DataOffset(tagged), 0);
 });
 
-test("stripMp3Tags skips a Xing header so Horsemen-style files start on audio", () => {
+test("CBR songs lose Xing so Safari does not play the header as a scratch", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
   const file = path.join(dir, "horsemen.mp3");
   const xing = Buffer.alloc(576, 0);
@@ -63,28 +76,54 @@ test("stripMp3Tags skips a Xing header so Horsemen-style files start on audio", 
   xing[1] = 0xfb;
   xing[2] = 0xb4;
   xing.write("Xing", 36);
-  const audio = Buffer.from([0xff, 0xfb, 0xb4, 0x44, ...Array(1600).fill(0x22)]);
+  const audio = Buffer.concat([mpegFrame(CBR192, 576), mpegFrame(CBR192, 576)]);
   fs.writeFileSync(file, Buffer.concat([xing, audio]));
-  assert.equal(mp3DataOffset(file), 576);
-  assert.equal(stripMp3Tags(file), true);
+  assert.equal(mp3DataOffset(file), 0);
+  assert.equal(prepareMp3(file), true);
   const cleaned = fs.readFileSync(file);
-  assert.deepEqual(cleaned.subarray(0, 4), Buffer.from([0xff, 0xfb, 0xb4, 0x44]));
+  assert.deepEqual(cleaned.subarray(0, 4), Buffer.from(CBR192));
   assert.equal(cleaned.length, audio.length);
+  assert.equal(xingFrameLength(cleaned, 0), 0);
 });
 
-test("uploaded songs lose Xing headers immediately", () => {
+test("VBR songs like Echoes get a Xing map back so Safari can decode them", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
+  const file = path.join(dir, "echoes.mp3");
+  const audio = Buffer.concat([mpegFrame(VBR320, 960), mpegFrame(VBR160, 480), mpegFrame(VBR320, 960)]);
+  fs.writeFileSync(file, audio);
+  assert.equal(isVbrMp3(audio), true);
+  assert.equal(xingFrameLength(audio, 0), 0);
+  assert.equal(prepareMp3(file), true);
+  const prepared = fs.readFileSync(file);
+  const xing = xingFrameLength(prepared, 0);
+  assert.ok(xing > 0);
+  assert.deepEqual(prepared.subarray(xing, xing + 4), Buffer.from(VBR320));
+  assert.equal(prepareMp3(file), false);
+});
+
+test("VBR uploads keep an existing Xing header and only lose ID3", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
   const file = path.join(dir, "upload.mp3");
-  const xing = Buffer.alloc(576, 0);
+  const xing = Buffer.alloc(384, 0);
   xing[0] = 0xff;
   xing[1] = 0xfb;
-  xing[2] = 0xb4;
+  xing[2] = 0x94;
+  xing[3] = 0x64;
   xing.write("Xing", 36);
-  const audio = Buffer.from([0xff, 0xfb, 0xb4, 0x44, ...Array(1600).fill(0x22)]);
-  fs.writeFileSync(file, Buffer.concat([xing, audio]));
-  assert.equal(stripMp3Tags(file), true);
-  assert.equal(fs.readFileSync(file).subarray(0, 4).equals(Buffer.from([0xff, 0xfb, 0xb4, 0x44])), true);
-  assert.equal(xingFrameLength(fs.readFileSync(file), 0), 0);
+  const audio = Buffer.concat([mpegFrame(VBR320, 960), mpegFrame(VBR160, 480)]);
+  const payload = Buffer.alloc(40, 0x41);
+  const size = Buffer.from([
+    (payload.length >> 21) & 0x7f,
+    (payload.length >> 14) & 0x7f,
+    (payload.length >> 7) & 0x7f,
+    payload.length & 0x7f,
+  ]);
+  fs.writeFileSync(file, Buffer.concat([Buffer.from("ID3\u0003\u0000\u0000"), size, payload, xing, audio]));
+  assert.equal(mp3DataOffset(file), 10 + payload.length);
+  assert.equal(prepareMp3(file), true);
+  const prepared = fs.readFileSync(file);
+  assert.ok(xingFrameLength(prepared, 0) > 0);
+  assert.deepEqual(prepared.subarray(0, 4), Buffer.from([0xff, 0xfb, 0x94, 0x64]));
 });
 
 test("shouldStripAudioUpload matches every future song upload", () => {

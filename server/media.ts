@@ -74,45 +74,122 @@ export function xingFrameLength(data: Buffer, start: number): number {
   return frame.includes(Buffer.from("Xing")) || frame.includes(Buffer.from("Info")) ? length : 0;
 }
 
-export function mp3AudioRange(data: Buffer): { start: number; end: number } {
-  let start = id3v2Size(data.subarray(0, Math.min(10, data.length)));
-  start += xingFrameLength(data, start);
-  let end = data.length;
-  if (end >= 128 && data.subarray(end - 128, end - 125).toString("ascii") === "TAG") {
-    end -= 128;
-  }
-  return { start, end };
+function id3v1Size(data: Buffer): number {
+  return data.length >= 128 && data.subarray(data.length - 128, data.length - 125).toString("ascii") === "TAG" ? 128 : 0;
 }
 
-/** Skip ID3v2 and Xing so the player starts on a real MPEG frame. */
+function mpegBitrate(data: Buffer, i: number): number {
+  return BITRATE_MPEG1_L3[(data[i + 2] >> 4) & 0xf];
+}
+
+function walkMpegFrames(data: Buffer, start: number, end: number): { offsets: number[]; bitrates: Set<number> } {
+  const offsets: number[] = [];
+  const bitrates = new Set<number>();
+  let i = start;
+  while (i + 4 <= end) {
+    const length = mpegFrameLength(data, i);
+    if (!length || i + length > end) break;
+    offsets.push(i);
+    bitrates.add(mpegBitrate(data, i));
+    i += length;
+  }
+  return { offsets, bitrates };
+}
+
+export function isVbrMp3(data: Buffer, start = 0, end = data.length): boolean {
+  return walkMpegFrames(data, start, end).bitrates.size > 1;
+}
+
+function writeAtomic(full: string, body: Buffer) {
+  const tmp = `${full}.preparing`;
+  fs.writeFileSync(tmp, body);
+  try {
+    fs.renameSync(tmp, full);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* already gone */
+    }
+    throw err;
+  }
+}
+
+function buildXingFrame(audio: Buffer): Buffer {
+  const version = (audio[1] >> 3) & 3;
+  const sampleIndex = (audio[2] >> 2) & 3;
+  const channel = (audio[3] >> 6) & 3;
+  const sample = (version === 3 ? SAMPLE_MPEG1 : SAMPLE_MPEG2)[sampleIndex];
+  const side = version === 3 ? (channel === 3 ? 21 : 36) : channel === 3 ? 13 : 21;
+  const needed = side + 120;
+  let bitrateIndex = 9;
+  let length = 0;
+  for (const index of [4, 5, 6, 7, 8, 9, 10]) {
+    const bitrate = BITRATE_MPEG1_L3[index];
+    if (!bitrate || !sample) continue;
+    length = Math.floor(((version === 3 ? 144 : 72) * bitrate * 1000) / sample);
+    if (length >= needed) {
+      bitrateIndex = index;
+      break;
+    }
+  }
+  const frame = Buffer.alloc(length, 0);
+  frame[0] = 0xff;
+  frame[1] = 0xe0 | (version << 3) | (1 << 1) | 1;
+  frame[2] = (bitrateIndex << 4) | (sampleIndex << 2);
+  frame[3] = (channel << 6) | 0x10;
+  frame.write("Xing", side);
+  frame.writeUInt32BE(7, side + 4);
+  const { offsets } = walkMpegFrames(audio, 0, audio.length);
+  const bytes = length + audio.length;
+  frame.writeUInt32BE(offsets.length + 1, side + 8);
+  frame.writeUInt32BE(bytes, side + 12);
+  for (let i = 0; i < 100; i += 1) {
+    const at = offsets[Math.min(offsets.length - 1, Math.floor((i / 100) * offsets.length))] || 0;
+    frame[side + 16 + i] = Math.min(255, Math.floor((256 * (length + at)) / bytes));
+  }
+  return frame;
+}
+
+/** Skip ID3v2 only — Safari needs the Xing map on VBR songs such as Echoes. */
 export function mp3DataOffset(full: string): number {
   const fd = fs.openSync(full, "r");
   try {
-    const head = Buffer.alloc(4096);
-    const n = fs.readSync(fd, head, 0, 4096, 0);
-    const start = mp3AudioRange(head.subarray(0, n)).start;
+    const head = Buffer.alloc(10);
+    if (fs.readSync(fd, head, 0, 10, 0) < 10) return 0;
+    const offset = id3v2Size(head);
     const fileSize = fs.fstatSync(fd).size;
-    return start > 0 && start < fileSize - 128 ? start : 0;
+    return offset > 0 && offset < fileSize - 128 ? offset : 0;
   } finally {
     fs.closeSync(fd);
   }
 }
 
-/** Remove ID3 tags and Xing/Info header frames. Safe: keeps only MPEG audio. */
-export function stripMp3Tags(full: string): boolean {
+/**
+ * Strip ID3. Restore Xing on VBR (Safari cannot decode Echoes-style files without it).
+ * Remove Xing/Info from CBR — Safari plays those header frames as a scratch.
+ */
+export function prepareMp3(full: string): boolean {
   const data = fs.readFileSync(full);
-  const { start, end } = mp3AudioRange(data);
-  if (start === 0 && end === data.length) return false;
-  if (!isMpegFrame(data, start) || end - start < 1024) return false;
-  const tmp = `${full}.stripping`;
-  fs.writeFileSync(tmp, data.subarray(start, end));
-  try {
-    fs.renameSync(tmp, full);
-  } catch (err) {
-    fs.unlinkSync(tmp);
-    throw err;
-  }
+  const id3 = id3v2Size(data.subarray(0, Math.min(10, data.length)));
+  const tail = id3v1Size(data);
+  const end = data.length - tail;
+  if (!isMpegFrame(data, id3) || end - id3 < 1024) return false;
+  const xingLen = xingFrameLength(data, id3);
+  const audioStart = id3 + xingLen;
+  if (!isMpegFrame(data, audioStart) || end - audioStart < 1024) return false;
+  const audio = data.subarray(audioStart, end);
+  const vbr = isVbrMp3(audio);
+  const body = vbr
+    ? Buffer.concat([xingLen ? data.subarray(id3, audioStart) : buildXingFrame(audio), audio])
+    : audio;
+  if (body.length === data.length && body.equals(data)) return false;
+  writeAtomic(full, body);
   return true;
+}
+
+export function stripMp3Tags(full: string): boolean {
+  return prepareMp3(full);
 }
 
 export function shouldStripAudioUpload(file: {
@@ -126,26 +203,26 @@ export function shouldStripAudioUpload(file: {
 export function stripUploadedSong(filename: string) {
   if (!filename) return;
   try {
-    if (stripMp3Tags(path.join(songsDir(), filename))) {
-      console.log(`[media] stripped ID3/Xing from upload ${filename}`);
+    if (prepareMp3(path.join(songsDir(), filename))) {
+      console.log(`[media] prepared upload ${filename}`);
     }
   } catch (err) {
-    console.error(`[media] could not strip ${filename}:`, err);
+    console.error(`[media] could not prepare ${filename}:`, err);
   }
 }
 
 export function stripStoredSongs(): number {
   const dir = songsDir();
   if (!fs.existsSync(dir)) return 0;
-  let stripped = 0;
+  let prepared = 0;
   for (const name of fs.readdirSync(dir)) {
     if (!name.toLowerCase().endsWith(".mp3")) continue;
     try {
-      if (stripMp3Tags(path.join(dir, name))) stripped += 1;
+      if (prepareMp3(path.join(dir, name))) prepared += 1;
     } catch (err) {
-      console.error(`[media] could not strip ${name}:`, err);
+      console.error(`[media] could not prepare ${name}:`, err);
     }
   }
-  if (stripped) console.log(`[media] stripped ID3/Xing from ${stripped} song${stripped === 1 ? "" : "s"}`);
-  return stripped;
+  if (prepared) console.log(`[media] prepared ${prepared} song${prepared === 1 ? "" : "s"}`);
+  return prepared;
 }
