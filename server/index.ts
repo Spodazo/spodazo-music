@@ -3,6 +3,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
+import { stripStoredSongs } from "./media";
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore } from "./storage";
@@ -22,6 +23,7 @@ app.use(sessionMiddleware());
 
 ensureDataDirs();
 syncBundledImages();
+stripStoredSongs();
 registerRoutes(app);
 
 async function start() {

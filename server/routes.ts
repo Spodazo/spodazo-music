@@ -4,21 +4,38 @@ import path from "path";
 import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
+import { mp3DataOffset, shouldStripAudioUpload, stripUploadedSong } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
+const disk = multer.diskStorage({
+  destination: (_req, file, cb) => {
+    const dir = file.fieldname === "audio" ? songsDir() : imagesDir();
+    fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const dir = file.fieldname === "audio" ? songsDir() : imagesDir();
+    cb(null, uniqueFileName(dir, file.originalname));
+  },
+});
+
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: (_req, file, cb) => {
-      const dir = file.fieldname === "audio" ? songsDir() : imagesDir();
-      fs.mkdirSync(dir, { recursive: true });
-      cb(null, dir);
+  storage: {
+    _handleFile(req, file, cb) {
+      disk._handleFile(req, file, (err, info) => {
+        if (err) {
+          cb(err);
+          return;
+        }
+        if (info?.filename && shouldStripAudioUpload(file)) stripUploadedSong(info.filename);
+        cb(null, info);
+      });
     },
-    filename: (_req, file, cb) => {
-      const dir = file.fieldname === "audio" ? songsDir() : imagesDir();
-      cb(null, uniqueFileName(dir, file.originalname));
+    _removeFile(req, file, cb) {
+      disk._removeFile(req, file, cb);
     },
-  }),
+  },
   limits: { fileSize: 80 * 1024 * 1024 },
 });
 
@@ -313,13 +330,13 @@ export function registerRoutes(app: Express): void {
       res.status(404).end();
       return;
     }
-    const ranged = Boolean(req.headers.range);
     res.sendFile(full, {
       acceptRanges: true,
+      start: mp3DataOffset(full),
       headers: {
         "Content-Type": "audio/mpeg",
         "Accept-Ranges": "bytes",
-        "Cache-Control": ranged ? "private, no-store" : "public, max-age=86400",
+        "Cache-Control": "public, max-age=31536000, immutable, no-transform",
       },
     });
   });

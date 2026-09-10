@@ -30,6 +30,7 @@ export function assignSrc(audio: HTMLAudioElement, url: string, time = 0) {
     if (audio.src === next) return;
   }
   audio.src = next;
+  audio.load();
 }
 
 export function playSong(audio: HTMLAudioElement, url: string, time = 0, forceReload = false): Promise<void> {
