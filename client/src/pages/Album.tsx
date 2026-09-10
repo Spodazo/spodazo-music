@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import { fetchAlbum } from "../lib/api";
@@ -59,6 +59,16 @@ export default function AlbumPage() {
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
   const prefetchAbortRef = useRef<AbortController | null>(null);
+  const lyricsRef = useRef<HTMLDivElement | null>(null);
+  const lyricsDrag = useRef({
+    holding: false,
+    follow: true,
+    offset: 0,
+    originY: 0,
+    lastY: 0,
+    pointerY: 0,
+    moved: false,
+  });
 
   function sameSrc(audio: HTMLAudioElement, src: string): boolean {
     try {
@@ -199,11 +209,110 @@ export default function AlbumPage() {
     openAt(next, true);
   }
 
+  function lyricNaturalScroll(el: HTMLDivElement): number {
+    const audio = audioRef.current;
+    const length = audio?.duration || 0;
+    const time = audio?.currentTime || 0;
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    if (!Number.isFinite(length) || length <= 0 || max <= 0) return 0;
+    return (Math.min(Math.max(time, 0), length) / length) * max;
+  }
+
+  function resetLyricFollow() {
+    lyricsDrag.current.offset = 0;
+    lyricsDrag.current.follow = true;
+    lyricsDrag.current.holding = false;
+    if (lyricsRef.current) lyricsRef.current.scrollTop = 0;
+  }
+
+  useEffect(() => {
+    resetLyricFollow();
+  }, [track?.id]);
+
+  useEffect(() => {
+    if (!track) return;
+    const el = lyricsRef.current;
+    if (!el) return;
+    const blockBounce = (event: TouchEvent) => event.preventDefault();
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      lyricsDrag.current.offset += event.deltaY;
+    };
+    el.addEventListener("touchmove", blockBounce, { passive: false });
+    el.addEventListener("wheel", onWheel, { passive: false });
+    let raf = 0;
+    const tick = () => {
+      const scroller = lyricsRef.current;
+      const drag = lyricsDrag.current;
+      if (scroller && drag.holding) {
+        const pull = drag.originY - drag.pointerY;
+        if (Math.abs(pull) > 12) {
+          const rate = Math.sign(pull) * Math.min(14, (Math.abs(pull) - 12) * 0.1);
+          const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+          scroller.scrollTop = Math.max(0, Math.min(max, scroller.scrollTop + rate));
+          drag.offset = scroller.scrollTop - lyricNaturalScroll(scroller);
+        }
+      } else if (scroller && drag.follow) {
+        scroller.scrollTop = lyricNaturalScroll(scroller) + drag.offset;
+      }
+      raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      el.removeEventListener("touchmove", blockBounce);
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, [track]);
+
+  function onLyricsPointerDown(event: PointerEvent<HTMLDivElement>) {
+    const el = lyricsRef.current;
+    if (!el) return;
+    const drag = lyricsDrag.current;
+    drag.holding = true;
+    drag.follow = false;
+    drag.originY = event.clientY;
+    drag.lastY = event.clientY;
+    drag.pointerY = event.clientY;
+    drag.moved = false;
+    el.setPointerCapture(event.pointerId);
+  }
+
+  function onLyricsPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const drag = lyricsDrag.current;
+    if (!drag.holding) return;
+    const el = lyricsRef.current;
+    if (!el) return;
+    const delta = drag.lastY - event.clientY;
+    drag.lastY = event.clientY;
+    drag.pointerY = event.clientY;
+    if (Math.abs(event.clientY - drag.originY) > 6) drag.moved = true;
+    el.scrollTop += delta;
+    event.preventDefault();
+  }
+
+  function onLyricsPointerUp(event: PointerEvent<HTMLDivElement>) {
+    const drag = lyricsDrag.current;
+    if (!drag.holding) return;
+    const el = lyricsRef.current;
+    drag.holding = false;
+    if (el) {
+      try {
+        el.releasePointerCapture(event.pointerId);
+      } catch {
+        /* already released */
+      }
+      drag.offset = drag.moved ? el.scrollTop - lyricNaturalScroll(el) : 0;
+    }
+    drag.follow = true;
+  }
+
   function restartSong() {
     const audio = audioRef.current;
     if (!audio) return;
     audio.currentTime = 0;
     setCurrentTime(0);
+    resetLyricFollow();
   }
 
   function togglePlay() {
@@ -414,7 +523,14 @@ export default function AlbumPage() {
                 }}
               />
             </div>
-            <div className="lyrics-section">
+            <div
+              className="lyrics-section"
+              ref={lyricsRef}
+              onPointerDown={onLyricsPointerDown}
+              onPointerMove={onLyricsPointerMove}
+              onPointerUp={onLyricsPointerUp}
+              onPointerCancel={onLyricsPointerUp}
+            >
               {introduction ? <div className="introduction-text">{introduction}</div> : null}
               {track.lyrics.trim() || !track.instrumental ? (
                 <>

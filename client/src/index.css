@@ -543,6 +543,10 @@ a { color: inherit; }
   padding: 0 24px 24px;
   scrollbar-width: thin;
   scrollbar-color: var(--amber2) transparent;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
 }
 .introduction-text {
   font-size: 0.945rem;
