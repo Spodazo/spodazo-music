@@ -658,6 +658,36 @@ export class PostgresMusicStore implements MusicStore {
   }
 }
 
+export async function remapImageFilenames(renames: Map<string, string>): Promise<number> {
+  if (!renames.size) return 0;
+  const store = await getStore();
+  let changed = 0;
+  const albums = await store.listAlbums();
+  for (const item of albums) {
+    const album = await store.getAlbumById(item.id);
+    if (!album) continue;
+    const patch: Partial<AlbumInput> = {};
+    const nextHero = renames.get(album.heroPortrait);
+    const nextThumb = renames.get(album.thumb);
+    const nextArtist = renames.get(album.artistThumb);
+    if (nextHero) patch.heroPortrait = nextHero;
+    if (nextThumb) patch.thumb = nextThumb;
+    if (nextArtist) patch.artistThumb = nextArtist;
+    if (Object.keys(patch).length) {
+      await store.updateAlbum(album.id, patch);
+      changed += 1;
+    }
+    for (const track of [...album.tracks, ...album.archivedTracks]) {
+      const nextImg = track.img ? renames.get(track.img) : undefined;
+      if (!nextImg) continue;
+      await store.updateTrack(track.id, { img: nextImg });
+      changed += 1;
+    }
+  }
+  if (changed) console.log(`[media] remapped ${changed} image reference${changed === 1 ? "" : "s"}`);
+  return changed;
+}
+
 let storePromise: Promise<MusicStore> | null = null;
 
 export async function getStore(): Promise<MusicStore> {

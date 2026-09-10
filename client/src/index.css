@@ -330,16 +330,34 @@ button.m-cover {
   color: inherit;
   padding: 0;
   border: none;
-  cursor: pointer;
+  cursor: zoom-in;
+  transition: transform 0.2s ease, box-shadow 0.2s;
 }
 button.t-thumb:hover,
 button.m-cover:hover {
   box-shadow: 0 0 0 1px var(--amber);
 }
-.lightbox-cover {
-  width: min(440px, 86vw);
-  max-height: min(440px, 80vh);
-  object-fit: contain;
+button.t-thumb.enlarged,
+button.m-cover.enlarged {
+  z-index: 8;
+  cursor: zoom-out;
+  transform: scale(2);
+}
+button.t-thumb.enlarged {
+  transform-origin: left center;
+}
+button.m-cover.enlarged {
+  transform-origin: center top;
+}
+.track-row.cover-enlarged {
+  z-index: 8;
+}
+.modal-card.cover-enlarged {
+  overflow: visible;
+}
+.modal-card.cover-enlarged .modal-head {
+  overflow: visible;
+  z-index: 6;
 }
 .track-row:hover .t-thumb,
 .track-row.playing .t-thumb { opacity: 1; }

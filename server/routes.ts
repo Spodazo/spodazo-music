@@ -4,7 +4,7 @@ import path from "path";
 import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
-import { assetVersion, mp3DataOffset, shouldStripAudioUpload, stripUploadedSong } from "./media";
+import { assetVersion, convertUploadedImage, mp3DataOffset, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
@@ -28,7 +28,17 @@ const upload = multer({
           cb(err);
           return;
         }
-        if (info?.filename && shouldStripAudioUpload(file)) stripUploadedSong(info.filename);
+        if (info?.filename && shouldStripAudioUpload(file)) {
+          stripUploadedSong(info.filename);
+          cb(null, info);
+          return;
+        }
+        if (info?.filename && shouldConvertImageUpload(file)) {
+          convertUploadedImage(info.filename)
+            .then((filename) => cb(null, { ...info, filename }))
+            .catch(cb);
+          return;
+        }
         cb(null, info);
       });
     },

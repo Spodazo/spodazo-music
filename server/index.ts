@@ -3,10 +3,10 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
-import { stripStoredSongs } from "./media";
+import { convertStoredImages, stripStoredSongs } from "./media";
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
-import { getStore } from "./storage";
+import { getStore, remapImageFilenames } from "./storage";
 
 process.on("unhandledRejection", (reason) => {
   console.error("[fatal] unhandledRejection:", reason);
@@ -29,6 +29,7 @@ registerRoutes(app);
 async function start() {
   await ensureSessionTable();
   await getStore();
+  await remapImageFilenames(await convertStoredImages());
   const port = Number(process.env.PORT || 3000);
 
   if (process.env.NODE_ENV === "production") {

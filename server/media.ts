@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
-import { imagesDir, songsDir } from "./paths";
+import sharp from "sharp";
+import { imagesDir, songsDir, uniqueFileName } from "./paths";
 
 function usableFile(full: string): string | null {
   if (!fs.existsSync(full)) return null;
@@ -198,6 +199,60 @@ export function shouldStripAudioUpload(file: {
   originalname: string;
 }): boolean {
   return file.fieldname === "audio" || file.mimetype.startsWith("audio/") || /\.mp3$/i.test(file.originalname);
+}
+
+export function shouldConvertImageUpload(file: {
+  fieldname: string;
+  mimetype: string;
+  originalname: string;
+}): boolean {
+  if (shouldStripAudioUpload(file)) return false;
+  return file.mimetype.startsWith("image/") || /\.(jpe?g|png|gif|webp|tiff?|avif|bmp)$/i.test(file.originalname);
+}
+
+export async function convertUploadedImage(filename: string, dir = imagesDir()): Promise<string> {
+  const source = path.join(dir, filename);
+  const ext = path.extname(filename);
+  const stem = ext ? filename.slice(0, -ext.length) : filename;
+  const destName = ext.toLowerCase() === ".webp" ? filename : uniqueFileName(dir, `${stem}.webp`);
+  const dest = path.join(dir, destName);
+  const tmp = `${dest}.converting`;
+  await sharp(source)
+    .rotate()
+    .resize(2400, 2400, { fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 82 })
+    .toFile(tmp);
+  try {
+    fs.renameSync(tmp, dest);
+  } catch (err) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* already gone */
+    }
+    throw err;
+  }
+  if (dest !== source) fs.unlinkSync(source);
+  return destName;
+}
+
+const RASTER_IMAGE = /\.(jpe?g|png|gif|tiff?|avif|bmp)$/i;
+const SKIP_STORED_IMAGE = /^(favicon|apple-touch-icon)/i;
+
+export async function convertStoredImages(dir = imagesDir()): Promise<Map<string, string>> {
+  const renamed = new Map<string, string>();
+  if (!fs.existsSync(dir)) return renamed;
+  for (const name of fs.readdirSync(dir)) {
+    if (name.startsWith(".") || SKIP_STORED_IMAGE.test(name) || !RASTER_IMAGE.test(name)) continue;
+    try {
+      const next = await convertUploadedImage(name, dir);
+      if (next !== name) renamed.set(name, next);
+      console.log(`[media] converted ${name} → ${next}`);
+    } catch (err) {
+      console.error(`[media] could not convert ${name}:`, err);
+    }
+  }
+  return renamed;
 }
 
 export function stripUploadedSong(filename: string) {

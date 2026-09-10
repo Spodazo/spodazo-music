@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import test from "node:test";
-import { assetVersion, audioUrl, imageUrl, isVbrMp3, mp3DataOffset, prepareMp3, shouldStripAudioUpload, stripMp3Tags, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, imageUrl, isVbrMp3, mp3DataOffset, prepareMp3, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -131,4 +131,43 @@ test("shouldStripAudioUpload matches every future song upload", () => {
   assert.equal(shouldStripAudioUpload({ fieldname: "file", mimetype: "audio/mp3", originalname: "Song" }), true);
   assert.equal(shouldStripAudioUpload({ fieldname: "track", mimetype: "application/octet-stream", originalname: "Hymn.mp3" }), true);
   assert.equal(shouldStripAudioUpload({ fieldname: "artwork", mimetype: "image/webp", originalname: "Cover.webp" }), false);
+});
+
+test("shouldConvertImageUpload matches album and song artwork", () => {
+  assert.equal(shouldConvertImageUpload({ fieldname: "hero", mimetype: "image/jpeg", originalname: "Portrait.jpg" }), true);
+  assert.equal(shouldConvertImageUpload({ fieldname: "thumb", mimetype: "image/png", originalname: "Cover.png" }), true);
+  assert.equal(shouldConvertImageUpload({ fieldname: "artwork", mimetype: "application/octet-stream", originalname: "Song.tif" }), true);
+  assert.equal(shouldConvertImageUpload({ fieldname: "audio", mimetype: "audio/mpeg", originalname: "Song.mp3" }), false);
+});
+
+test("convertUploadedImage stores album art as WebP", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-img-"));
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  fs.writeFileSync(path.join(dir, "Cover.png"), png);
+  const name = await convertUploadedImage("Cover.png", dir);
+  assert.equal(name, "Cover.webp");
+  assert.equal(fs.existsSync(path.join(dir, "Cover.png")), false);
+  const webp = fs.readFileSync(path.join(dir, "Cover.webp"));
+  assert.equal(webp.subarray(0, 4).toString("ascii"), "RIFF");
+  assert.equal(webp.subarray(8, 12).toString("ascii"), "WEBP");
+});
+
+test("convertStoredImages turns leftover PNG covers into WebP", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-img-"));
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  fs.writeFileSync(path.join(dir, "Horsemens Praise.png"), png);
+  fs.writeFileSync(path.join(dir, "favicon-32.png"), png);
+  fs.writeFileSync(path.join(dir, "Keep.webp"), Buffer.from("RIFF....WEBP"));
+  const renamed = await convertStoredImages(dir);
+  assert.equal(renamed.get("Horsemens Praise.png"), "Horsemens Praise.webp");
+  assert.equal(renamed.has("favicon-32.png"), false);
+  assert.equal(fs.existsSync(path.join(dir, "Horsemens Praise.png")), false);
+  assert.equal(fs.existsSync(path.join(dir, "Horsemens Praise.webp")), true);
+  assert.equal(fs.existsSync(path.join(dir, "favicon-32.png")), true);
 });

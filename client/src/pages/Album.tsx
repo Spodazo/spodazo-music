@@ -74,7 +74,8 @@ export default function AlbumPage() {
   const [error, setError] = useState("");
   const [active, setActive] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [lightbox, setLightbox] = useState<{ src: string; alt: string; kind: "artist" | "cover" } | null>(null);
+  const [lightbox, setLightbox] = useState(false);
+  const [enlargedCover, setEnlargedCover] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [durations, setDurations] = useState<Record<string, string>>({});
@@ -192,6 +193,7 @@ export default function AlbumPage() {
     if (!next || !audio) return;
     currentUrlRef.current = next.audioUrl;
     resumeTimeRef.current = 0;
+    setEnlargedCover(null);
     if (autoplay) {
       void startPlay().then(() => {
         setPlaying(true);
@@ -211,6 +213,7 @@ export default function AlbumPage() {
   }
 
   function closeModal() {
+    setEnlargedCover(null);
     setActive(null);
     setPlaying(false);
     audioRef.current?.pause();
@@ -546,7 +549,7 @@ export default function AlbumPage() {
               title={album.artists}
               fetchPriority="low"
               decoding="async"
-              onClick={() => setLightbox({ src: album.artistUrl, alt: album.artists, kind: "artist" })}
+              onClick={() => setLightbox(true)}
             />
           ) : null}
         </div>
@@ -558,9 +561,10 @@ export default function AlbumPage() {
               index={index}
               durationLabel={durations[item.id]}
               active={active === index}
+              enlarged={enlargedCover === `list:${item.id}`}
               onZoom={
                 item.imageUrl
-                  ? () => setLightbox({ src: item.imageUrl, alt: `${item.title} cover`, kind: "cover" })
+                  ? () => setEnlargedCover((cur) => (cur === `list:${item.id}` ? null : `list:${item.id}`))
                   : undefined
               }
               onWarm={() => warm()}
@@ -579,15 +583,15 @@ export default function AlbumPage() {
 
       {track ? (
         <div className="modal open">
-          <div className="modal-card">
+          <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
             <div className="modal-head">
               {track.imageUrl ? (
                 <button
                   type="button"
-                  className="m-cover"
+                  className={`m-cover${enlargedCover === `player:${track.id}` ? " enlarged" : ""}`}
                   style={{ backgroundImage: `url("${track.imageUrl}")` }}
-                  aria-label={`Enlarge ${track.title} cover`}
-                  onClick={() => setLightbox({ src: track.imageUrl, alt: `${track.title} cover`, kind: "cover" })}
+                  aria-label={enlargedCover === `player:${track.id}` ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
+                  onClick={() => setEnlargedCover((cur) => (cur === `player:${track.id}` ? null : `player:${track.id}`))}
                 />
               ) : (
                 <div className="m-cover" />
@@ -722,9 +726,9 @@ export default function AlbumPage() {
         </div>
       ) : null}
 
-      {lightbox ? (
-        <div className="lightbox" onClick={() => setLightbox(null)}>
-          <img className={lightbox.kind === "cover" ? "lightbox-cover" : undefined} src={lightbox.src} alt={lightbox.alt} />
+      {lightbox && album.artistUrl ? (
+        <div className="lightbox" onClick={() => setLightbox(false)}>
+          <img src={album.artistUrl} alt={album.artists} />
         </div>
       ) : null}
 
@@ -739,6 +743,7 @@ function TrackRow({
   index,
   durationLabel,
   active,
+  enlarged,
   onZoom,
   onWarm,
   onPlay,
@@ -747,13 +752,14 @@ function TrackRow({
   index: number;
   durationLabel?: string;
   active: boolean;
+  enlarged?: boolean;
   onZoom?: () => void;
   onWarm: () => void;
   onPlay: () => void;
 }) {
   return (
     <div
-      className={`track-row${active ? " playing" : ""}`}
+      className={`track-row${active ? " playing" : ""}${enlarged ? " cover-enlarged" : ""}`}
       data-i={index}
       onPointerDown={onWarm}
       onClick={onPlay}
@@ -762,8 +768,8 @@ function TrackRow({
       {track.imageUrl && onZoom ? (
         <button
           type="button"
-          className="t-thumb t-thumb-zoom"
-          aria-label={`Enlarge ${track.title} cover`}
+          className={`t-thumb${enlarged ? " enlarged" : ""}`}
+          aria-label={enlarged ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
           onClick={(event) => {
             event.stopPropagation();
             onZoom();
