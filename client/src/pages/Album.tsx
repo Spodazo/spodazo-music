@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
-import { assignSrc, dropLegacyAudioCaches, pipelineIsDead, playSong, setPlaybackSession } from "../lib/audioCache";
+import {
+  assignSrc,
+  dropLegacyAudioCaches,
+  pipelineIsDead,
+  playSong,
+  setPlaybackSession,
+  unlockAudio,
+  waitForAudible,
+} from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
@@ -71,6 +79,7 @@ export default function AlbumPage() {
   const resumeTimeRef = useRef(0);
   const userVolRef = useRef(0.85);
   const fadeRef = useRef(0);
+  const firstPlayRef = useRef(true);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
   const lyricsTrackRef = useRef<HTMLDivElement | null>(null);
@@ -180,14 +189,20 @@ export default function AlbumPage() {
   function startPlay(fromStart: boolean) {
     const audio = audioRef.current;
     if (!audio) return Promise.resolve();
+    unlockAudio();
     if (fromStart) audio.volume = 0;
     else audio.volume = userVolRef.current;
-    return audio.play().then(() => {
+    return audio.play().then(async () => {
+      if (fromStart && firstPlayRef.current) {
+        await waitForAudible(audio, 0.22);
+        firstPlayRef.current = false;
+      }
       if (fromStart) fadeIn();
     });
   }
 
   function warm(index: number) {
+    unlockAudio();
     const next = albumRef.current?.tracks[index];
     const audio = audioRef.current;
     if (!next?.audioUrl || !audio || !audio.paused) return;
@@ -436,12 +451,12 @@ export default function AlbumPage() {
     if (audio.paused) {
       const resumeTime = audio.currentTime > 0.15 ? audio.currentTime : resumeTimeRef.current;
       const fromStart = resumeTime < 0.2;
-      if (fromStart) audio.volume = 0;
-      const play = pipelineIsDead(audio)
-        ? playSong(audio, url, resumeTime, true)
-        : startPlay(fromStart);
+      const play = fromStart
+        ? startPlay(true)
+        : pipelineIsDead(audio)
+          ? playSong(audio, url, resumeTime, true)
+          : audio.play().then(() => undefined);
       void play.then(() => {
-        if (fromStart) fadeIn();
         setPlaying(true);
         acquireWake();
       }).catch(() => undefined);

@@ -18,14 +18,18 @@ export function localSongPath(filename: string): string | null {
   return usableFile(path.join(songsDir(), filename));
 }
 
+export function assetVersion(): string {
+  return process.env.BUILD_ID || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || "dev";
+}
+
 export function imageUrl(filename: string): string {
   if (!filename) return "";
-  return `/media/images/${encodeURIComponent(filename)}`;
+  return `/media/images/${encodeURIComponent(filename)}?v=${assetVersion()}`;
 }
 
 export function audioUrl(filename: string): string {
   if (!filename) return "";
-  return `/media/songs/${encodeURIComponent(filename)}?v=6`;
+  return `/media/songs/${encodeURIComponent(filename)}?v=${assetVersion()}`;
 }
 
 function id3v2Size(head: Buffer): number {

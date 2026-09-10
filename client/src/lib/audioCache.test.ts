@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { HAVE_CURRENT_DATA, mediaUrl, pipelineIsDead } from "./audioCache";
+import { HAVE_CURRENT_DATA, mediaUrl, pipelineIsDead, waitForAudible } from "./audioCache";
 
 test("mediaUrl only adds a start fragment when resuming mid-song", () => {
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4"), "/media/songs/a.mp3?v=4");
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4#t=9.00", 0), "/media/songs/a.mp3?v=4");
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4", 45.2), "/media/songs/a.mp3?v=4#t=45.20");
+});
+
+test("waitForAudible resolves immediately when the playhead is already past the glitch", async () => {
+  await waitForAudible({ currentTime: 0.4, addEventListener() {}, removeEventListener() {} } as unknown as HTMLAudioElement, 0.22);
 });
 
 test("pipelineIsDead is true only when the element cannot play", () => {

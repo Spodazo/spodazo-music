@@ -3,13 +3,14 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import test from "node:test";
-import { audioUrl, imageUrl, mp3DataOffset, shouldStripAudioUpload, stripMp3Tags } from "./media";
+import { assetVersion, audioUrl, imageUrl, mp3DataOffset, shouldStripAudioUpload, stripMp3Tags } from "./media";
 
 test("media urls stay on this app", () => {
-  assert.equal(imageUrl("Echoes of the Storm.webp"), "/media/images/Echoes%20of%20the%20Storm.webp");
+  const v = assetVersion();
+  assert.equal(imageUrl("Echoes of the Storm.webp"), `/media/images/Echoes%20of%20the%20Storm.webp?v=${v}`);
   assert.equal(
     audioUrl("Echoes of the Storm (Job 5).mp3"),
-    "/media/songs/Echoes%20of%20the%20Storm%20(Job%205).mp3?v=6",
+    `/media/songs/Echoes%20of%20the%20Storm%20(Job%205).mp3?v=${v}`,
   );
   assert.equal(imageUrl(""), "");
   assert.equal(audioUrl(""), "");

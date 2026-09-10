@@ -4,7 +4,7 @@ import path from "path";
 import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
-import { mp3DataOffset, shouldStripAudioUpload, stripUploadedSong } from "./media";
+import { assetVersion, mp3DataOffset, shouldStripAudioUpload, stripUploadedSong } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
@@ -92,9 +92,11 @@ function trackFields(body: Request["body"], albumId?: string) {
 
 export function registerRoutes(app: Express): void {
   app.get("/api/version", (_req, res) => {
+    res.set("Cache-Control", "no-store");
     res.json({
       app: "spodazo-music",
       ok: true,
+      build: assetVersion(),
       musicDataDir: process.env.MUSIC_DATA_DIR || ".music-data",
       database: process.env.DATABASE_URL ? "postgres" : "json",
     });

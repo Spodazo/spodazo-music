@@ -17,7 +17,7 @@ import {
   updateAlbum,
   updateTrack,
 } from "../lib/api";
-import { assignSrc, pipelineIsDead, playSong } from "../lib/audioCache";
+import { assignSrc, pipelineIsDead, playSong, unlockAudio } from "../lib/audioCache";
 
 type AdminQueue = {
   albumId: string;
@@ -44,6 +44,7 @@ function useAdminPlayer() {
   const current = queue?.tracks[queue.index] ?? null;
 
   function startTrack(track: PublicTrack) {
+    unlockAudio();
     const audio = audioRef.current;
     if (!audio || !track.audioUrl) return;
     currentUrlRef.current = track.audioUrl;
@@ -58,6 +59,7 @@ function useAdminPlayer() {
   }
 
   function warmTrack(track: PublicTrack) {
+    unlockAudio();
     const audio = audioRef.current;
     if (!audio || !track.audioUrl || !audio.paused) return;
     if (audio.dataset.trackId === track.id) return;

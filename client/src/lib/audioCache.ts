@@ -73,3 +73,57 @@ export function setPlaybackSession() {
     /* older WebKit */
   }
 }
+
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
+let unlocked = false;
+
+export function unlockAudio() {
+  setPlaybackSession();
+  if (unlocked) return;
+  unlocked = true;
+  try {
+    const Ctor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (Ctor) {
+      const ctx = new Ctor();
+      const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.08)), ctx.sampleRate);
+      const src = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      gain.gain.value = 0.0008;
+      src.buffer = buffer;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      void ctx.resume();
+      src.start();
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const tick = new Audio(SILENT_WAV);
+    tick.setAttribute("playsinline", "true");
+    tick.volume = 0.01;
+    void tick.play().then(() => tick.pause()).catch(() => undefined);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function waitForAudible(audio: HTMLAudioElement, minTime: number, timeoutMs = 1500): Promise<void> {
+  if (audio.currentTime >= minTime) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = () => {
+      audio.removeEventListener("timeupdate", onTime);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const onTime = () => {
+      if (audio.currentTime >= minTime) finish();
+    };
+    const timer = window.setTimeout(finish, timeoutMs);
+    audio.addEventListener("timeupdate", onTime);
+  });
+}
