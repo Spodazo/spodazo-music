@@ -516,7 +516,7 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 24px 2px;
+  padding: 0 24px 10px;
 }
 .vol-wrap svg { width: 14px; height: 14px; fill: var(--muted); opacity: 0.5; flex-shrink: 0; }
 .vol-slider {
@@ -537,8 +537,54 @@ a { color: inherit; }
   background: var(--amber);
 }
 
+.lyrics-dock {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+.lyrics-sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #101820;
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  overflow: hidden;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+}
+.lyrics-handle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+}
+.lyrics-handle:active { cursor: grabbing; }
+.lyrics-handle svg { width: 22px; height: 22px; fill: currentColor; opacity: 0.75; }
+.lyrics-open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--amber);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  cursor: pointer;
+  padding-top: 14px;
+}
 .lyrics-section {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 24px 24px;
   scrollbar-width: thin;
@@ -1055,7 +1101,7 @@ a { color: inherit; }
   .modal-head { padding: 14px 18px 12px; }
   .transport { padding: 4px 18px 10px; }
   .lyrics-section { padding: 0 18px 20px; }
-  .vol-wrap { padding: 0 18px 2px; }
+  .vol-wrap { padding: 0 18px 10px; }
   .row-2 { grid-template-columns: 1fr; }
 }
 

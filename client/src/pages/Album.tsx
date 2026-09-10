@@ -66,11 +66,14 @@ export default function AlbumPage() {
   const [durations, setDurations] = useState<Record<string, string>>({});
   const [repeatAll, setRepeatAll] = useState(false);
   const [repeatOne, setRepeatOne] = useState(false);
+  const [lyricsOpen, setLyricsOpen] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
+  const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
+  const lyricsClock = useRef({ media: 0, stamp: 0, lastTick: 0 });
   const lyricsDrag = useRef({
     holding: false,
     follow: true,
@@ -80,6 +83,7 @@ export default function AlbumPage() {
     pointerY: 0,
     moved: false,
   });
+  const sheetPull = useRef({ dragging: false, startY: 0, y: 0, moved: false });
 
   function sameSrc(audio: HTMLAudioElement, src: string): boolean {
     try {
@@ -220,10 +224,29 @@ export default function AlbumPage() {
     openAt(next, true);
   }
 
+  function lyricPlayhead(): number {
+    const audio = audioRef.current;
+    if (!audio) return 0;
+    const media = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    const clock = lyricsClock.current;
+    const now = performance.now();
+    if (audio.paused) {
+      clock.media = media;
+      clock.stamp = now;
+      return media;
+    }
+    if (Math.abs(media - clock.media) > 0.2) {
+      clock.media = media;
+      clock.stamp = now;
+    }
+    if (!clock.stamp) clock.stamp = now;
+    return clock.media + (now - clock.stamp) / 1000;
+  }
+
   function lyricNaturalScroll(el: HTMLDivElement): number {
     const audio = audioRef.current;
     const length = audio?.duration || 0;
-    const time = audio?.currentTime || 0;
+    const time = lyricPlayhead();
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     if (!Number.isFinite(length) || length <= 0 || max <= 0) return 0;
     const hold = firstVerseHoldSeconds(track?.lyrics || "", length);
@@ -235,15 +258,33 @@ export default function AlbumPage() {
     lyricsDrag.current.offset = 0;
     lyricsDrag.current.follow = true;
     lyricsDrag.current.holding = false;
+    lyricsClock.current.media = 0;
+    lyricsClock.current.stamp = 0;
     if (lyricsRef.current) lyricsRef.current.scrollTop = 0;
+  }
+
+  function setSheetOffset(y: number) {
+    sheetPull.current.y = Math.max(0, y);
+    if (lyricsSheetRef.current) {
+      lyricsSheetRef.current.style.transform = sheetPull.current.y
+        ? `translateY(${sheetPull.current.y}px)`
+        : "";
+    }
+  }
+
+  function closeLyricsSheet() {
+    setSheetOffset(0);
+    setLyricsOpen(false);
   }
 
   useEffect(() => {
     resetLyricFollow();
+    setLyricsOpen(true);
+    setSheetOffset(0);
   }, [track?.id]);
 
   useEffect(() => {
-    if (!track) return;
+    if (!track || !lyricsOpen) return;
     const el = lyricsRef.current;
     if (!el) return;
     const blockBounce = (event: TouchEvent) => event.preventDefault();
@@ -253,20 +294,26 @@ export default function AlbumPage() {
     };
     el.addEventListener("touchmove", blockBounce, { passive: false });
     el.addEventListener("wheel", onWheel, { passive: false });
+    lyricsClock.current.lastTick = performance.now();
     let raf = 0;
-    const tick = () => {
+    const tick = (now: number) => {
       const scroller = lyricsRef.current;
       const drag = lyricsDrag.current;
+      const dt = Math.min(0.05, (now - (lyricsClock.current.lastTick || now)) / 1000);
+      lyricsClock.current.lastTick = now;
       if (scroller && drag.holding) {
         const pull = drag.originY - drag.pointerY;
         if (Math.abs(pull) > 12) {
-          const rate = Math.sign(pull) * Math.min(14, (Math.abs(pull) - 12) * 0.1);
+          const rate = Math.sign(pull) * Math.min(10, (Math.abs(pull) - 12) * 0.08);
           const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
           scroller.scrollTop = Math.max(0, Math.min(max, scroller.scrollTop + rate));
           drag.offset = scroller.scrollTop - lyricNaturalScroll(scroller);
         }
       } else if (scroller && drag.follow) {
-        scroller.scrollTop = lyricNaturalScroll(scroller) + drag.offset;
+        const target = lyricNaturalScroll(scroller) + drag.offset;
+        const cur = scroller.scrollTop;
+        const ease = 1 - Math.exp(-dt / 0.2);
+        scroller.scrollTop = Math.abs(target - cur) < 0.35 ? target : cur + (target - cur) * ease;
       }
       raf = window.requestAnimationFrame(tick);
     };
@@ -276,7 +323,7 @@ export default function AlbumPage() {
       el.removeEventListener("touchmove", blockBounce);
       el.removeEventListener("wheel", onWheel);
     };
-  }, [track]);
+  }, [track, lyricsOpen]);
 
   function onLyricsPointerDown(event: PointerEvent<HTMLDivElement>) {
     const el = lyricsRef.current;
@@ -318,6 +365,40 @@ export default function AlbumPage() {
       drag.offset = drag.moved ? el.scrollTop - lyricNaturalScroll(el) : 0;
     }
     drag.follow = true;
+  }
+
+  function onSheetHandleDown(event: PointerEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    const pull = sheetPull.current;
+    pull.dragging = true;
+    pull.startY = event.clientY;
+    pull.y = 0;
+    pull.moved = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function onSheetHandleMove(event: PointerEvent<HTMLButtonElement>) {
+    const pull = sheetPull.current;
+    if (!pull.dragging) return;
+    const y = event.clientY - pull.startY;
+    if (Math.abs(y) > 6) pull.moved = true;
+    setSheetOffset(y);
+    event.preventDefault();
+  }
+
+  function onSheetHandleUp(event: PointerEvent<HTMLButtonElement>) {
+    const pull = sheetPull.current;
+    if (!pull.dragging) return;
+    pull.dragging = false;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      /* already released */
+    }
+    const dock = lyricsSheetRef.current?.parentElement;
+    const threshold = Math.max(90, (dock?.clientHeight || 240) * 0.22);
+    if (!pull.moved || pull.y > threshold) closeLyricsSheet();
+    else setSheetOffset(0);
   }
 
   function restartSong() {
@@ -536,30 +617,52 @@ export default function AlbumPage() {
                 }}
               />
             </div>
-            <div
-              className="lyrics-section"
-              ref={lyricsRef}
-              onPointerDown={onLyricsPointerDown}
-              onPointerMove={onLyricsPointerMove}
-              onPointerUp={onLyricsPointerUp}
-              onPointerCancel={onLyricsPointerUp}
-            >
-              {introduction ? <div className="introduction-text">{introduction}</div> : null}
-              {track.lyrics.trim() || !track.instrumental ? (
-                <>
-                  <div className="lyrics-label">Lyrics</div>
-                  <div className="lyrics-text">
-                    {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
+            <div className="lyrics-dock">
+              {lyricsOpen ? (
+                <div className="lyrics-sheet" ref={lyricsSheetRef}>
+                  <button
+                    type="button"
+                    className="lyrics-handle"
+                    title="Drag down to close"
+                    aria-label="Drag down to close lyrics"
+                    onPointerDown={onSheetHandleDown}
+                    onPointerMove={onSheetHandleMove}
+                    onPointerUp={onSheetHandleUp}
+                    onPointerCancel={onSheetHandleUp}
+                  >
+                    <IconChevronDown />
+                  </button>
+                  <div
+                    className="lyrics-section"
+                    ref={lyricsRef}
+                    onPointerDown={onLyricsPointerDown}
+                    onPointerMove={onLyricsPointerMove}
+                    onPointerUp={onLyricsPointerUp}
+                    onPointerCancel={onLyricsPointerUp}
+                  >
+                    {introduction ? <div className="introduction-text">{introduction}</div> : null}
+                    {track.lyrics.trim() || !track.instrumental ? (
+                      <>
+                        <div className="lyrics-label">Lyrics</div>
+                        <div className="lyrics-text">
+                          {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
+                        </div>
+                      </>
+                    ) : null}
+                    <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
+                      <CopyrightLines text={album.copyright} />
+                      <div className="sdg">
+                        <IconCross />
+                        Soli Deo Gloria
+                      </div>
+                    </footer>
                   </div>
-                </>
-              ) : null}
-              <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
-                <CopyrightLines text={album.copyright} />
-                <div className="sdg">
-                  <IconCross />
-                  Soli Deo Gloria
                 </div>
-              </footer>
+              ) : (
+                <button type="button" className="lyrics-open" onClick={() => setLyricsOpen(true)}>
+                  Lyrics
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -620,6 +723,12 @@ function TrackRow({
       <span className="t-dur">{durationLabel || "—"}</span>
       <div className="t-play-icon"><IconPlay /></div>
     </div>
+  );
+}
+
+function IconChevronDown() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 6 5-6z" /></svg>
   );
 }
 
