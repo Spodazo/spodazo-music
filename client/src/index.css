@@ -545,7 +545,10 @@ a { color: inherit; }
   flex-direction: column;
   container-type: inline-size;
 }
-.lyrics-dock.has-sheet .lyrics-static { opacity: 0.2; }
+.lyrics-dock.has-sheet .lyrics-static {
+  opacity: 0;
+  visibility: hidden;
+}
 .lyrics-static {
   flex: 1;
   min-height: 0;
@@ -558,7 +561,7 @@ a { color: inherit; }
   position: absolute;
   left: 2%;
   right: 2%;
-  top: 4px;
+  top: 0;
   bottom: 8px;
   bottom: 2cqw;
   height: auto;
