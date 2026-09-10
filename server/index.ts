@@ -29,7 +29,11 @@ registerRoutes(app);
 async function start() {
   await ensureSessionTable();
   await getStore();
-  await remapImageFilenames(await convertStoredImages());
+  try {
+    await remapImageFilenames(await convertStoredImages());
+  } catch (err) {
+    console.error("[media] stored image conversion failed:", err);
+  }
   const port = Number(process.env.PORT || 3000);
 
   if (process.env.NODE_ENV === "production") {

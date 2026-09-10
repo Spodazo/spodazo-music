@@ -23,7 +23,7 @@ async function buildAll() {
       "process.env.NODE_ENV": '"production"',
       "process.env.BUILD_ID": JSON.stringify(buildId),
     },
-    external: ["pg-native", "vite"],
+    external: ["pg-native", "vite", "sharp"],
     target: "node20",
     logLevel: "info",
   });
