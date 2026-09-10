@@ -28,6 +28,10 @@ function introductionBody(text: string): string {
   return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
 }
 
+function trackHasLyrics(track: { lyrics: string } | null): boolean {
+  return Boolean(track?.lyrics.trim());
+}
+
 function CopyrightLines({ text }: { text: string }) {
   const parts = copyrightParts(text);
   return (
@@ -69,8 +73,7 @@ export default function AlbumPage() {
     follow: true,
     offset: 0,
     originY: 0,
-    lastY: 0,
-    pointerY: 0,
+    grabY: 0,
     moved: false,
   });
   const sheetPull = useRef({ dragging: false, startY: 0, y: 0, moved: false });
@@ -300,9 +303,9 @@ export default function AlbumPage() {
   }, [track?.id]);
 
   useEffect(() => {
-    if (!track || !playing || lyricsOpen || lyricsDismissed.current) return;
+    if (!track || !playing || lyricsOpen || lyricsDismissed.current || !trackHasLyrics(track)) return;
     const timer = window.setTimeout(() => {
-      if (!lyricsDismissed.current) setLyricsOpen(true);
+      if (!lyricsDismissed.current && trackHasLyrics(track)) setLyricsOpen(true);
     }, 3500);
     return () => window.clearTimeout(timer);
   }, [track?.id, playing, lyricsOpen]);
@@ -323,14 +326,7 @@ export default function AlbumPage() {
     const tick = (now: number) => {
       const drag = lyricsDrag.current;
       lyricsClock.current.lastTick = now;
-      if (drag.holding) {
-        const pull = drag.originY - drag.pointerY;
-        if (Math.abs(pull) > 12) {
-          const rate = Math.sign(pull) * Math.min(10, (Math.abs(pull) - 12) * 0.08);
-          applyLyricY(lyricsClock.current.displayed + rate);
-          drag.offset = lyricsClock.current.displayed - lyricNaturalScroll();
-        }
-      } else if (drag.follow) {
+      if (!drag.holding && drag.follow) {
         applyLyricY(lyricNaturalScroll() + drag.offset);
       }
       raf = window.requestAnimationFrame(tick);
@@ -350,8 +346,7 @@ export default function AlbumPage() {
     drag.holding = true;
     drag.follow = false;
     drag.originY = event.clientY;
-    drag.lastY = event.clientY;
-    drag.pointerY = event.clientY;
+    drag.grabY = lyricsClock.current.displayed;
     drag.moved = false;
     el.setPointerCapture(event.pointerId);
   }
@@ -359,13 +354,9 @@ export default function AlbumPage() {
   function onLyricsPointerMove(event: PointerEvent<HTMLDivElement>) {
     const drag = lyricsDrag.current;
     if (!drag.holding) return;
-    const el = lyricsRef.current;
-    if (!el) return;
-    const delta = drag.lastY - event.clientY;
-    drag.lastY = event.clientY;
-    drag.pointerY = event.clientY;
-    if (Math.abs(event.clientY - drag.originY) > 6) drag.moved = true;
-    applyLyricY(lyricsClock.current.displayed + delta);
+    const travel = drag.originY - event.clientY;
+    if (Math.abs(travel) > 6) drag.moved = true;
+    applyLyricY(drag.grabY + travel);
     event.preventDefault();
   }
 
@@ -634,7 +625,7 @@ export default function AlbumPage() {
                 }}
               />
             </div>
-            <div className={`lyrics-dock${lyricsOpen ? " has-sheet" : ""}`}>
+            <div className={`lyrics-dock${lyricsOpen && trackHasLyrics(track) ? " has-sheet" : ""}`}>
               <div className="lyrics-section lyrics-static">
                 {introduction ? <div className="introduction-text">{introduction}</div> : null}
                 {track.lyrics.trim() || !track.instrumental ? (
@@ -653,7 +644,7 @@ export default function AlbumPage() {
                   </div>
                 </footer>
               </div>
-              {lyricsOpen ? (
+              {lyricsOpen && trackHasLyrics(track) ? (
                 <div className="lyrics-sheet" ref={lyricsSheetRef}>
                   <button
                     type="button"
