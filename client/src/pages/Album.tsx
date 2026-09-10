@@ -213,9 +213,16 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     const length = audio?.duration || 0;
     const time = audio?.currentTime || 0;
-    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    const view = el.clientHeight;
+    const full = el.scrollHeight;
+    const max = Math.max(0, full - view);
     if (!Number.isFinite(length) || length <= 0 || max <= 0) return 0;
-    return (Math.min(Math.max(time, 0), length) / length) * max;
+    const intro = Math.min(16, length * 0.07);
+    const raw = Math.min(1, Math.max(0, (time - intro) / Math.max(1, length - intro)));
+    const progress = raw * raw * (3 - 2 * raw);
+    const readY = progress * full;
+    const readingLine = view * 0.82;
+    return Math.max(0, Math.min(max, readY - readingLine));
   }
 
   function resetLyricFollow() {
