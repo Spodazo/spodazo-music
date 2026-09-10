@@ -28,6 +28,17 @@ function introductionBody(text: string): string {
   return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
 }
 
+function firstVerseHoldSeconds(lyrics: string, duration: number): number {
+  if (!Number.isFinite(duration) || duration <= 0) return 0;
+  const text = lyrics.replace(/\r/g, "");
+  const markers = [...text.matchAll(/^\[.+\]/gm)];
+  let fraction = 0.22;
+  if (markers.length >= 2 && markers[1].index != null && text.length > 0) {
+    fraction = markers[1].index / text.length;
+  }
+  return duration * Math.min(0.45, Math.max(0.16, fraction));
+}
+
 function CopyrightLines({ text }: { text: string }) {
   const parts = copyrightParts(text);
   return (
@@ -213,16 +224,11 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     const length = audio?.duration || 0;
     const time = audio?.currentTime || 0;
-    const view = el.clientHeight;
-    const full = el.scrollHeight;
-    const max = Math.max(0, full - view);
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
     if (!Number.isFinite(length) || length <= 0 || max <= 0) return 0;
-    const intro = Math.min(16, length * 0.07);
-    const raw = Math.min(1, Math.max(0, (time - intro) / Math.max(1, length - intro)));
-    const progress = raw * raw * (3 - 2 * raw);
-    const readY = progress * full;
-    const readingLine = view * 0.82;
-    return Math.max(0, Math.min(max, readY - readingLine));
+    const hold = firstVerseHoldSeconds(track?.lyrics || "", length);
+    if (time <= hold) return 0;
+    return Math.min(max, ((time - hold) / Math.max(1, length - hold)) * max);
   }
 
   function resetLyricFollow() {
