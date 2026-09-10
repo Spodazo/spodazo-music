@@ -62,7 +62,8 @@ export default function AlbumPage() {
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
-  const lyricsClock = useRef({ media: 0, stamp: 0, lastTick: 0 });
+  const lyricsTrackRef = useRef<HTMLDivElement | null>(null);
+  const lyricsClock = useRef({ media: 0, stamp: 0, lastTick: 0, displayed: 0 });
   const lyricsDrag = useRef({
     holding: false,
     follow: true,
@@ -225,23 +226,45 @@ export default function AlbumPage() {
       clock.stamp = now;
       return media;
     }
-    if (Math.abs(media - clock.media) > 0.2) {
+    if (!clock.stamp) {
       clock.media = media;
       clock.stamp = now;
+      return media;
     }
-    if (!clock.stamp) clock.stamp = now;
-    return clock.media + (now - clock.stamp) / 1000;
+    const estimated = clock.media + (now - clock.stamp) / 1000;
+    if (Math.abs(media - estimated) > 0.6) {
+      clock.media = media;
+      clock.stamp = now;
+      return media;
+    }
+    return estimated;
   }
 
-  function lyricNaturalScroll(el: HTMLDivElement): number {
+  function lyricMaxScroll(): number {
+    const view = lyricsRef.current;
+    const trackEl = lyricsTrackRef.current;
+    if (!view || !trackEl) return 0;
+    return Math.max(0, trackEl.scrollHeight - view.clientHeight);
+  }
+
+  function lyricNaturalScroll(): number {
     const audio = audioRef.current;
     const length = audio?.duration || 0;
     const time = lyricPlayhead();
-    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    const max = lyricMaxScroll();
     if (!Number.isFinite(length) || length <= 0 || max <= 0) return 0;
     const start = 4;
     if (time <= start) return 0;
     return Math.min(max, ((time - start) / Math.max(1, length - start)) * max);
+  }
+
+  function applyLyricY(y: number) {
+    const max = lyricMaxScroll();
+    const next = Math.max(0, Math.min(max, y));
+    lyricsClock.current.displayed = next;
+    if (lyricsTrackRef.current) {
+      lyricsTrackRef.current.style.transform = `translate3d(0, ${-next}px, 0)`;
+    }
   }
 
   function resetLyricFollow() {
@@ -250,7 +273,8 @@ export default function AlbumPage() {
     lyricsDrag.current.holding = false;
     lyricsClock.current.media = 0;
     lyricsClock.current.stamp = 0;
-    if (lyricsRef.current) lyricsRef.current.scrollTop = 0;
+    lyricsClock.current.displayed = 0;
+    applyLyricY(0);
   }
 
   function setSheetOffset(y: number) {
@@ -297,23 +321,17 @@ export default function AlbumPage() {
     lyricsClock.current.lastTick = performance.now();
     let raf = 0;
     const tick = (now: number) => {
-      const scroller = lyricsRef.current;
       const drag = lyricsDrag.current;
-      const dt = Math.min(0.05, (now - (lyricsClock.current.lastTick || now)) / 1000);
       lyricsClock.current.lastTick = now;
-      if (scroller && drag.holding) {
+      if (drag.holding) {
         const pull = drag.originY - drag.pointerY;
         if (Math.abs(pull) > 12) {
           const rate = Math.sign(pull) * Math.min(10, (Math.abs(pull) - 12) * 0.08);
-          const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-          scroller.scrollTop = Math.max(0, Math.min(max, scroller.scrollTop + rate));
-          drag.offset = scroller.scrollTop - lyricNaturalScroll(scroller);
+          applyLyricY(lyricsClock.current.displayed + rate);
+          drag.offset = lyricsClock.current.displayed - lyricNaturalScroll();
         }
-      } else if (scroller && drag.follow) {
-        const target = lyricNaturalScroll(scroller) + drag.offset;
-        const cur = scroller.scrollTop;
-        const ease = 1 - Math.exp(-dt / 0.28);
-        scroller.scrollTop = Math.abs(target - cur) < 0.35 ? target : cur + (target - cur) * ease;
+      } else if (drag.follow) {
+        applyLyricY(lyricNaturalScroll() + drag.offset);
       }
       raf = window.requestAnimationFrame(tick);
     };
@@ -347,7 +365,7 @@ export default function AlbumPage() {
     drag.lastY = event.clientY;
     drag.pointerY = event.clientY;
     if (Math.abs(event.clientY - drag.originY) > 6) drag.moved = true;
-    el.scrollTop += delta;
+    applyLyricY(lyricsClock.current.displayed + delta);
     event.preventDefault();
   }
 
@@ -362,7 +380,7 @@ export default function AlbumPage() {
       } catch {
         /* already released */
       }
-      drag.offset = drag.moved ? el.scrollTop - lyricNaturalScroll(el) : 0;
+      drag.offset = drag.moved ? lyricsClock.current.displayed - lyricNaturalScroll() : 0;
     }
     drag.follow = true;
   }
@@ -621,7 +639,6 @@ export default function AlbumPage() {
                 {introduction ? <div className="introduction-text">{introduction}</div> : null}
                 {track.lyrics.trim() || !track.instrumental ? (
                   <>
-                    <div className="sing-along">Sing Along...</div>
                     <div className="lyrics-label">Lyrics</div>
                     <div className="lyrics-text">
                       {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
@@ -658,17 +675,18 @@ export default function AlbumPage() {
                     onPointerUp={onLyricsPointerUp}
                     onPointerCancel={onLyricsPointerUp}
                   >
-                    {introduction ? <div className="introduction-text">{introduction}</div> : null}
-                    {track.lyrics.trim() || !track.instrumental ? (
-                      <>
-                        <div className="sing-along">Sing Along...</div>
-                        <div className="lyrics-label">Lyrics</div>
-                        <div className="lyrics-text">
-                          {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
-                        </div>
-                      </>
-                    ) : null}
-                    <div className="lyrics-scroll-pad" aria-hidden="true" />
+                    <div className="lyrics-scroll-track" ref={lyricsTrackRef}>
+                      {track.lyrics.trim() || !track.instrumental ? (
+                        <>
+                          <div className="sing-along">Sing Along...</div>
+                          <div className="lyrics-label">Lyrics</div>
+                          <div className="lyrics-text">
+                            {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
+                          </div>
+                        </>
+                      ) : null}
+                      <div className="lyrics-scroll-pad" aria-hidden="true" />
+                    </div>
                   </div>
                 </div>
               ) : null}

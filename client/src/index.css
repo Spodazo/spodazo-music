@@ -595,14 +595,17 @@ a { color: inherit; }
 .lyrics-scroll {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 0 20px 20px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--amber2) transparent;
   touch-action: none;
   overscroll-behavior: contain;
   user-select: none;
   -webkit-user-select: none;
+}
+.lyrics-scroll-track {
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
 }
 .introduction-text {
   font-size: 0.945rem;
@@ -619,16 +622,16 @@ a { color: inherit; }
   text-align: left;
   margin-top: 12px;
 }
-.introduction-text + .sing-along { margin-top: 18px; }
 .lyrics-label {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--amber);
-  margin-top: 6px;
+  margin-top: 16px;
   margin-bottom: 8px;
   opacity: 0.7;
 }
+.sing-along + .lyrics-label { margin-top: 6px; }
 .lyrics-scroll-pad {
   height: 42%;
   min-height: 8rem;
