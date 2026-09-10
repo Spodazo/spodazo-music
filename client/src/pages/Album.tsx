@@ -1,20 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
-import {
-  adoptBlobSrc,
-  albumPrimeOrder,
-  assignAudioSrc,
-  cachedSrc,
-  clearAudioCache,
-  dropOldAudioCaches,
-  hydrateFromCache,
-  primeAudio,
-  retainAudio,
-  resumeMedia,
-  setPlaybackSession,
-  setStreamingUrl,
-} from "../lib/audioCache";
+import { assignSrc, dropLegacyAudioCaches, pipelineIsDead, playSong, setPlaybackSession } from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
@@ -81,9 +68,7 @@ export default function AlbumPage() {
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
   const currentUrlRef = useRef("");
-  const backgroundedRef = useRef(false);
   const resumeTimeRef = useRef(0);
-  const primeAbortRef = useRef<AbortController | null>(null);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
   const lyricsTrackRef = useRef<HTMLDivElement | null>(null);
@@ -103,28 +88,6 @@ export default function AlbumPage() {
     if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
       resumeTimeRef.current = audio.currentTime;
     }
-  }
-
-  function markBackgrounded() {
-    rememberTime();
-    backgroundedRef.current = true;
-    setStreamingUrl("");
-    const url = currentUrlRef.current;
-    if (url) {
-      void primeAudio(url).then((blob) => {
-        const audio = audioRef.current;
-        if (!blob || !audio || currentUrlRef.current !== url) return;
-        adoptBlobSrc(audio, url);
-      });
-    }
-  }
-
-  function warmForegroundPipeline() {
-    const audio = audioRef.current;
-    const url = currentUrlRef.current;
-    if (!audio || !url || !audio.paused) return;
-    adoptBlobSrc(audio, url);
-    if (audio.readyState < 3) assignAudioSrc(audio, url);
   }
 
   useEffect(() => {
@@ -148,50 +111,18 @@ export default function AlbumPage() {
 
   useEffect(() => {
     setPlaybackSession();
-    return () => {
-      clearAudioCache();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!album) return;
-    const controller = new AbortController();
-    primeAbortRef.current = controller;
-    const urls = album.tracks.map((item) => item.audioUrl).filter(Boolean);
-    retainAudio(urls);
-    let cancelled = false;
-    void (async () => {
-      await dropOldAudioCaches();
-      await Promise.all(urls.map((url) => hydrateFromCache(url)));
-      for (const url of albumPrimeOrder(urls, album.tracks[0]?.audioUrl)) {
-        if (cancelled) return;
-        await primeAudio(url, controller.signal);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [album]);
-
-  useEffect(() => {
+    void dropLegacyAudioCaches();
+    const onHide = () => rememberTime();
     const onVisibility = () => {
-      if (document.hidden) markBackgrounded();
-      else warmForegroundPipeline();
+      if (document.hidden) onHide();
     };
-    const onHide = () => markBackgrounded();
-    const onShow = () => warmForegroundPipeline();
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onHide);
-    window.addEventListener("pageshow", onShow);
     window.addEventListener("freeze", onHide);
-    window.addEventListener("resume", onShow);
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onHide);
-      window.removeEventListener("pageshow", onShow);
       window.removeEventListener("freeze", onHide);
-      window.removeEventListener("resume", onShow);
     };
   }, []);
 
@@ -228,8 +159,7 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     if (!next?.audioUrl || !audio || !audio.paused) return;
     currentUrlRef.current = next.audioUrl;
-    assignAudioSrc(audio, next.audioUrl);
-    void primeAudio(next.audioUrl);
+    assignSrc(audio, next.audioUrl);
   }
 
   function load(index: number, autoplay: boolean) {
@@ -238,12 +168,9 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     if (!next || !audio) return;
     currentUrlRef.current = next.audioUrl;
-    backgroundedRef.current = false;
     resumeTimeRef.current = 0;
-    assignAudioSrc(audio, next.audioUrl);
+    assignSrc(audio, next.audioUrl);
     if (autoplay) {
-      if (!cachedSrc(next.audioUrl)) setStreamingUrl(next.audioUrl);
-      else setStreamingUrl("");
       void audio.play().then(() => {
         setPlaying(true);
         window.setTimeout(() => acquireWake(), 400);
@@ -251,8 +178,6 @@ export default function AlbumPage() {
     }
     window.setTimeout(() => {
       history.replaceState(null, "", `#${next.slug}`);
-      const upcoming = catalog?.tracks[(index + 1) % catalog.tracks.length];
-      if (upcoming?.audioUrl) void primeAudio(upcoming.audioUrl);
     }, 250);
   }
 
@@ -266,8 +191,6 @@ export default function AlbumPage() {
     setPlaying(false);
     audioRef.current?.pause();
     currentUrlRef.current = "";
-    backgroundedRef.current = false;
-    setStreamingUrl("");
     releaseWake();
     history.replaceState(null, "", location.pathname + location.search);
   }
@@ -479,26 +402,18 @@ export default function AlbumPage() {
     if (!audio || !url) return;
     if (audio.paused) {
       const resumeTime = audio.currentTime > 0.15 ? audio.currentTime : resumeTimeRef.current;
-      const backgrounded = backgroundedRef.current;
-      backgroundedRef.current = false;
-      void resumeMedia(audio, url, resumeTime, backgrounded)
-        .then(() => {
-          setPlaying(true);
-          acquireWake();
-          if (!cachedSrc(url)) setStreamingUrl(url);
-          else setStreamingUrl("");
-        })
-        .catch(() => undefined);
+      const play = pipelineIsDead(audio)
+        ? playSong(audio, url, resumeTime, true)
+        : audio.play().then(() => undefined);
+      void play.then(() => {
+        setPlaying(true);
+        acquireWake();
+      }).catch(() => undefined);
     } else {
       rememberTime();
       audio.pause();
       setPlaying(false);
       releaseWake();
-      setStreamingUrl("");
-      void primeAudio(url).then((blob) => {
-        if (!blob || audioRef.current !== audio || currentUrlRef.current !== url) return;
-        adoptBlobSrc(audio, url);
-      });
     }
   }
 

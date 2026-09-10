@@ -1,32 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { albumPrimeOrder, HAVE_FUTURE_DATA, mediaNeedsRebuild } from "./audioCache";
+import { HAVE_CURRENT_DATA, mediaUrl, pipelineIsDead } from "./audioCache";
 
-test("albumPrimeOrder starts from the current song then wraps", () => {
-  assert.deepEqual(albumPrimeOrder(["a", "b", "c"], "b"), ["b", "c", "a"]);
-  assert.deepEqual(albumPrimeOrder(["a", "a", "", "b"], "a"), ["a", "b"]);
-  assert.deepEqual(albumPrimeOrder(["a", "b"], "missing"), ["a", "b"]);
+test("mediaUrl only adds a start fragment when resuming mid-song", () => {
+  assert.equal(mediaUrl("/media/songs/a.mp3?v=4"), "/media/songs/a.mp3?v=4");
+  assert.equal(mediaUrl("/media/songs/a.mp3?v=4#t=9.00", 0), "/media/songs/a.mp3?v=4");
+  assert.equal(mediaUrl("/media/songs/a.mp3?v=4", 45.2), "/media/songs/a.mp3?v=4#t=45.20");
 });
 
-test("mediaNeedsRebuild is true after backgrounding or a dead buffer", () => {
-  assert.equal(
-    mediaNeedsRebuild({ readyState: HAVE_FUTURE_DATA, hasError: false, srcMatches: true, backgrounded: false }),
-    false,
-  );
-  assert.equal(
-    mediaNeedsRebuild({ readyState: HAVE_FUTURE_DATA, hasError: false, srcMatches: true, backgrounded: true }),
-    true,
-  );
-  assert.equal(
-    mediaNeedsRebuild({ readyState: 1, hasError: false, srcMatches: true, backgrounded: false }),
-    true,
-  );
-  assert.equal(
-    mediaNeedsRebuild({ readyState: HAVE_FUTURE_DATA, hasError: true, srcMatches: true, backgrounded: false }),
-    true,
-  );
-  assert.equal(
-    mediaNeedsRebuild({ readyState: HAVE_FUTURE_DATA, hasError: false, srcMatches: false, backgrounded: false }),
-    true,
-  );
+test("pipelineIsDead is true only when the element cannot play", () => {
+  assert.equal(pipelineIsDead({ error: null, readyState: HAVE_CURRENT_DATA } as HTMLAudioElement), false);
+  assert.equal(pipelineIsDead({ error: null, readyState: 3 } as HTMLAudioElement), false);
+  assert.equal(pipelineIsDead({ error: null, readyState: 1 } as HTMLAudioElement), true);
+  assert.equal(pipelineIsDead({ error: {} as MediaError, readyState: 3 } as HTMLAudioElement), true);
 });
