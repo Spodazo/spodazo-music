@@ -66,7 +66,7 @@ export default function AlbumPage() {
   const [durations, setDurations] = useState<Record<string, string>>({});
   const [repeatAll, setRepeatAll] = useState(false);
   const [repeatOne, setRepeatOne] = useState(false);
-  const [lyricsOpen, setLyricsOpen] = useState(true);
+  const [lyricsOpen, setLyricsOpen] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
@@ -84,6 +84,7 @@ export default function AlbumPage() {
     moved: false,
   });
   const sheetPull = useRef({ dragging: false, startY: 0, y: 0, moved: false });
+  const lyricsDismissed = useRef(false);
 
   function sameSrc(audio: HTMLAudioElement, src: string): boolean {
     try {
@@ -273,15 +274,25 @@ export default function AlbumPage() {
   }
 
   function closeLyricsSheet() {
+    lyricsDismissed.current = true;
     setSheetOffset(0);
     setLyricsOpen(false);
   }
 
   useEffect(() => {
-    resetLyricFollow();
-    setLyricsOpen(true);
+    lyricsDismissed.current = false;
+    setLyricsOpen(false);
     setSheetOffset(0);
+    resetLyricFollow();
   }, [track?.id]);
+
+  useEffect(() => {
+    if (!track || !playing || lyricsOpen || lyricsDismissed.current) return;
+    const timer = window.setTimeout(() => {
+      if (!lyricsDismissed.current) setLyricsOpen(true);
+    }, 3500);
+    return () => window.clearTimeout(timer);
+  }, [track?.id, playing, lyricsOpen]);
 
   useEffect(() => {
     if (!track || !lyricsOpen) return;
@@ -312,7 +323,7 @@ export default function AlbumPage() {
       } else if (scroller && drag.follow) {
         const target = lyricNaturalScroll(scroller) + drag.offset;
         const cur = scroller.scrollTop;
-        const ease = 1 - Math.exp(-dt / 0.2);
+        const ease = 1 - Math.exp(-dt / 0.42);
         scroller.scrollTop = Math.abs(target - cur) < 0.35 ? target : cur + (target - cur) * ease;
       }
       raf = window.requestAnimationFrame(tick);
@@ -395,8 +406,7 @@ export default function AlbumPage() {
     } catch {
       /* already released */
     }
-    const dock = lyricsSheetRef.current?.parentElement;
-    const threshold = Math.max(90, (dock?.clientHeight || 240) * 0.22);
+    const threshold = Math.max(80, (lyricsSheetRef.current?.clientHeight || 240) * 0.22);
     if (!pull.moved || pull.y > threshold) closeLyricsSheet();
     else setSheetOffset(0);
   }
@@ -617,7 +627,25 @@ export default function AlbumPage() {
                 }}
               />
             </div>
-            <div className="lyrics-dock">
+            <div className={`lyrics-dock${lyricsOpen ? " has-sheet" : ""}`}>
+              <div className="lyrics-section lyrics-static">
+                {introduction ? <div className="introduction-text">{introduction}</div> : null}
+                {track.lyrics.trim() || !track.instrumental ? (
+                  <>
+                    <div className="lyrics-label">Lyrics</div>
+                    <div className="lyrics-text">
+                      {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
+                    </div>
+                  </>
+                ) : null}
+                <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
+                  <CopyrightLines text={album.copyright} />
+                  <div className="sdg">
+                    <IconCross />
+                    Soli Deo Gloria
+                  </div>
+                </footer>
+              </div>
               {lyricsOpen ? (
                 <div className="lyrics-sheet" ref={lyricsSheetRef}>
                   <button
@@ -633,7 +661,7 @@ export default function AlbumPage() {
                     <IconChevronDown />
                   </button>
                   <div
-                    className="lyrics-section"
+                    className="lyrics-section lyrics-scroll"
                     ref={lyricsRef}
                     onPointerDown={onLyricsPointerDown}
                     onPointerMove={onLyricsPointerMove}
@@ -649,20 +677,9 @@ export default function AlbumPage() {
                         </div>
                       </>
                     ) : null}
-                    <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
-                      <CopyrightLines text={album.copyright} />
-                      <div className="sdg">
-                        <IconCross />
-                        Soli Deo Gloria
-                      </div>
-                    </footer>
                   </div>
                 </div>
-              ) : (
-                <button type="button" className="lyrics-open" onClick={() => setLyricsOpen(true)}>
-                  Lyrics
-                </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
