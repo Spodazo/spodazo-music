@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
-import { useRoute } from "wouter";
+import { Link, useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import {
   assignSrc,
@@ -42,6 +42,15 @@ function trackHasLyrics(track: { lyrics: string; instrumental?: boolean } | null
   const lyrics = track.lyrics.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
   if (!lyrics || /^lyrics can be added/i.test(lyrics)) return false;
   return Boolean(lyrics.replace(/^\[[^\]]+\]\s*/gm, "").trim());
+}
+
+function AlbumsBack({ className = "" }: { className?: string }) {
+  return (
+    <Link href="/" className={`albums-back${className ? ` ${className}` : ""}`} aria-label="Back to albums">
+      <IconBack />
+      Albums
+    </Link>
+  );
 }
 
 function CopyrightLines({ text }: { text: string }) {
@@ -488,19 +497,21 @@ export default function AlbumPage() {
     <>
       {player}
       {error ? (
-        <main className="home"><AdminLoginLink /><p className="error">{error}</p></main>
+        <main className="home"><AdminLoginLink /><AlbumsBack /><p className="error">{error}</p></main>
       ) : !album ? (
-        <main className="home"><AdminLoginLink /><p>Loading…</p></main>
+        <main className="home"><AdminLoginLink /><AlbumsBack /><p>Loading…</p></main>
       ) : (
     <div className="layout">
       <AdminLoginLink />
       <aside className="portrait-panel">
+        <AlbumsBack className="albums-back-on-art" />
         {album.heroUrl ? (
           <img className="portrait-img" src={album.heroUrl} alt={`${album.title} — ${album.artists}`} fetchPriority="low" decoding="async" />
         ) : null}
       </aside>
       <section className="track-panel">
         <div className="album-head">
+          <AlbumsBack />
           <h1 className="alb-name2">{album.title}</h1>
           <p className="alb-tag">{album.tagline}</p>
           <p className="alb-credit">{album.credits}</p>
@@ -754,6 +765,14 @@ function TrackRow({
       <span className="t-dur">{durationLabel || "—"}</span>
       <div className="t-play-icon"><IconPlay /></div>
     </div>
+  );
+}
+
+function IconBack() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15.4 6.4 10.8 11l4.6 4.6L14 17l-6-6 6-6z" />
+    </svg>
   );
 }
 
