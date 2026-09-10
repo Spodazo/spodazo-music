@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { albums, tracks } from "../shared/schema";
 import { DEFAULT_CATALOG, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, seedLyricsForTrack } from "../shared/seed-data";
-import type { Album, AlbumListItem, PublicAlbum, Track } from "../shared/types";
+import type { Album, AlbumListItem, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
 
@@ -43,6 +43,7 @@ export interface MusicStore {
   listAlbums(): Promise<AlbumListItem[]>;
   getAlbumBySlug(slug: string): Promise<PublicAlbum | null>;
   getAlbumById(id: string): Promise<PublicAlbum | null>;
+  getTrackById(id: string): Promise<PublicTrack | null>;
   createAlbum(input: AlbumInput): Promise<Album>;
   updateAlbum(id: string, input: Partial<AlbumInput>): Promise<Album | null>;
   deleteAlbum(id: string): Promise<boolean>;
@@ -199,6 +200,12 @@ export class JsonMusicStore implements MusicStore {
       album,
       catalog.tracks.filter((track) => track.albumId === album.id),
     );
+  }
+
+  async getTrackById(id: string): Promise<PublicTrack | null> {
+    const catalog = this.read();
+    const track = catalog.tracks.find((item) => item.id === id);
+    return track ? hydrateTrack(track) : null;
   }
 
   async createAlbum(input: AlbumInput): Promise<Album> {
@@ -501,6 +508,11 @@ export class PostgresMusicStore implements MusicStore {
       rowAlbum(row),
       albumTracks.map(rowTrack),
     );
+  }
+
+  async getTrackById(id: string): Promise<PublicTrack | null> {
+    const [row] = await this.db.select().from(tracks).where(eq(tracks.id, id)).limit(1);
+    return row ? hydrateTrack(rowTrack(row)) : null;
   }
 
   async createAlbum(input: AlbumInput): Promise<Album> {

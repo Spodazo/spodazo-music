@@ -1001,7 +1001,9 @@ button.m-cover.enlarged {
   justify-content: flex-end;
   gap: 6px;
 }
-.admin .track-admin-actions > button {
+.admin .track-admin-actions > button,
+.admin .track-admin-actions > a.ghost,
+.admin .track-admin-actions > span.ghost {
   margin: 0;
   height: 52px;
   min-height: 52px;
@@ -1011,6 +1013,7 @@ button.m-cover.enlarged {
   justify-content: center;
   line-height: 1;
   padding: 0 16px;
+  text-decoration: none;
 }
 .admin .track-admin-actions > .admin-track-play {
   width: 52px;
@@ -1312,7 +1315,9 @@ button.m-cover.enlarged {
   .admin .track-admin-actions {
     justify-content: stretch;
   }
-  .admin .track-admin-actions > button {
+  .admin .track-admin-actions > button,
+  .admin .track-admin-actions > a.ghost,
+  .admin .track-admin-actions > span.ghost {
     flex: 1;
     height: 52px;
     min-height: 52px;

@@ -33,6 +33,13 @@ export function audioUrl(filename: string): string {
   return `/media/songs/${encodeURIComponent(filename)}?v=${assetVersion()}`;
 }
 
+export function trackDownloadName(track: { file?: string; title?: string }): string {
+  const fromFile = path.basename(track.file || "");
+  if (fromFile && /\.mp3$/i.test(fromFile)) return fromFile;
+  const title = (track.title || "song").replace(/[/\\?%*:|"<>]/g, " ").trim() || "song";
+  return `${title}.mp3`;
+}
+
 function id3v2Size(head: Buffer): number {
   if (head.length < 10 || head[0] !== 0x49 || head[1] !== 0x44 || head[2] !== 0x33) return 0;
   const size =

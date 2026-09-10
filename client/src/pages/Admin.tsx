@@ -14,6 +14,7 @@ import {
   reorderTracks,
   setAlbumHidden,
   setTrackArchived,
+  trackFileUrl,
   updateAlbum,
   updateTrack,
 } from "../lib/api";
@@ -619,6 +620,21 @@ function AlbumList({
   );
 }
 
+function TrackDownload({ track }: { track: PublicTrack }) {
+  if (!track.file) {
+    return (
+      <span className="ghost" aria-disabled="true" title="No audio file">
+        Download
+      </span>
+    );
+  }
+  return (
+    <a className="ghost" href={trackFileUrl(track.id)} download={track.file} title={`Download ${track.title}`}>
+      Download
+    </a>
+  );
+}
+
 function TrackAdmin({
   album,
   currentTrackId,
@@ -677,7 +693,9 @@ function TrackAdmin({
           <BulkTrackUpload albumId={album.id} onSaved={onChange} />
         </div>
       </div>
-      <p className="hint">Drag the handle to reorder songs. Play a track here without leaving Admin.</p>
+      <p className="hint">
+        Drag the handle to reorder songs. Play a track here, or download the live MP3 to keep a copy.
+      </p>
       {rows.map((track, index) => (
         <div
           className={`track-admin${draggingId === track.id ? " dragging" : ""}${currentTrackId === track.id ? " playing" : ""}`}
@@ -725,6 +743,7 @@ function TrackAdmin({
               {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
             </button>
             <button type="button" className="ghost" onClick={() => setEditing(track)}>Edit</button>
+            <TrackDownload track={track} />
             <button
               type="button"
               className="danger"
@@ -827,6 +846,7 @@ function ArchiveList({
               {currentTrackId === track.id && playing ? <IconPause /> : <IconPlay />}
             </button>
             <button type="button" className="ghost" onClick={() => onEdit(track)}>Edit</button>
+            <TrackDownload track={track} />
             <button type="button" onClick={() => void onRestore(track)}>Restore</button>
           </div>
         </div>

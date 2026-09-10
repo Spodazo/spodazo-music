@@ -4,7 +4,7 @@ import path from "path";
 import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
-import { assetVersion, convertUploadedImage, mp3DataOffset, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong } from "./media";
+import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
@@ -288,6 +288,21 @@ export function registerRoutes(app: Express): void {
       return;
     }
     res.json({ ok: true });
+  });
+
+  app.get("/api/admin/tracks/:id/file", requireAdmin, async (req, res) => {
+    const store = await getStore();
+    const track = await store.getTrackById(req.params.id);
+    if (!track?.file) {
+      res.status(404).json({ error: "Track not found" });
+      return;
+    }
+    const full = localSongPath(track.file);
+    if (!full) {
+      res.status(404).json({ error: "Song file is not on the live library" });
+      return;
+    }
+    res.download(full, trackDownloadName(track));
   });
 
   app.post("/api/admin/tracks/:id/archive", requireAdmin, async (req, res) => {

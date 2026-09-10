@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import test from "node:test";
-import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, imageUrl, isVbrMp3, mp3DataOffset, prepareMp3, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, imageUrl, isVbrMp3, mp3DataOffset, prepareMp3, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -27,6 +27,11 @@ test("media urls stay on this app", () => {
   );
   assert.equal(imageUrl(""), "");
   assert.equal(audioUrl(""), "");
+});
+
+test("trackDownloadName keeps the live MP3 filename", () => {
+  assert.equal(trackDownloadName({ file: "Our Light.mp3", title: "Our Light" }), "Our Light.mp3");
+  assert.equal(trackDownloadName({ file: "", title: "Our Light" }), "Our Light.mp3");
 });
 
 test("mp3DataOffset skips an ID3v2 tag and leaves a raw MP3 alone", () => {
