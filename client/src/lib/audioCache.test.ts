@@ -5,6 +5,7 @@ import { HAVE_CURRENT_DATA, mediaUrl, pipelineIsDead, waitForAudible } from "./a
 test("mediaUrl only adds a start fragment when resuming mid-song", () => {
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4"), "/media/songs/a.mp3?v=4");
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4#t=9.00", 0), "/media/songs/a.mp3?v=4");
+  assert.equal(mediaUrl("/media/songs/a.mp3?v=4", 0.05), "/media/songs/a.mp3?v=4");
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4", 45.2), "/media/songs/a.mp3?v=4#t=45.20");
 });
 

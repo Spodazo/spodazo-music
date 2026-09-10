@@ -1,6 +1,8 @@
 /** Safari/PWA playback helpers. Do not prefetch or play from blob URLs — that scratches MP3s. */
 
 export const HAVE_CURRENT_DATA = 2;
+/** Skip the Xing/encoder-delay frame Safari otherwise plays as a scratch. */
+export const START_OFFSET = 0.05;
 
 export function mediaUrl(url: string, time = 0): string {
   const base = url.split("#")[0];
@@ -22,35 +24,41 @@ export function pipelineIsDead(audio: HTMLAudioElement): boolean {
   return Boolean(audio.error) || audio.readyState < HAVE_CURRENT_DATA;
 }
 
-export function assignSrc(audio: HTMLAudioElement, url: string, time = 0) {
+export function assignSrc(audio: HTMLAudioElement, url: string, time = 0, force = false) {
   const next = mediaUrl(url, time);
-  try {
-    if (audio.src === new URL(next, window.location.href).href) return;
-  } catch {
-    if (audio.src === next) return;
+  if (!force) {
+    try {
+      if (audio.src === new URL(next, window.location.href).href) return;
+    } catch {
+      if (audio.src === next) return;
+    }
+  } else {
+    audio.removeAttribute("src");
+    audio.load();
   }
   audio.src = next;
   audio.load();
 }
 
 export function playSong(audio: HTMLAudioElement, url: string, time = 0, forceReload = false): Promise<void> {
+  const resume = time > 0.15;
   const dead = forceReload || pipelineIsDead(audio) || !sameSong(audio, url);
-  if (dead) {
-    assignSrc(audio, url, time);
-  }
+  if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
   const play = audio.play().then(() => undefined);
-  if (dead && time > 1) {
+  const skipTo = time >= START_OFFSET ? time : 0;
+  if (skipTo) {
     const fix = () => {
       if (!sameSong(audio, url)) return;
-      if (audio.currentTime < 0.4) {
+      if (audio.currentTime < skipTo - 0.02) {
         try {
-          audio.currentTime = time;
+          audio.currentTime = skipTo;
         } catch {
           /* Safari may still be opening the file */
         }
       }
     };
     audio.addEventListener("loadedmetadata", fix, { once: true });
+    audio.addEventListener("playing", fix, { once: true });
   }
   return play;
 }
@@ -88,11 +96,12 @@ export function unlockAudio() {
       window.AudioContext ||
       (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (Ctor) {
-      const ctx = new Ctor();
-      const buffer = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.08)), ctx.sampleRate);
+      const ctx = new Ctor({ sampleRate: 48000 });
+      const rate = ctx.sampleRate || 48000;
+      const buffer = ctx.createBuffer(2, Math.max(1, Math.floor(rate * 0.16)), rate);
       const src = ctx.createBufferSource();
       const gain = ctx.createGain();
-      gain.gain.value = 0.0008;
+      gain.gain.value = 0.0001;
       src.buffer = buffer;
       src.connect(gain);
       gain.connect(ctx.destination);

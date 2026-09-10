@@ -7,6 +7,7 @@ import {
   pipelineIsDead,
   playSong,
   setPlaybackSession,
+  START_OFFSET,
   unlockAudio,
 } from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
@@ -115,12 +116,6 @@ export default function AlbumPage() {
 
   useEffect(() => {
     albumRef.current = album;
-    const first = album?.tracks[0]?.audioUrl;
-    const audio = audioRef.current;
-    if (first && audio && audio.paused && !currentUrlRef.current) {
-      currentUrlRef.current = first;
-      assignSrc(audio, first);
-    }
   }, [album]);
 
   useEffect(() => {
@@ -170,19 +165,15 @@ export default function AlbumPage() {
 
   function startPlay() {
     const audio = audioRef.current;
-    if (!audio) return Promise.resolve();
+    const url = currentUrlRef.current;
+    if (!audio || !url) return Promise.resolve();
     unlockAudio();
     audio.volume = userVolRef.current;
-    return audio.play().then(() => undefined);
+    return playSong(audio, url, START_OFFSET, true);
   }
 
-  function warm(index: number) {
+  function warm() {
     unlockAudio();
-    const next = albumRef.current?.tracks[index];
-    const audio = audioRef.current;
-    if (!next?.audioUrl || !audio || !audio.paused) return;
-    currentUrlRef.current = next.audioUrl;
-    assignSrc(audio, next.audioUrl);
   }
 
   function load(index: number, autoplay: boolean) {
@@ -192,12 +183,13 @@ export default function AlbumPage() {
     if (!next || !audio) return;
     currentUrlRef.current = next.audioUrl;
     resumeTimeRef.current = 0;
-    assignSrc(audio, next.audioUrl);
     if (autoplay) {
       void startPlay().then(() => {
         setPlaying(true);
         window.setTimeout(() => acquireWake(), 400);
       }).catch(() => setPlaying(false));
+    } else {
+      assignSrc(audio, next.audioUrl);
     }
     window.setTimeout(() => {
       history.replaceState(null, "", `#${next.slug}`);
@@ -414,7 +406,7 @@ export default function AlbumPage() {
   function restartSong() {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = 0;
+    audio.currentTime = START_OFFSET;
     setCurrentTime(0);
     resetLyricFollow();
   }
@@ -472,7 +464,7 @@ export default function AlbumPage() {
   const player = (
     <audio
       ref={audioRef}
-      preload="auto"
+      preload="none"
       playsInline
       onTimeUpdate={(event) => {
         const time = event.currentTarget.currentTime;
@@ -518,7 +510,7 @@ export default function AlbumPage() {
           <div className="hero-play">
             <button
               className="btn-play-all"
-              onPointerDown={() => warm(0)}
+              onPointerDown={() => warm()}
               onClick={() => openAt(0, true)}
             >
               <IconPlay />
@@ -555,7 +547,7 @@ export default function AlbumPage() {
               index={index}
               durationLabel={durations[item.id]}
               active={active === index}
-              onWarm={() => warm(index)}
+              onWarm={() => warm()}
               onPlay={() => openAt(index, true)}
             />
           ))}
