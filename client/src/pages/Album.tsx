@@ -77,7 +77,6 @@ export default function AlbumPage() {
     moved: false,
   });
   const sheetPull = useRef({ dragging: false, startY: 0, y: 0, moved: false });
-  const lyricsDismissed = useRef(false);
 
   function sameSrc(audio: HTMLAudioElement, src: string): boolean {
     try {
@@ -289,26 +288,22 @@ export default function AlbumPage() {
     }
   }
 
+  function openLyricsSheet() {
+    setSheetOffset(0);
+    resetLyricFollow();
+    setLyricsOpen(true);
+  }
+
   function closeLyricsSheet() {
-    lyricsDismissed.current = true;
     setSheetOffset(0);
     setLyricsOpen(false);
   }
 
   useEffect(() => {
-    lyricsDismissed.current = false;
     setLyricsOpen(false);
     setSheetOffset(0);
     resetLyricFollow();
   }, [track?.id]);
-
-  useEffect(() => {
-    if (!track || !playing || lyricsOpen || lyricsDismissed.current || !trackHasLyrics(track)) return;
-    const timer = window.setTimeout(() => {
-      if (!lyricsDismissed.current && trackHasLyrics(track)) setLyricsOpen(true);
-    }, 3500);
-    return () => window.clearTimeout(timer);
-  }, [track?.id, playing, lyricsOpen]);
 
   useEffect(() => {
     if (!track || !lyricsOpen) return;
@@ -625,6 +620,11 @@ export default function AlbumPage() {
                 }}
               />
             </div>
+            {trackHasLyrics(track) && !lyricsOpen ? (
+              <button type="button" className="sing-along-btn" onClick={openLyricsSheet}>
+                SING ALONG...
+              </button>
+            ) : null}
             <div className={`lyrics-dock${lyricsOpen && trackHasLyrics(track) ? " has-sheet" : ""}`}>
               <div className="lyrics-section lyrics-static">
                 {introduction ? <div className="introduction-text">{introduction}</div> : null}
@@ -669,7 +669,6 @@ export default function AlbumPage() {
                     <div className="lyrics-scroll-track" ref={lyricsTrackRef}>
                       {track.lyrics.trim() || !track.instrumental ? (
                         <>
-                          <div className="sing-along">Sing Along...</div>
                           <div className="lyrics-label">Lyrics</div>
                           <div className="lyrics-text">
                             {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}

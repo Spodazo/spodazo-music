@@ -516,7 +516,7 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 24px 10px;
+  padding: 0 24px 4px;
 }
 .vol-wrap svg { width: 14px; height: 14px; fill: var(--muted); opacity: 0.5; flex-shrink: 0; }
 .vol-slider {
@@ -618,13 +618,19 @@ a { color: inherit; }
   word-break: break-word;
   margin-top: 16px;
 }
-.sing-along {
+.sing-along-btn {
+  display: block;
+  width: max-content;
+  margin: 0 auto 8px;
+  padding: 6px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--amber);
   font-size: 0.62rem;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  text-align: left;
-  margin-top: 12px;
+  letter-spacing: 0.16em;
+  cursor: pointer;
 }
+.sing-along-btn:hover { color: var(--amber2); }
 .lyrics-label {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
@@ -634,7 +640,6 @@ a { color: inherit; }
   margin-bottom: 8px;
   opacity: 0.7;
 }
-.sing-along + .lyrics-label { margin-top: 6px; }
 .lyrics-scroll-pad {
   height: 42%;
   min-height: 8rem;
@@ -1127,7 +1132,7 @@ a { color: inherit; }
   .transport { padding: 4px 18px 10px; }
   .lyrics-static { padding: 0 18px 20px; }
   .lyrics-scroll { padding: 0 16px 16px; }
-  .vol-wrap { padding: 0 18px 10px; }
+  .vol-wrap { padding: 0 18px 4px; }
   .row-2 { grid-template-columns: 1fr; }
 }
 
