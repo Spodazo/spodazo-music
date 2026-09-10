@@ -28,17 +28,6 @@ function introductionBody(text: string): string {
   return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
 }
 
-function firstVerseHoldSeconds(lyrics: string, duration: number): number {
-  if (!Number.isFinite(duration) || duration <= 0) return 0;
-  const text = lyrics.replace(/\r/g, "");
-  const markers = [...text.matchAll(/^\[.+\]/gm)];
-  let fraction = 0.22;
-  if (markers.length >= 2 && markers[1].index != null && text.length > 0) {
-    fraction = markers[1].index / text.length;
-  }
-  return duration * Math.min(0.45, Math.max(0.16, fraction));
-}
-
 function CopyrightLines({ text }: { text: string }) {
   const parts = copyrightParts(text);
   return (
@@ -250,9 +239,9 @@ export default function AlbumPage() {
     const time = lyricPlayhead();
     const max = Math.max(0, el.scrollHeight - el.clientHeight);
     if (!Number.isFinite(length) || length <= 0 || max <= 0) return 0;
-    const hold = firstVerseHoldSeconds(track?.lyrics || "", length);
-    if (time <= hold) return 0;
-    return Math.min(max, ((time - hold) / Math.max(1, length - hold)) * max);
+    const start = 4;
+    if (time <= start) return 0;
+    return Math.min(max, ((time - start) / Math.max(1, length - start)) * max);
   }
 
   function resetLyricFollow() {
@@ -323,7 +312,7 @@ export default function AlbumPage() {
       } else if (scroller && drag.follow) {
         const target = lyricNaturalScroll(scroller) + drag.offset;
         const cur = scroller.scrollTop;
-        const ease = 1 - Math.exp(-dt / 0.42);
+        const ease = 1 - Math.exp(-dt / 0.28);
         scroller.scrollTop = Math.abs(target - cur) < 0.35 ? target : cur + (target - cur) * ease;
       }
       raf = window.requestAnimationFrame(tick);
@@ -632,6 +621,7 @@ export default function AlbumPage() {
                 {introduction ? <div className="introduction-text">{introduction}</div> : null}
                 {track.lyrics.trim() || !track.instrumental ? (
                   <>
+                    <div className="sing-along">Sing Along...</div>
                     <div className="lyrics-label">Lyrics</div>
                     <div className="lyrics-text">
                       {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
@@ -671,12 +661,14 @@ export default function AlbumPage() {
                     {introduction ? <div className="introduction-text">{introduction}</div> : null}
                     {track.lyrics.trim() || !track.instrumental ? (
                       <>
+                        <div className="sing-along">Sing Along...</div>
                         <div className="lyrics-label">Lyrics</div>
                         <div className="lyrics-text">
                           {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
                         </div>
                       </>
                     ) : null}
+                    <div className="lyrics-scroll-pad" aria-hidden="true" />
                   </div>
                 </div>
               ) : null}

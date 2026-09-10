@@ -543,6 +543,7 @@ a { color: inherit; }
   position: relative;
   display: flex;
   flex-direction: column;
+  container-type: inline-size;
 }
 .lyrics-dock.has-sheet .lyrics-static { opacity: 0.55; }
 .lyrics-static {
@@ -558,7 +559,9 @@ a { color: inherit; }
   left: 5%;
   right: 5%;
   top: 8px;
-  height: 78%;
+  bottom: 16px;
+  bottom: 5cqw;
+  height: auto;
   display: flex;
   flex-direction: column;
   background: #121b25;
@@ -609,17 +612,26 @@ a { color: inherit; }
   word-break: break-word;
   margin-top: 16px;
 }
+.sing-along {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-align: left;
+  margin-top: 12px;
+}
+.introduction-text + .sing-along { margin-top: 18px; }
 .lyrics-label {
   font-size: 0.6rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--amber);
-  margin-top: 16px;
+  margin-top: 6px;
   margin-bottom: 8px;
   opacity: 0.7;
 }
-.introduction-text + .lyrics-label {
-  margin-top: 22px;
+.lyrics-scroll-pad {
+  height: 42%;
+  min-height: 8rem;
 }
 .lyrics-text {
   font-size: 0.945rem;
