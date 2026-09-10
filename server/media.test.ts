@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import test from "node:test";
-import { assetVersion, audioUrl, imageUrl, mp3DataOffset, shouldStripAudioUpload, stripMp3Tags } from "./media";
+import { assetVersion, audioUrl, imageUrl, mp3DataOffset, shouldStripAudioUpload, stripMp3Tags, xingFrameLength } from "./media";
 
 test("media urls stay on this app", () => {
   const v = assetVersion();
@@ -53,6 +53,38 @@ test("stripMp3Tags removes tags only when the audio frame is still valid", () =>
   assert.equal(cleaned.length, audio.length);
   assert.equal(stripMp3Tags(tagged), false);
   assert.equal(mp3DataOffset(tagged), 0);
+});
+
+test("stripMp3Tags skips a Xing header so Horsemen-style files start on audio", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
+  const file = path.join(dir, "horsemen.mp3");
+  const xing = Buffer.alloc(576, 0);
+  xing[0] = 0xff;
+  xing[1] = 0xfb;
+  xing[2] = 0xb4;
+  xing.write("Xing", 36);
+  const audio = Buffer.from([0xff, 0xfb, 0xb4, 0x44, ...Array(1600).fill(0x22)]);
+  fs.writeFileSync(file, Buffer.concat([xing, audio]));
+  assert.equal(mp3DataOffset(file), 576);
+  assert.equal(stripMp3Tags(file), true);
+  const cleaned = fs.readFileSync(file);
+  assert.deepEqual(cleaned.subarray(0, 4), Buffer.from([0xff, 0xfb, 0xb4, 0x44]));
+  assert.equal(cleaned.length, audio.length);
+});
+
+test("uploaded songs lose Xing headers immediately", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
+  const file = path.join(dir, "upload.mp3");
+  const xing = Buffer.alloc(576, 0);
+  xing[0] = 0xff;
+  xing[1] = 0xfb;
+  xing[2] = 0xb4;
+  xing.write("Xing", 36);
+  const audio = Buffer.from([0xff, 0xfb, 0xb4, 0x44, ...Array(1600).fill(0x22)]);
+  fs.writeFileSync(file, Buffer.concat([xing, audio]));
+  assert.equal(stripMp3Tags(file), true);
+  assert.equal(fs.readFileSync(file).subarray(0, 4).equals(Buffer.from([0xff, 0xfb, 0xb4, 0x44])), true);
+  assert.equal(xingFrameLength(fs.readFileSync(file), 0), 0);
 });
 
 test("shouldStripAudioUpload matches every future song upload", () => {
