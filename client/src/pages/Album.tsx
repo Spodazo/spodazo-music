@@ -74,7 +74,7 @@ export default function AlbumPage() {
   const [error, setError] = useState("");
   const [active, setActive] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
-  const [lightbox, setLightbox] = useState(false);
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string; kind: "artist" | "cover" } | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [durations, setDurations] = useState<Record<string, string>>({});
@@ -546,7 +546,7 @@ export default function AlbumPage() {
               title={album.artists}
               fetchPriority="low"
               decoding="async"
-              onClick={() => setLightbox(true)}
+              onClick={() => setLightbox({ src: album.artistUrl, alt: album.artists, kind: "artist" })}
             />
           ) : null}
         </div>
@@ -558,6 +558,11 @@ export default function AlbumPage() {
               index={index}
               durationLabel={durations[item.id]}
               active={active === index}
+              onZoom={
+                item.imageUrl
+                  ? () => setLightbox({ src: item.imageUrl, alt: `${item.title} cover`, kind: "cover" })
+                  : undefined
+              }
               onWarm={() => warm()}
               onPlay={() => openAt(index, true)}
             />
@@ -576,10 +581,17 @@ export default function AlbumPage() {
         <div className="modal open">
           <div className="modal-card">
             <div className="modal-head">
-              <div
-                className="m-cover"
-                style={track.imageUrl ? { backgroundImage: `url("${track.imageUrl}")` } : undefined}
-              />
+              {track.imageUrl ? (
+                <button
+                  type="button"
+                  className="m-cover"
+                  style={{ backgroundImage: `url("${track.imageUrl}")` }}
+                  aria-label={`Enlarge ${track.title} cover`}
+                  onClick={() => setLightbox({ src: track.imageUrl, alt: `${track.title} cover`, kind: "cover" })}
+                />
+              ) : (
+                <div className="m-cover" />
+              )}
               <div className="m-meta">
                 <div className="m-title">{track.title}</div>
                 {track.scripture ? <div className="m-subtitle">{track.scripture}</div> : null}
@@ -710,9 +722,9 @@ export default function AlbumPage() {
         </div>
       ) : null}
 
-      {lightbox && album.artistUrl ? (
-        <div className="lightbox" onClick={() => setLightbox(false)}>
-          <img src={album.artistUrl} alt={album.artists} />
+      {lightbox ? (
+        <div className="lightbox" onClick={() => setLightbox(null)}>
+          <img className={lightbox.kind === "cover" ? "lightbox-cover" : undefined} src={lightbox.src} alt={lightbox.alt} />
         </div>
       ) : null}
 
@@ -727,6 +739,7 @@ function TrackRow({
   index,
   durationLabel,
   active,
+  onZoom,
   onWarm,
   onPlay,
 }: {
@@ -734,6 +747,7 @@ function TrackRow({
   index: number;
   durationLabel?: string;
   active: boolean;
+  onZoom?: () => void;
   onWarm: () => void;
   onPlay: () => void;
 }) {
@@ -745,11 +759,25 @@ function TrackRow({
       onClick={onPlay}
     >
       <span className="t-num">{pad(track.n)}</span>
-      <div className="t-thumb">
-        {track.imageUrl ? (
+      {track.imageUrl && onZoom ? (
+        <button
+          type="button"
+          className="t-thumb t-thumb-zoom"
+          aria-label={`Enlarge ${track.title} cover`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onZoom();
+          }}
+        >
           <img src={track.imageUrl} alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" />
-        ) : null}
-      </div>
+        </button>
+      ) : (
+        <div className="t-thumb">
+          {track.imageUrl ? (
+            <img src={track.imageUrl} alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+          ) : null}
+        </div>
+      )}
       <div className="t-info">
         <div className="t-title">
           {track.title}

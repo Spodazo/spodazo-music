@@ -324,6 +324,23 @@ a { color: inherit; }
   object-fit: cover;
   display: block;
 }
+button.t-thumb,
+button.m-cover {
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+button.t-thumb:hover,
+button.m-cover:hover {
+  box-shadow: 0 0 0 1px var(--amber);
+}
+.lightbox-cover {
+  width: min(440px, 86vw);
+  max-height: min(440px, 80vh);
+  object-fit: contain;
+}
 .track-row:hover .t-thumb,
 .track-row.playing .t-thumb { opacity: 1; }
 .t-info { flex: 1; min-width: 0; }
