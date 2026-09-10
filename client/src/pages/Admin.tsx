@@ -17,6 +17,15 @@ import {
   updateAlbum,
   updateTrack,
 } from "../lib/api";
+import {
+  adoptBlobSrc,
+  assignAudioSrc,
+  cachedSrc,
+  primeAudio,
+  resumeMedia,
+  setPlaybackSession,
+  setStreamingUrl,
+} from "../lib/audioCache";
 
 type AdminQueue = {
   albumId: string;
@@ -34,22 +43,65 @@ function formatTime(seconds: number): string {
 
 function useAdminPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const currentUrlRef = useRef("");
+  const backgroundedRef = useRef(false);
+  const resumeTimeRef = useRef(0);
   const [queue, setQueue] = useState<AdminQueue | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const current = queue?.tracks[queue.index] ?? null;
 
+  useEffect(() => {
+    setPlaybackSession();
+    const hide = () => {
+      const media = audioRef.current;
+      if (media && media.currentTime > 0.15) resumeTimeRef.current = media.currentTime;
+      backgroundedRef.current = true;
+      setStreamingUrl("");
+      const url = currentUrlRef.current;
+      if (url) {
+        void primeAudio(url).then((blob) => {
+          const audio = audioRef.current;
+          if (!blob || !audio) return;
+          adoptBlobSrc(audio, url);
+        });
+      }
+    };
+    const show = () => {
+      const audio = audioRef.current;
+      const url = currentUrlRef.current;
+      if (!audio || !url || !audio.paused) return;
+      adoptBlobSrc(audio, url);
+    };
+    const onVisibility = () => {
+      if (document.hidden) hide();
+      else show();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", hide);
+    window.addEventListener("pageshow", show);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", hide);
+      window.removeEventListener("pageshow", show);
+    };
+  }, []);
+
   function startTrack(track: PublicTrack) {
     const audio = audioRef.current;
     if (!audio || !track.audioUrl) return;
+    currentUrlRef.current = track.audioUrl;
+    backgroundedRef.current = false;
+    resumeTimeRef.current = 0;
     if (audio.dataset.trackId !== track.id) {
       audio.dataset.trackId = track.id;
-      audio.src = track.audioUrl;
-      audio.load();
+      assignAudioSrc(audio, track.audioUrl);
       setCurrentTime(0);
       setDuration(0);
     }
+    if (!cachedSrc(track.audioUrl)) setStreamingUrl(track.audioUrl);
+    else setStreamingUrl("");
     void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
   }
 
@@ -58,8 +110,9 @@ function useAdminPlayer() {
     if (!audio || !track.audioUrl || !audio.paused) return;
     if (audio.dataset.trackId === track.id) return;
     audio.dataset.trackId = track.id;
-    audio.src = track.audioUrl;
-    audio.load();
+    currentUrlRef.current = track.audioUrl;
+    assignAudioSrc(audio, track.audioUrl);
+    void primeAudio(track.audioUrl);
   }
 
   useEffect(() => {
@@ -69,6 +122,8 @@ function useAdminPlayer() {
       audio.pause();
       audio.removeAttribute("src");
       delete audio.dataset.trackId;
+      currentUrlRef.current = "";
+      setStreamingUrl("");
       audio.load();
       setPlaying(false);
       setCurrentTime(0);
@@ -78,12 +133,27 @@ function useAdminPlayer() {
 
   function toggle() {
     const audio = audioRef.current;
-    if (!audio || !current) return;
+    const url = currentUrlRef.current || current?.audioUrl;
+    if (!audio || !current || !url) return;
     if (audio.paused) {
-      void audio.play().then(() => setPlaying(true)).catch(() => undefined);
+      const resumeTime = audio.currentTime > 0.15 ? audio.currentTime : resumeTimeRef.current;
+      const backgrounded = backgroundedRef.current;
+      backgroundedRef.current = false;
+      void resumeMedia(audio, url, resumeTime, backgrounded)
+        .then(() => {
+          setPlaying(true);
+          if (!cachedSrc(url)) setStreamingUrl(url);
+          else setStreamingUrl("");
+        })
+        .catch(() => undefined);
     } else {
       audio.pause();
       setPlaying(false);
+      setStreamingUrl("");
+      void primeAudio(url).then((blob) => {
+        if (!blob || audioRef.current !== audio) return;
+        adoptBlobSrc(audio, url);
+      });
     }
   }
 
@@ -191,6 +261,9 @@ function useAdminPlayer() {
       delete audio.dataset.trackId;
       audio.load();
     }
+    currentUrlRef.current = "";
+    backgroundedRef.current = false;
+    setStreamingUrl("");
     setQueue(null);
     setPlaying(false);
     setCurrentTime(0);
@@ -214,7 +287,10 @@ function useAdminPlayer() {
     seek,
     stop,
     onEnded,
-    setCurrentTime,
+    setCurrentTime: (time: number) => {
+      setCurrentTime(time);
+      if (time > 0.15) resumeTimeRef.current = time;
+    },
     setDuration,
     setPlaying,
   };

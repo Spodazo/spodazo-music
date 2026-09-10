@@ -313,11 +313,13 @@ export function registerRoutes(app: Express): void {
       res.status(404).end();
       return;
     }
+    const ranged = Boolean(req.headers.range);
     res.sendFile(full, {
       acceptRanges: true,
       headers: {
         "Content-Type": "audio/mpeg",
-        "Cache-Control": "public, max-age=86400",
+        "Accept-Ranges": "bytes",
+        "Cache-Control": ranged ? "private, no-store" : "public, max-age=86400",
       },
     });
   });

@@ -12,7 +12,7 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "test": "tsx --test server/*.test.ts shared/*.test.ts",
+    "test": "tsx --test server/*.test.ts shared/*.test.ts client/src/lib/*.test.ts",
     "db:push": "drizzle-kit push",
     "db:backup": "bash scripts/backup-database.sh"
   },

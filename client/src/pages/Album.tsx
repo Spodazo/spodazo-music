@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
+import {
+  adoptBlobSrc,
+  albumPrimeOrder,
+  assignAudioSrc,
+  cachedSrc,
+  clearAudioCache,
+  dropOldAudioCaches,
+  hydrateFromCache,
+  primeAudio,
+  retainAudio,
+  resumeMedia,
+  setPlaybackSession,
+  setStreamingUrl,
+} from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
@@ -28,8 +42,11 @@ function introductionBody(text: string): string {
   return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
 }
 
-function trackHasLyrics(track: { lyrics: string } | null): boolean {
-  return Boolean(track?.lyrics.trim());
+function trackHasLyrics(track: { lyrics: string; instrumental?: boolean } | null): boolean {
+  if (!track || track.instrumental) return false;
+  const lyrics = track.lyrics.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
+  if (!lyrics || /^lyrics can be added/i.test(lyrics)) return false;
+  return Boolean(lyrics.replace(/^\[[^\]]+\]\s*/gm, "").trim());
 }
 
 function CopyrightLines({ text }: { text: string }) {
@@ -63,7 +80,10 @@ export default function AlbumPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
-  const prefetchAbortRef = useRef<AbortController | null>(null);
+  const currentUrlRef = useRef("");
+  const backgroundedRef = useRef(false);
+  const resumeTimeRef = useRef(0);
+  const primeAbortRef = useRef<AbortController | null>(null);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
   const lyricsTrackRef = useRef<HTMLDivElement | null>(null);
@@ -78,28 +98,33 @@ export default function AlbumPage() {
   });
   const sheetPull = useRef({ dragging: false, startY: 0, y: 0, moved: false });
 
-  function sameSrc(audio: HTMLAudioElement, src: string): boolean {
-    try {
-      return audio.src === new URL(src, window.location.href).href;
-    } catch {
-      return false;
+  function rememberTime() {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
+      resumeTimeRef.current = audio.currentTime;
     }
   }
 
-  function assignSrc(audio: HTMLAudioElement, src: string) {
-    if (sameSrc(audio, src)) return;
-    audio.src = src;
-    audio.load();
+  function markBackgrounded() {
+    rememberTime();
+    backgroundedRef.current = true;
+    setStreamingUrl("");
+    const url = currentUrlRef.current;
+    if (url) {
+      void primeAudio(url).then((blob) => {
+        const audio = audioRef.current;
+        if (!blob || !audio || currentUrlRef.current !== url) return;
+        adoptBlobSrc(audio, url);
+      });
+    }
   }
 
-  function prefetchRange(url: string, signal?: AbortSignal) {
-    if (!url) return;
-    void fetch(url, {
-      headers: { Range: "bytes=0-1048575" },
-      cache: "force-cache",
-      credentials: "same-origin",
-      signal,
-    }).catch(() => undefined);
+  function warmForegroundPipeline() {
+    const audio = audioRef.current;
+    const url = currentUrlRef.current;
+    if (!audio || !url || !audio.paused) return;
+    adoptBlobSrc(audio, url);
+    if (audio.readyState < 3) assignAudioSrc(audio, url);
   }
 
   useEffect(() => {
@@ -122,26 +147,53 @@ export default function AlbumPage() {
   }, [album]);
 
   useEffect(() => {
+    setPlaybackSession();
+    return () => {
+      clearAudioCache();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!album) return;
     const controller = new AbortController();
-    prefetchAbortRef.current = controller;
-    const first = album.tracks[0]?.audioUrl;
-    const urls = album.tracks.map((item) => item.audioUrl).filter((url) => url && url !== first);
-    let index = 0;
-    let timer = 0;
-    const pump = () => {
-      if (controller.signal.aborted) return;
-      const url = urls[index++];
-      if (!url) return;
-      prefetchRange(url, controller.signal);
-      timer = window.setTimeout(pump, 450);
-    };
-    timer = window.setTimeout(pump, 1200);
+    primeAbortRef.current = controller;
+    const urls = album.tracks.map((item) => item.audioUrl).filter(Boolean);
+    retainAudio(urls);
+    let cancelled = false;
+    void (async () => {
+      await dropOldAudioCaches();
+      await Promise.all(urls.map((url) => hydrateFromCache(url)));
+      for (const url of albumPrimeOrder(urls, album.tracks[0]?.audioUrl)) {
+        if (cancelled) return;
+        await primeAudio(url, controller.signal);
+      }
+    })();
     return () => {
-      window.clearTimeout(timer);
+      cancelled = true;
       controller.abort();
     };
   }, [album]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) markBackgrounded();
+      else warmForegroundPipeline();
+    };
+    const onHide = () => markBackgrounded();
+    const onShow = () => warmForegroundPipeline();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("pageshow", onShow);
+    window.addEventListener("freeze", onHide);
+    window.addEventListener("resume", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("pageshow", onShow);
+      window.removeEventListener("freeze", onHide);
+      window.removeEventListener("resume", onShow);
+    };
+  }, []);
 
   useEffect(() => {
     if (!album) return;
@@ -175,7 +227,9 @@ export default function AlbumPage() {
     const next = albumRef.current?.tracks[index];
     const audio = audioRef.current;
     if (!next?.audioUrl || !audio || !audio.paused) return;
-    assignSrc(audio, next.audioUrl);
+    currentUrlRef.current = next.audioUrl;
+    assignAudioSrc(audio, next.audioUrl);
+    void primeAudio(next.audioUrl);
   }
 
   function load(index: number, autoplay: boolean) {
@@ -183,9 +237,13 @@ export default function AlbumPage() {
     const next = catalog?.tracks[index];
     const audio = audioRef.current;
     if (!next || !audio) return;
-    assignSrc(audio, next.audioUrl);
+    currentUrlRef.current = next.audioUrl;
+    backgroundedRef.current = false;
+    resumeTimeRef.current = 0;
+    assignAudioSrc(audio, next.audioUrl);
     if (autoplay) {
-      prefetchAbortRef.current?.abort();
+      if (!cachedSrc(next.audioUrl)) setStreamingUrl(next.audioUrl);
+      else setStreamingUrl("");
       void audio.play().then(() => {
         setPlaying(true);
         window.setTimeout(() => acquireWake(), 400);
@@ -194,7 +252,7 @@ export default function AlbumPage() {
     window.setTimeout(() => {
       history.replaceState(null, "", `#${next.slug}`);
       const upcoming = catalog?.tracks[(index + 1) % catalog.tracks.length];
-      if (upcoming?.audioUrl) prefetchRange(upcoming.audioUrl);
+      if (upcoming?.audioUrl) void primeAudio(upcoming.audioUrl);
     }, 250);
   }
 
@@ -207,6 +265,9 @@ export default function AlbumPage() {
     setActive(null);
     setPlaying(false);
     audioRef.current?.pause();
+    currentUrlRef.current = "";
+    backgroundedRef.current = false;
+    setStreamingUrl("");
     releaseWake();
     history.replaceState(null, "", location.pathname + location.search);
   }
@@ -414,16 +475,30 @@ export default function AlbumPage() {
 
   function togglePlay() {
     const audio = audioRef.current;
-    if (!audio) return;
+    const url = currentUrlRef.current;
+    if (!audio || !url) return;
     if (audio.paused) {
-      audio.play().then(() => {
-        setPlaying(true);
-        acquireWake();
-      }).catch(() => undefined);
+      const resumeTime = audio.currentTime > 0.15 ? audio.currentTime : resumeTimeRef.current;
+      const backgrounded = backgroundedRef.current;
+      backgroundedRef.current = false;
+      void resumeMedia(audio, url, resumeTime, backgrounded)
+        .then(() => {
+          setPlaying(true);
+          acquireWake();
+          if (!cachedSrc(url)) setStreamingUrl(url);
+          else setStreamingUrl("");
+        })
+        .catch(() => undefined);
     } else {
+      rememberTime();
       audio.pause();
       setPlaying(false);
       releaseWake();
+      setStreamingUrl("");
+      void primeAudio(url).then((blob) => {
+        if (!blob || audioRef.current !== audio || currentUrlRef.current !== url) return;
+        adoptBlobSrc(audio, url);
+      });
     }
   }
 
@@ -458,7 +533,11 @@ export default function AlbumPage() {
       ref={audioRef}
       preload="auto"
       playsInline
-      onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+      onTimeUpdate={(event) => {
+        const time = event.currentTarget.currentTime;
+        setCurrentTime(time);
+        if (time > 0.15) resumeTimeRef.current = time;
+      }}
       onDurationChange={(event) => {
         const seconds = event.currentTarget.duration || 0;
         setDuration(seconds);
