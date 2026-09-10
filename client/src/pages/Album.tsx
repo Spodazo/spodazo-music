@@ -24,6 +24,10 @@ function copyrightParts(text: string): string[] {
   return rest ? [first, rest] : [first];
 }
 
+function introductionBody(text: string): string {
+  return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
+}
+
 function CopyrightLines({ text }: { text: string }) {
   const parts = copyrightParts(text);
   return (
@@ -93,6 +97,7 @@ export default function AlbumPage() {
     () => (album && active !== null ? album.tracks[active] : null),
     [album, active],
   );
+  const introduction = track ? introductionBody(track.introduction) : "";
 
   useEffect(() => {
     albumRef.current = album;
@@ -347,8 +352,8 @@ export default function AlbumPage() {
                 style={track.imageUrl ? { backgroundImage: `url("${track.imageUrl}")` } : undefined}
               />
               <div className="m-meta">
-                <div className="m-eyebrow">{track.scripture || album.title}</div>
                 <div className="m-title">{track.title}</div>
+                {track.scripture ? <div className="m-subtitle">{track.scripture}</div> : null}
               </div>
               <button className="btn-close" onClick={closeModal} title="Close" aria-label="Close">
                 <IconClose />
@@ -410,12 +415,15 @@ export default function AlbumPage() {
               />
             </div>
             <div className="lyrics-section">
-              <div className="lyrics-label">
-                {track.instrumental ? track.scripture || "Instrumental" : "Lyrics"}
-              </div>
-              <div className="lyrics-text">
-                {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
-              </div>
+              {introduction ? <div className="introduction-text">{introduction}</div> : null}
+              {track.lyrics.trim() || !track.instrumental ? (
+                <>
+                  <div className="lyrics-label">Lyrics</div>
+                  <div className="lyrics-text">
+                    {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
+                  </div>
+                </>
+              ) : null}
               <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
                 <CopyrightLines text={album.copyright} />
                 <div className="sdg">
@@ -478,7 +486,7 @@ function TrackRow({
             </>
           ) : null}
         </div>
-        <div className="t-scripture">{track.scripture}</div>
+        {track.scripture ? <div className="t-subtitle">{track.scripture}</div> : null}
       </div>
       <span className="t-dur">{durationLabel || "—"}</span>
       <div className="t-play-icon"><IconPlay /></div>

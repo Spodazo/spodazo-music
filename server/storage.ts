@@ -33,6 +33,7 @@ export type TrackInput = {
   img?: string;
   key?: string;
   lyrics?: string;
+  introduction?: string;
   instrumental?: boolean;
   slug?: string;
   archived?: boolean;
@@ -65,6 +66,7 @@ function hydrateTrack(track: Track) {
   return {
     ...track,
     archived: Boolean(track.archived),
+    introduction: track.introduction || "",
     imageUrl: imageUrl(track.img),
     audioUrl: audioUrl(track.file),
   };
@@ -153,7 +155,11 @@ export class JsonMusicStore implements MusicStore {
     const raw = JSON.parse(fs.readFileSync(catalogPath(), "utf8")) as CatalogFile;
     return {
       albums: (raw.albums || []).map((album) => ({ ...album, hidden: Boolean(album.hidden) })),
-      tracks: (raw.tracks || []).map((track) => ({ ...track, archived: Boolean(track.archived) })),
+      tracks: (raw.tracks || []).map((track) => ({
+        ...track,
+        archived: Boolean(track.archived),
+        introduction: track.introduction || "",
+      })),
     };
   }
 
@@ -249,6 +255,7 @@ export class JsonMusicStore implements MusicStore {
       img: input.img || "",
       key: input.key || "",
       lyrics: input.lyrics || "",
+      introduction: input.introduction || "",
       instrumental: Boolean(input.instrumental),
       slug: input.slug || "",
       archived: Boolean(input.archived),
@@ -357,6 +364,7 @@ function rowTrack(row: typeof tracks.$inferSelect): Track {
     img: row.img,
     key: row.key,
     lyrics: row.lyrics,
+    introduction: row.introduction || "",
     instrumental: row.instrumental,
     slug: row.slug,
     archived: Boolean(row.archived),
@@ -403,6 +411,7 @@ export class PostgresMusicStore implements MusicStore {
         img TEXT NOT NULL DEFAULT '',
         key TEXT NOT NULL DEFAULT '',
         lyrics TEXT NOT NULL DEFAULT '',
+        introduction TEXT NOT NULL DEFAULT '',
         instrumental BOOLEAN NOT NULL DEFAULT false,
         slug TEXT NOT NULL DEFAULT '',
         archived BOOLEAN NOT NULL DEFAULT false,
@@ -413,6 +422,7 @@ export class PostgresMusicStore implements MusicStore {
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS artist_thumb TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`);
     await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
+    await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS introduction TEXT NOT NULL DEFAULT ''`);
     const existing = await this.db.select({ id: albums.id }).from(albums).limit(1);
     if (existing.length === 0) {
       for (const album of DEFAULT_CATALOG.albums) {
@@ -551,6 +561,7 @@ export class PostgresMusicStore implements MusicStore {
         img: input.img || "",
         key: input.key || "",
         lyrics: input.lyrics || "",
+        introduction: input.introduction || "",
         instrumental: Boolean(input.instrumental),
         slug: input.slug || "",
         archived: Boolean(input.archived),
@@ -568,6 +579,7 @@ export class PostgresMusicStore implements MusicStore {
     if (input.img !== undefined) patch.img = input.img;
     if (input.key !== undefined) patch.key = input.key;
     if (input.lyrics !== undefined) patch.lyrics = input.lyrics;
+    if (input.introduction !== undefined) patch.introduction = input.introduction;
     if (input.instrumental !== undefined) patch.instrumental = input.instrumental;
     if (input.slug !== undefined) patch.slug = input.slug;
     if (input.archived !== undefined) patch.archived = input.archived;

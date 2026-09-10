@@ -693,7 +693,7 @@ function TrackAdmin({
           {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div className="track-admin-placeholder">No cover</div>}
           <div className="track-admin-info">
             <strong>{track.title}</strong>
-            <div>{track.scripture || (track.lyrics ? "" : "Add scripture, lyrics, and cover later")}</div>
+            <div>{track.scripture || (track.lyrics ? "" : "Add subtitle, lyrics, and cover later")}</div>
           </div>
           <div className="track-admin-actions">
             <button
@@ -909,8 +909,8 @@ function TrackForm({
           <input name="title" defaultValue={track?.title} required />
         </div>
         <div>
-          <label>Scripture</label>
-          <input name="scripture" defaultValue={track?.scripture} />
+          <label>Subtitle</label>
+          <input name="scripture" defaultValue={track?.scripture} placeholder="Shown under the song title" />
         </div>
       </div>
       <div className="row-2">
@@ -924,6 +924,8 @@ function TrackForm({
           <input name="artwork" type="file" accept="image/*" />
         </div>
       </div>
+      <label>Introduction</label>
+      <textarea name="introduction" defaultValue={track?.introduction} placeholder="Optional. Shown above the lyrics." />
       <label>Lyrics</label>
       <textarea name="lyrics" defaultValue={track?.lyrics} />
       <label>

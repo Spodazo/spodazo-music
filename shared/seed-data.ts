@@ -663,6 +663,7 @@ export const ECHOES_TRACKS: Track[] = TRACK_META.map((track) => ({
   img: track.img,
   key: track.key,
   lyrics: track.lyrics || "",
+  introduction: "",
   instrumental: Boolean(track.instrumental),
   slug: slugify(track.title),
   archived: false,

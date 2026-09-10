@@ -29,6 +29,7 @@ export const tracks = pgTable("tracks", {
   img: text("img").notNull().default(""),
   key: text("key").notNull().default(""),
   lyrics: text("lyrics").notNull().default(""),
+  introduction: text("introduction").notNull().default(""),
   instrumental: boolean("instrumental").notNull().default(false),
   slug: text("slug").notNull().default(""),
   archived: boolean("archived").notNull().default(false),

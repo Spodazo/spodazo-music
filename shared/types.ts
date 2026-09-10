@@ -25,6 +25,7 @@ export type Track = {
   img: string;
   key: string;
   lyrics: string;
+  introduction: string;
   instrumental: boolean;
   slug: string;
   archived: boolean;

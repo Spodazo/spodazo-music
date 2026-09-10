@@ -41,6 +41,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
     img: "first-light.webp",
     key: "s1",
     lyrics: "Hello",
+    introduction: "A short note before the lyrics.",
     instrumental: false,
     slug: "first-light",
   });
@@ -48,6 +49,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.ok(loaded);
   assert.equal(loaded.tracks.length, 1);
   assert.equal(loaded.tracks[0].id, track.id);
+  assert.equal(loaded.tracks[0].introduction, "A short note before the lyrics.");
 
   await store.updateTrack(track.id, { title: "First Light (edit)" });
   const edited = await store.getAlbumBySlug("second-watch");
