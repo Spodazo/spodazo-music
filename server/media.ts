@@ -90,6 +90,95 @@ function mpegBitrate(data: Buffer, i: number): number {
   return BITRATE_MPEG1_L3[(data[i + 2] >> 4) & 0xf];
 }
 
+function mpegSampleRate(data: Buffer, i: number): number {
+  const version = (data[i + 1] >> 3) & 3;
+  return (version === 3 ? SAMPLE_MPEG1 : SAMPLE_MPEG2)[(data[i + 2] >> 2) & 3];
+}
+
+function mpegSamplesPerFrame(data: Buffer, i: number): number {
+  const version = (data[i + 1] >> 3) & 3;
+  return version === 3 ? 1152 : 576;
+}
+
+function xingSideInfo(data: Buffer, i: number): number {
+  const version = (data[i + 1] >> 3) & 3;
+  const channel = (data[i + 3] >> 6) & 3;
+  return version === 3 ? (channel === 3 ? 21 : 36) : channel === 3 ? 13 : 21;
+}
+
+function xingFrameCount(frame: Buffer): number {
+  const side = xingSideInfo(frame, 0);
+  if (frame.length < side + 12) return 0;
+  const tag = frame.subarray(side, side + 4).toString("ascii");
+  if (tag !== "Xing" && tag !== "Info") return 0;
+  const flags = frame.readUInt32BE(side + 4);
+  if ((flags & 1) === 0) return 0;
+  return frame.readUInt32BE(side + 8);
+}
+
+export function formatDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 1) return "";
+  const whole = Math.round(seconds);
+  const minutes = Math.floor(whole / 60);
+  return `${minutes}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/** Length from Xing frame count, or CBR bitrate × file size. Reads the header only. */
+export function mp3DurationSeconds(full: string): number {
+  const fd = fs.openSync(full, "r");
+  try {
+    const fileSize = fs.fstatSync(fd).size;
+    if (fileSize < 128) return 0;
+    const head = Buffer.alloc(10);
+    if (fs.readSync(fd, head, 0, 10, 0) < 10) return 0;
+    const id3 = id3v2Size(head);
+    const tailBuf = Buffer.alloc(128);
+    const tail =
+      fs.readSync(fd, tailBuf, 0, 128, fileSize - 128) === 128 && tailBuf.subarray(0, 3).toString("ascii") === "TAG"
+        ? 128
+        : 0;
+    const audioEnd = fileSize - tail;
+    if (id3 >= audioEnd) return 0;
+    const probeLen = Math.min(2048, audioEnd - id3);
+    const probe = Buffer.alloc(probeLen);
+    if (fs.readSync(fd, probe, 0, probeLen, id3) < 4 || !isMpegFrame(probe, 0)) return 0;
+    const sample = mpegSampleRate(probe, 0);
+    const samples = mpegSamplesPerFrame(probe, 0);
+    if (!sample || !samples) return 0;
+    const frameLen = mpegFrameLength(probe, 0);
+    if (frameLen && frameLen <= probe.length) {
+      const frames = xingFrameCount(probe.subarray(0, frameLen));
+      if (frames > 0) return (frames * samples) / sample;
+    }
+    const bitrate = mpegBitrate(probe, 0);
+    const audioBytes = audioEnd - id3;
+    if (!bitrate || audioBytes <= 0) return 0;
+    return (audioBytes * 8) / (bitrate * 1000);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+const durationCache = new Map<string, string>();
+
+export function durationLabelForFile(filename: string): string {
+  if (!filename) return "";
+  const full = localSongPath(filename);
+  if (!full) return "";
+  const stat = fs.statSync(full);
+  const key = `${full}:${stat.size}:${stat.mtimeMs}`;
+  const cached = durationCache.get(key);
+  if (cached !== undefined) return cached;
+  let label = "";
+  try {
+    label = formatDuration(mp3DurationSeconds(full));
+  } catch {
+    label = "";
+  }
+  durationCache.set(key, label);
+  return label;
+}
+
 function walkMpegFrames(data: Buffer, start: number, end: number): { offsets: number[]; bitrates: Set<number> } {
   const offsets: number[] = [];
   const bitrates = new Set<number>();

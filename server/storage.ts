@@ -5,7 +5,7 @@ import pg from "pg";
 import { albums, tracks } from "../shared/schema";
 import { DEFAULT_CATALOG, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, seedLyricsForTrack } from "../shared/seed-data";
 import type { Album, AlbumListItem, PublicAlbum, PublicTrack, Track } from "../shared/types";
-import { audioUrl, imageUrl } from "./media";
+import { audioUrl, durationLabelForFile, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
 
 export type AlbumInput = {
@@ -70,6 +70,7 @@ function hydrateTrack(track: Track) {
     introduction: track.introduction || "",
     imageUrl: imageUrl(track.img),
     audioUrl: audioUrl(track.file),
+    durationLabel: durationLabelForFile(track.file),
   };
 }
 

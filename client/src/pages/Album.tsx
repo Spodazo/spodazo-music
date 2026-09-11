@@ -557,7 +557,7 @@ export default function AlbumPage() {
               track={item}
               albumSlug={album.slug}
               index={index}
-              durationLabel={durations[item.id]}
+              durationLabel={durations[item.id] || item.durationLabel}
               active={active === index}
               enlarged={enlargedCover === `list:${item.id}`}
               onZoom={

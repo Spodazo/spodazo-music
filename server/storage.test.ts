@@ -53,6 +53,19 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(loaded.tracks.length, 1);
   assert.equal(loaded.tracks[0].id, track.id);
   assert.equal(loaded.tracks[0].introduction, "A short note before the lyrics.");
+  assert.equal(loaded.tracks[0].durationLabel, "");
+
+  const xing = Buffer.alloc(576, 0);
+  xing[0] = 0xff;
+  xing[1] = 0xfb;
+  xing[2] = 0xb4;
+  xing[3] = 0x44;
+  xing.write("Xing", 36);
+  xing.writeUInt32BE(1, 40);
+  xing.writeUInt32BE(417, 44);
+  fs.writeFileSync(path.join(dir, "songs", "first-light.mp3"), Buffer.concat([xing, Buffer.alloc(500)]));
+  const timed = await store.getAlbumBySlug("second-watch");
+  assert.equal(timed?.tracks[0].durationLabel, "0:10");
 
   await store.updateTrack(track.id, { title: "First Light (edit)" });
   const edited = await store.getAlbumBySlug("second-watch");

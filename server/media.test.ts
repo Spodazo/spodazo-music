@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import test from "node:test";
-import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, imageUrl, isVbrMp3, mp3DataOffset, prepareMp3, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, formatDuration, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, prepareMp3, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -129,6 +129,40 @@ test("VBR uploads keep an existing Xing header and only lose ID3", () => {
   const prepared = fs.readFileSync(file);
   assert.ok(xingFrameLength(prepared, 0) > 0);
   assert.deepEqual(prepared.subarray(0, 4), Buffer.from([0xff, 0xfb, 0x94, 0x64]));
+});
+
+test("formatDuration skips sub-second lengths", () => {
+  assert.equal(formatDuration(0), "");
+  assert.equal(formatDuration(0.4), "");
+  assert.equal(formatDuration(61), "1:01");
+  assert.equal(formatDuration(421), "7:01");
+});
+
+test("CBR duration comes from bitrate and file size", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
+  const file = path.join(dir, "cbr.mp3");
+  const frames = Array.from({ length: 84 }, () => mpegFrame(CBR192, 576));
+  fs.writeFileSync(file, Buffer.concat(frames));
+  const seconds = mp3DurationSeconds(file);
+  assert.ok(Math.abs(seconds - 2.016) < 0.02);
+  assert.equal(formatDuration(seconds), "0:02");
+});
+
+test("VBR duration comes from the Xing frame count", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
+  const file = path.join(dir, "vbr.mp3");
+  const xing = Buffer.alloc(576, 0);
+  xing[0] = 0xff;
+  xing[1] = 0xfb;
+  xing[2] = 0xb4;
+  xing[3] = 0x44;
+  xing.write("Xing", 36);
+  xing.writeUInt32BE(1, 40);
+  xing.writeUInt32BE(417, 44);
+  fs.writeFileSync(file, Buffer.concat([xing, mpegFrame(VBR160, 480)]));
+  const seconds = mp3DurationSeconds(file);
+  assert.ok(Math.abs(seconds - 10.008) < 0.02);
+  assert.equal(formatDuration(seconds), "0:10");
 });
 
 test("shouldStripAudioUpload matches every future song upload", () => {
