@@ -397,6 +397,33 @@ button.m-cover.enlarged {
   font-variant-numeric: tabular-nums;
   opacity: 0.6;
 }
+.t-copy {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: color 0.2s, opacity 0.2s, background 0.2s;
+}
+.t-copy svg { width: 15px; height: 15px; fill: currentColor; }
+.track-row:hover .t-copy,
+.t-copy:hover,
+.t-copy.on {
+  color: var(--amber);
+  opacity: 1;
+}
+.t-copy.on { background: rgba(232, 184, 109, 0.12); }
 .t-play-icon {
   width: 26px;
   height: 26px;

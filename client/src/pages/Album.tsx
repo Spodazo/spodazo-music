@@ -12,6 +12,7 @@ import {
 } from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
+import { copyText, songShareUrl } from "../lib/shareLink";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
 function formatTime(seconds: number): string {
@@ -554,6 +555,7 @@ export default function AlbumPage() {
             <TrackRow
               key={item.id}
               track={item}
+              albumSlug={album.slug}
               index={index}
               durationLabel={durations[item.id]}
               active={active === index}
@@ -736,6 +738,7 @@ export default function AlbumPage() {
 
 function TrackRow({
   track,
+  albumSlug,
   index,
   durationLabel,
   active,
@@ -745,6 +748,7 @@ function TrackRow({
   onPlay,
 }: {
   track: PublicTrack;
+  albumSlug: string;
   index: number;
   durationLabel?: string;
   active: boolean;
@@ -753,6 +757,17 @@ function TrackRow({
   onWarm: () => void;
   onPlay: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyLink(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    const url = songShareUrl(window.location.origin, albumSlug, track.slug);
+    if (await copyText(url)) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    }
+  }
+
   return (
     <div
       className={`track-row${active ? " playing" : ""}${enlarged ? " cover-enlarged" : ""}`}
@@ -792,9 +807,26 @@ function TrackRow({
         </div>
         {track.scripture ? <div className="t-subtitle">{track.scripture}</div> : null}
       </div>
+      <button
+        type="button"
+        className={`t-copy${copied ? " on" : ""}`}
+        title={copied ? "Copied" : "Copy link"}
+        aria-label={copied ? `Copied link to ${track.title}` : `Copy link to ${track.title}`}
+        onClick={copyLink}
+      >
+        {copied ? "Copied" : <IconLink />}
+      </button>
       <span className="t-dur">{durationLabel || "—"}</span>
       <div className="t-play-icon"><IconPlay /></div>
     </div>
+  );
+}
+
+function IconLink() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3.9 12a5 5 0 0 1 5-5h3v2h-3a3 3 0 1 0 0 6h3v2h-3a5 5 0 0 1-5-5zm7-1h2.2v2H10.9zm3.2-4h3a5 5 0 0 1 0 10h-3v-2h3a3 3 0 1 0 0-6h-3z" />
+    </svg>
   );
 }
 
