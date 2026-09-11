@@ -11,6 +11,7 @@ import {
   unlockAudio,
 } from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
+import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
 function formatTime(seconds: number): string {
@@ -262,13 +263,8 @@ export default function AlbumPage() {
 
   function lyricNaturalScroll(): number {
     const audio = audioRef.current;
-    const length = audio?.duration || 0;
-    const time = lyricPlayhead();
-    const max = lyricMaxScroll();
-    if (!Number.isFinite(length) || length <= 0 || max <= 0) return 0;
-    const start = 4;
-    if (time <= start) return 0;
-    return Math.min(max, ((time - start) / Math.max(1, length - start)) * max);
+    const length = songLengthSeconds(audio?.duration ?? 0) || songLengthSeconds(duration);
+    return lyricScrollAt(lyricPlayhead(), length, lyricMaxScroll());
   }
 
   function applyLyricY(y: number) {
