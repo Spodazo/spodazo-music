@@ -11,6 +11,7 @@ import {
   unlockAudio,
 } from "../lib/audioCache";
 import { fetchAlbum } from "../lib/api";
+import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
@@ -123,6 +124,13 @@ export default function AlbumPage() {
   const track = useMemo(
     () => (album && active !== null ? album.tracks[active] : null),
     [album, active],
+  );
+  const listeningTime = useMemo(
+    () =>
+      album
+        ? totalListeningLabel(album.tracks.map((item) => durations[item.id] || item.durationLabel))
+        : "",
+    [album, durations],
   );
   const introduction = track ? introductionBody(track.introduction) : "";
 
@@ -517,7 +525,15 @@ export default function AlbumPage() {
           <p className="alb-credit">{album.credits}</p>
         </div>
         <div className="album-hero">
-          <span className="song-count">{album.tracks.length} Songs</span>
+          <div className="album-stats">
+            <span className="song-count">{album.tracks.length} Songs</span>
+            {listeningTime ? (
+              <span className="listening-time">
+                Total Listening Time
+                <span>{listeningTime}</span>
+              </span>
+            ) : null}
+          </div>
           <div className="hero-play">
             <button
               className="btn-play-all"
