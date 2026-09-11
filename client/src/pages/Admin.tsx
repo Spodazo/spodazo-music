@@ -356,24 +356,6 @@ export default function AdminPage() {
         </AdminDialog>
       ) : null}
 
-      <AlbumList
-        albums={albums}
-        selectedId={selected?.id || null}
-        playingId={player.queue?.albumId || null}
-        playing={player.playing}
-        onSelect={async (slug) => { setAlbumSetupOpen(false); await loadAlbum(slug); }}
-        onPlay={async (slug) => {
-          const album = selected?.slug === slug ? selected : await loadAlbum(slug);
-          player.playAlbum(album);
-        }}
-        onReordered={setAlbums}
-        onChanged={async () => {
-          const list = await fetchAlbums();
-          setAlbums(list);
-          if (selected) await loadAlbum(selected.slug);
-        }}
-      />
-
       {selected ? (
         <>
           <section className="card player-setup-card">
@@ -400,6 +382,29 @@ export default function AdminPage() {
               />
             </AdminDialog>
           ) : null}
+        </>
+      ) : null}
+
+      <AlbumList
+        albums={albums}
+        selectedId={selected?.id || null}
+        playingId={player.queue?.albumId || null}
+        playing={player.playing}
+        onSelect={async (slug) => { setAlbumSetupOpen(false); await loadAlbum(slug); }}
+        onPlay={async (slug) => {
+          const album = selected?.slug === slug ? selected : await loadAlbum(slug);
+          player.playAlbum(album);
+        }}
+        onReordered={setAlbums}
+        onChanged={async () => {
+          const list = await fetchAlbums();
+          setAlbums(list);
+          if (selected) await loadAlbum(selected.slug);
+        }}
+      />
+
+      {selected ? (
+        <>
           <TrackAdmin
             album={selected}
             currentTrackId={player.current?.id || null}
