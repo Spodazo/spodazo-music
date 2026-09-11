@@ -1161,10 +1161,10 @@ function AlbumCoverRow({
               key={album.id}
               type="button"
               className={`album-cover-tile${selectedId === album.id ? " selected" : ""}`}
+              aria-label={album.title}
               onClick={() => void onOpen(album.slug)}
             >
               {coverUrl ? <img src={coverUrl} alt="" /> : <span className="album-cover-empty" />}
-              <span className="album-cover-title">{album.title}</span>
               {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
             </button>
           );

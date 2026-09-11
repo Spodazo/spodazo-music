@@ -1180,19 +1180,6 @@ button.m-cover.enlarged {
   display: block;
 }
 .album-cover-empty { background: var(--bg3, #1b1b1b); }
-.album-cover-title {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 32px 12px 12px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.82));
-  color: #fff;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: left;
-}
 .admin .album-cover-tile.selected {
   outline: 2px solid var(--amber);
   outline-offset: 3px;
