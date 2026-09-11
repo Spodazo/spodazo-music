@@ -391,11 +391,11 @@ button.m-cover.enlarged {
   opacity: 0.8;
 }
 .t-dur {
-  font-size: 0.65rem;
-  color: var(--muted);
+  font-size: 0.72rem;
+  color: var(--text2);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-  opacity: 0.6;
+  opacity: 0.9;
 }
 .t-copy {
   position: relative;
@@ -403,21 +403,21 @@ button.m-cover.enlarged {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  height: 26px;
+  min-width: 32px;
+  height: 32px;
   padding: 0 6px;
   border: 0;
-  border-radius: 13px;
+  border-radius: 16px;
   background: transparent;
-  color: var(--muted);
-  font-size: 0.58rem;
+  color: var(--text2);
+  font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: pointer;
-  opacity: 0.7;
+  opacity: 1;
   transition: color 0.2s, opacity 0.2s, background 0.2s;
 }
-.t-copy svg { width: 15px; height: 15px; fill: currentColor; }
+.t-copy svg { width: 20px; height: 20px; fill: currentColor; }
 .t-copy::after {
   content: attr(data-tip);
   position: absolute;
@@ -452,17 +452,17 @@ button.m-cover.enlarged {
 }
 .t-copy.on { background: rgba(232, 184, 109, 0.12); }
 .t-play-icon {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  border: 1.5px solid var(--muted);
+  border: 1.5px solid var(--text2);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--muted);
+  color: var(--text2);
   transition: all 0.2s;
-  opacity: 0.5;
+  opacity: 0.95;
 }
 .track-row:hover .t-play-icon,
 .track-row.playing .t-play-icon {
@@ -471,7 +471,7 @@ button.m-cover.enlarged {
   opacity: 1;
   background: rgba(232, 184, 109, 0.1);
 }
-.t-play-icon svg { width: 18px; height: 18px; fill: currentColor; }
+.t-play-icon svg { width: 22px; height: 22px; fill: currentColor; }
 
 .site-footer {
   padding: 16px 32px 14px;
