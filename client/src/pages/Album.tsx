@@ -507,8 +507,8 @@ export default function AlbumPage() {
       <AdminLoginLink />
       <aside className="portrait-panel">
         <AlbumsBack className="albums-back-on-art" />
-        {album.heroUrl ? (
-          <img className="portrait-img" src={album.heroUrl} alt={`${album.title} — ${album.artists}`} fetchPriority="low" decoding="async" />
+        {(album.thumbUrl || album.heroUrl) ? (
+          <img className="portrait-img" src={album.thumbUrl || album.heroUrl} alt={`${album.title} — ${album.artists}`} fetchPriority="low" decoding="async" />
         ) : null}
       </aside>
       <section className="track-panel">
