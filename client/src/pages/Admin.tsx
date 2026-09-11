@@ -356,33 +356,21 @@ export default function AdminPage() {
         </AdminDialog>
       ) : null}
 
-      {selected ? (
-        <>
-          <section className="card player-setup-card">
-            <div>
-              <h2>Album Setup</h2>
-              <p className="hint">Album name, theme, credits, and copyright for {selected.title}.</p>
-            </div>
-            <button type="button" onClick={() => setAlbumSetupOpen(true)}>
-              Edit
-            </button>
-          </section>
-          {albumSetupOpen ? (
-            <AdminDialog title="Album Setup" onClose={() => setAlbumSetupOpen(false)}>
-              <AlbumSetupForm
-                album={selected}
-                setup={playerSetup}
-                onSaved={async (slug) => {
-                  setAlbumSetupOpen(false);
-                  const list = await fetchAlbums();
-                  setAlbums(list);
-                  await loadAlbum(slug);
-                }}
-                onCancel={() => setAlbumSetupOpen(false)}
-              />
-            </AdminDialog>
-          ) : null}
-        </>
+      {selected && albumSetupOpen ? (
+        <AdminDialog title="Album Setup" onClose={() => setAlbumSetupOpen(false)}>
+          <AlbumSetupForm
+            key={selected.id}
+            album={selected}
+            setup={playerSetup}
+            onSaved={async (slug) => {
+              setAlbumSetupOpen(false);
+              const list = await fetchAlbums();
+              setAlbums(list);
+              await loadAlbum(slug);
+            }}
+            onCancel={() => setAlbumSetupOpen(false)}
+          />
+        </AdminDialog>
       ) : null}
 
       <AlbumList
@@ -391,6 +379,10 @@ export default function AdminPage() {
         playingId={player.queue?.albumId || null}
         playing={player.playing}
         onSelect={async (slug) => { setAlbumSetupOpen(false); await loadAlbum(slug); }}
+        onSetup={async (slug) => {
+          if (selected?.slug !== slug) await loadAlbum(slug);
+          setAlbumSetupOpen(true);
+        }}
         onPlay={async (slug) => {
           const album = selected?.slug === slug ? selected : await loadAlbum(slug);
           player.playAlbum(album);
@@ -672,6 +664,7 @@ function AlbumList({
   playingId,
   playing,
   onSelect,
+  onSetup,
   onPlay,
   onReordered,
   onChanged,
@@ -681,6 +674,7 @@ function AlbumList({
   playingId: string | null;
   playing: boolean;
   onSelect: (slug: string) => Promise<void>;
+  onSetup: (slug: string) => Promise<void>;
   onPlay: (slug: string) => Promise<void>;
   onReordered: (albums: AlbumListItem[]) => void;
   onChanged: () => Promise<void>;
@@ -744,6 +738,14 @@ function AlbumList({
           >
             <span className="album-admin-name">{album.title}</span>
             {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
+          </button>
+          <button
+            type="button"
+            className="album-admin-setup ghost"
+            onClick={() => void onSetup(album.slug)}
+          >
+            <span className="label-full">Album Setup</span>
+            <span className="label-short">Setup</span>
           </button>
           <button
             type="button"

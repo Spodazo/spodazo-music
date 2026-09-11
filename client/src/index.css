@@ -966,8 +966,8 @@ button.m-cover.enlarged {
 .admin .drag-handle:active { cursor: grabbing; }
 .album-admin {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto auto;
-  grid-template-areas: "handle title visibility play";
+  grid-template-columns: 28px minmax(0, 1fr) auto auto auto;
+  grid-template-areas: "handle title setup visibility play";
   gap: 10px;
   align-items: center;
   padding: 8px 0;
@@ -975,6 +975,7 @@ button.m-cover.enlarged {
 }
 .album-admin .drag-handle { grid-area: handle; }
 .album-admin-select { grid-area: title; }
+.album-admin-setup { grid-area: setup; }
 .album-admin-visibility { grid-area: visibility; }
 .album-admin-play { grid-area: play; }
 .album-admin.dragging { opacity: 0.4; }
@@ -1012,6 +1013,7 @@ button.m-cover.enlarged {
   white-space: nowrap;
   min-width: 0;
 }
+.album-admin-setup,
 .album-admin-visibility,
 .album-admin-play {
   min-width: 72px;
@@ -1347,14 +1349,15 @@ button.m-cover.enlarged {
   .label-full { display: none; }
   .label-short { display: inline; }
   .album-admin {
-    grid-template-columns: 36px 1fr 1fr;
+    grid-template-columns: 36px 1fr 1fr 1fr;
     grid-template-areas:
-      "handle title title"
-      "handle visibility play";
+      "handle title title title"
+      "handle setup visibility play";
     gap: 8px 10px;
     padding: 12px 0;
   }
   .admin .album-admin-select { padding: 8px 10px; min-height: 44px; }
+  .album-admin-setup,
   .album-admin-visibility,
   .album-admin-play {
     min-width: 0;
