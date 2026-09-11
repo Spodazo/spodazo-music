@@ -810,8 +810,8 @@ function TrackRow({
       <button
         type="button"
         className={`t-copy${copied ? " on" : ""}`}
-        title={copied ? "Copied" : "Copy link"}
-        aria-label={copied ? `Copied link to ${track.title}` : `Copy link to ${track.title}`}
+        data-tip={copied ? "Copied" : "Copy link to send this song to your friends.."}
+        aria-label={copied ? `Copied link to ${track.title}` : "Copy link to send this song to your friends.."}
         onClick={copyLink}
       >
         {copied ? "Copied" : <IconLink />}

@@ -398,6 +398,7 @@ button.m-cover.enlarged {
   opacity: 0.6;
 }
 .t-copy {
+  position: relative;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -417,6 +418,32 @@ button.m-cover.enlarged {
   transition: color 0.2s, opacity 0.2s, background 0.2s;
 }
 .t-copy svg { width: 15px; height: 15px; fill: currentColor; }
+.t-copy::after {
+  content: attr(data-tip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 9;
+  width: max-content;
+  max-width: 200px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #1a2230;
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.35;
+  text-align: left;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.05s linear;
+}
+.t-copy:hover::after,
+.t-copy:focus-visible::after {
+  opacity: 1;
+}
 .track-row:hover .t-copy,
 .t-copy:hover,
 .t-copy.on {
