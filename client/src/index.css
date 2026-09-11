@@ -1508,21 +1508,26 @@ button.m-cover.enlarged {
 @media (max-width: 600px) {
   html, body { overflow-y: auto; overflow-x: hidden; }
   .layout { flex-direction: column; height: auto; min-height: 100vh; }
-  .portrait-panel { flex: 0 0 auto; width: 100%; max-width: 100%; height: auto; }
+  .portrait-panel {
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    overflow: visible;
+  }
   .portrait-img { width: 100%; height: auto; max-height: none; }
   .track-panel { flex: 1; overflow: visible; }
   .tracks { flex: none; overflow: visible; padding-bottom: 20px; }
   .albums-back-on-art {
     display: inline-flex;
-    position: absolute;
-    top: max(12px, env(safe-area-inset-top));
-    left: max(12px, env(safe-area-inset-left));
-    z-index: 5;
-    margin: 0;
-    padding: 8px 12px 8px 8px;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: rgba(13, 17, 23, 0.72);
+    position: static;
+    margin: max(12px, env(safe-area-inset-top)) 16px 10px max(16px, env(safe-area-inset-left));
+    padding: 0;
+    border: 0;
+    background: none;
   }
   .album-head { padding: 14px 12px 0; }
   .album-head .alb-name2 { font-size: 1.1rem; }
@@ -1555,7 +1560,10 @@ button.m-cover.enlarged {
   .home-brand {
     box-sizing: border-box;
     width: min(280px, 100%);
-    margin: 16px 0 20px;
+    margin: 16px 0 60px;
+  }
+  .home-main {
+    justify-content: flex-start;
   }
   .admin {
     padding: 20px 16px 48px;
