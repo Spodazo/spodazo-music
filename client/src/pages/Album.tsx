@@ -69,6 +69,7 @@ export default function AlbumPage() {
   const [album, setAlbum] = useState<PublicAlbum | null>(null);
   const [error, setError] = useState("");
   const [active, setActive] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [lightbox, setLightbox] = useState(false);
   const [enlargedCover, setEnlargedCover] = useState<string | null>(null);
@@ -211,18 +212,20 @@ export default function AlbumPage() {
     }, 250);
   }
 
-  function openAt(index: number, autoplay: boolean) {
+  function playAt(index: number, autoplay: boolean) {
     load(index, autoplay);
     setActive(index);
   }
 
+  function openAt(index: number, autoplay: boolean) {
+    playAt(index, autoplay);
+    setModalOpen(true);
+  }
+
   function closeModal() {
     setEnlargedCover(null);
-    setActive(null);
-    setPlaying(false);
-    audioRef.current?.pause();
-    currentUrlRef.current = "";
-    releaseWake();
+    setLyricsOpen(false);
+    setModalOpen(false);
     history.replaceState(null, "", location.pathname + location.search);
   }
 
@@ -454,11 +457,11 @@ export default function AlbumPage() {
     if (repeatOne) return;
     if (!album || active === null) return;
     if (active < album.tracks.length - 1) {
-      openAt(active + 1, true);
+      playAt(active + 1, true);
       return;
     }
     if (repeatAll) {
-      openAt(0, true);
+      playAt(0, true);
       return;
     }
     setPlaying(false);
@@ -589,7 +592,7 @@ export default function AlbumPage() {
         </footer>
       </section>
 
-      {track ? (
+      {track && modalOpen ? (
         <div className="modal open">
           <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
             <div className="modal-head">
