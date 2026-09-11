@@ -4,6 +4,7 @@ import AdminLoginLink from "../components/AdminLoginLink";
 import { fetchAlbums, fetchPlayerSetup } from "../lib/api";
 import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
+import { applyPalette } from "../lib/palette";
 
 export default function HomePage() {
   const [albums, setAlbums] = useState<AlbumListItem[]>([]);
@@ -17,6 +18,7 @@ export default function HomePage() {
     fetchPlayerSetup()
       .then((next) => {
         setSetup(next);
+        applyPalette(next.collectionColor);
         document.title = next.appName;
       })
       .catch(() => undefined);
@@ -34,7 +36,7 @@ export default function HomePage() {
         <div className="album-grid">
           {albums.map((album) => (
             <Link key={album.id} href={`/${album.slug}`} className="album-card">
-              {album.thumbUrl ? <img src={album.thumbUrl} alt={album.title} /> : <div style={{ aspectRatio: "1", background: "#1b2330" }} />}
+              {album.thumbUrl ? <img src={album.thumbUrl} alt={album.title} /> : <div style={{ aspectRatio: "1", background: "var(--bg3)" }} />}
               <div className="album-card-body">
                 <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
                 <p>{album.artists || album.tagline}</p>

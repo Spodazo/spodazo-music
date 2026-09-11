@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { albums, playerSetup, tracks } from "../shared/schema";
 import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizePlayerSetup, seedLyricsForTrack } from "../shared/seed-data";
+import { normalizePaletteId } from "../shared/palettes";
 import type { Album, AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, durationLabelForFile, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
@@ -19,6 +20,7 @@ export type AlbumInput = {
   heroPortrait?: string;
   thumb?: string;
   artistThumb?: string;
+  color?: string;
   sortOrder?: number;
   hidden?: boolean;
 };
@@ -80,6 +82,7 @@ function hydrateAlbum(album: Album, albumTracks: Track[], setup: PlayerSetup): P
   const mapped = albumTracks.map(hydrateTrack);
   return {
     ...album,
+    color: normalizePaletteId(album.color),
     copyright: album.copyright || setup.copyright || SITE_COPYRIGHT,
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
@@ -92,6 +95,7 @@ function hydrateAlbum(album: Album, albumTracks: Track[], setup: PlayerSetup): P
 function toListItem(album: Album, trackCount: number): AlbumListItem {
   return {
     ...album,
+    color: normalizePaletteId(album.color),
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
     trackCount,
@@ -113,6 +117,7 @@ function playerSetupRecord(setup: PlayerSetup) {
     credits: setup.credits,
     copyright: setup.copyright,
     collectionCover: setup.collectionCover,
+    collectionColor: setup.collectionColor,
   };
 }
 
@@ -286,6 +291,7 @@ export class JsonMusicStore implements MusicStore {
       heroPortrait: input.heroPortrait || "",
       thumb: input.thumb || "",
       artistThumb: input.artistThumb || "",
+      color: normalizePaletteId(input.color || copied.color),
       sortOrder: input.sortOrder ?? catalog.albums.length + 1,
       hidden: Boolean(input.hidden),
       createdAt: nowIso(),
@@ -418,6 +424,7 @@ function rowAlbum(row: typeof albums.$inferSelect): Album {
     heroPortrait: row.heroPortrait,
     thumb: row.thumb,
     artistThumb: row.artistThumb,
+    color: normalizePaletteId(row.color),
     sortOrder: row.sortOrder,
     hidden: Boolean(row.hidden),
     createdAt: row.createdAt?.toISOString(),
@@ -466,6 +473,7 @@ export class PostgresMusicStore implements MusicStore {
         hero_portrait TEXT NOT NULL DEFAULT '',
         thumb TEXT NOT NULL DEFAULT '',
         artist_thumb TEXT NOT NULL DEFAULT '',
+        color TEXT NOT NULL DEFAULT 'ink',
         sort_order INTEGER NOT NULL DEFAULT 0,
         hidden BOOLEAN NOT NULL DEFAULT false,
         created_at TIMESTAMPTZ DEFAULT now(),
@@ -503,10 +511,13 @@ export class PostgresMusicStore implements MusicStore {
         credits TEXT NOT NULL DEFAULT '',
         copyright TEXT NOT NULL DEFAULT '',
         collection_cover TEXT NOT NULL DEFAULT '',
+        collection_color TEXT NOT NULL DEFAULT 'ink',
         updated_at TIMESTAMPTZ DEFAULT now()
       )
     `);
+    await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT 'ink'`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_cover TEXT NOT NULL DEFAULT ''`);
+    await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_color TEXT NOT NULL DEFAULT 'ink'`);
     const existingSetup = await this.db.select({ id: playerSetup.id }).from(playerSetup).limit(1);
     if (existingSetup.length === 0) {
       await this.db.insert(playerSetup).values({
@@ -628,6 +639,7 @@ export class PostgresMusicStore implements MusicStore {
         heroPortrait: input.heroPortrait || "",
         thumb: input.thumb || "",
         artistThumb: input.artistThumb || "",
+        color: normalizePaletteId(input.color || copied.color),
         sortOrder: input.sortOrder ?? 0,
         hidden: Boolean(input.hidden),
       })
@@ -646,6 +658,7 @@ export class PostgresMusicStore implements MusicStore {
     if (input.heroPortrait !== undefined) patch.heroPortrait = input.heroPortrait;
     if (input.thumb !== undefined) patch.thumb = input.thumb;
     if (input.artistThumb !== undefined) patch.artistThumb = input.artistThumb;
+    if (input.color !== undefined) patch.color = normalizePaletteId(input.color);
     if (input.sortOrder !== undefined) patch.sortOrder = input.sortOrder;
     if (input.hidden !== undefined) patch.hidden = input.hidden;
     const [row] = await this.db.update(albums).set(patch).where(eq(albums.id, id)).returning();

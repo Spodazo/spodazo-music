@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { DEFAULT_PALETTE_ID, normalizePaletteId } from "./palettes";
 import { albumSetupFromPlayer, copyrightLines, DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizePlayerSetup, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
 
 test("Echoes catalog has twelve unique tracks", () => {
@@ -13,6 +14,7 @@ test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(ECHOES_ALBUM.thumb, "Echoes of Storms.webp");
   assert.equal(ECHOES_ALBUM.artistThumb, "Brody and Eden.webp");
   assert.equal(ECHOES_ALBUM.hidden, false);
+  assert.equal(ECHOES_ALBUM.color, DEFAULT_PALETTE_ID);
   assert.equal(ECHOES_ALBUM.copyright, SITE_COPYRIGHT);
 });
 
@@ -34,11 +36,12 @@ test("uniqueSlug keeps album deep links distinct", () => {
   assert.equal(uniqueSlug("Be Thou My Vision", used), "be-thou-my-vision");
 });
 
-test("albumSetupFromPlayer copies theme, credits, and copyright onto an album", () => {
+test("albumSetupFromPlayer copies theme, credits, copyright, and color onto an album", () => {
   assert.deepEqual(albumSetupFromPlayer(DEFAULT_PLAYER_SETUP), {
     tagline: DEFAULT_PLAYER_SETUP.theme,
     credits: DEFAULT_PLAYER_SETUP.credits,
     copyright: DEFAULT_PLAYER_SETUP.copyright,
+    color: DEFAULT_PALETTE_ID,
   });
 });
 
@@ -48,6 +51,14 @@ test("normalizePlayerSetup fills blank fields from the site defaults", () => {
   assert.equal(normalizePlayerSetup({ appName: "  New Name  " }).theme, DEFAULT_PLAYER_SETUP.theme);
   assert.equal(normalizePlayerSetup({ collectionCover: "  Cover.webp  " }).collectionCover, "Cover.webp");
   assert.equal(normalizePlayerSetup({ collectionCover: "  Cover.webp  " }).collectionCoverUrl, "");
+  assert.equal(normalizePlayerSetup({}).collectionColor, DEFAULT_PALETTE_ID);
+  assert.equal(normalizePlayerSetup({ collectionColor: "navy" }).collectionColor, "navy");
+  assert.equal(normalizePlayerSetup({ collectionColor: "nope" }).collectionColor, DEFAULT_PALETTE_ID);
+});
+
+test("normalizePaletteId keeps known palettes and falls back to ink", () => {
+  assert.equal(normalizePaletteId("teal"), "teal");
+  assert.equal(normalizePaletteId("NOPE"), DEFAULT_PALETTE_ID);
 });
 
 test("copyrightLines splits the reserved notice onto two lines", () => {

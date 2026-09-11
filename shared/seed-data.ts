@@ -1,3 +1,4 @@
+import { DEFAULT_PALETTE_ID, normalizePaletteId } from "./palettes";
 import type { Album, PlayerSetup, Track } from "./types";
 
 export function slugify(value: string): string {
@@ -39,13 +40,15 @@ export const DEFAULT_PLAYER_SETUP: PlayerSetup = {
   copyright: SITE_COPYRIGHT,
   collectionCover: "",
   collectionCoverUrl: "",
+  collectionColor: DEFAULT_PALETTE_ID,
 };
 
-export function albumSetupFromPlayer(setup: PlayerSetup): Pick<Album, "tagline" | "credits" | "copyright"> {
+export function albumSetupFromPlayer(setup: PlayerSetup): Pick<Album, "tagline" | "credits" | "copyright" | "color"> {
   return {
     tagline: setup.theme,
     credits: setup.credits,
     copyright: setup.copyright,
+    color: normalizePaletteId(setup.collectionColor),
   };
 }
 
@@ -57,6 +60,7 @@ export function normalizePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerS
     copyright: raw?.copyright?.trim() || DEFAULT_PLAYER_SETUP.copyright,
     collectionCover: raw?.collectionCover?.trim() || "",
     collectionCoverUrl: "",
+    collectionColor: normalizePaletteId(raw?.collectionColor),
   };
 }
 
@@ -82,6 +86,7 @@ export const ECHOES_ALBUM: Album = {
   heroPortrait: "Echoes of Storms Web Portrait.webp",
   thumb: "Echoes of Storms.webp",
   artistThumb: "Brody and Eden.webp",
+  color: DEFAULT_PALETTE_ID,
   sortOrder: 1,
   hidden: false,
 };

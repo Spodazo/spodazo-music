@@ -62,6 +62,7 @@ function albumFields(body: Request["body"], partial = false) {
     heroPortrait?: string;
     thumb?: string;
     artistThumb?: string;
+    color?: string;
     sortOrder?: number;
     hidden?: boolean;
   } = {};
@@ -73,6 +74,7 @@ function albumFields(body: Request["body"], partial = false) {
   if (!partial || has("credits")) fields.credits = String(body.credits || "");
   if (!partial || has("artists")) fields.artists = String(body.artists || "");
   if (!partial || has("copyright")) fields.copyright = String(body.copyright || "");
+  if (!partial || has("color")) fields.color = String(body.color || "");
   if (!partial || has("hidden")) fields.hidden = body.hidden === true || body.hidden === "true";
   if (body.heroPortrait) fields.heroPortrait = String(body.heroPortrait);
   if (body.thumb) fields.thumb = String(body.thumb);
@@ -132,6 +134,7 @@ export function registerRoutes(app: Express): void {
     if (body.theme !== undefined) fields.theme = String(body.theme);
     if (body.credits !== undefined) fields.credits = String(body.credits);
     if (body.copyright !== undefined) fields.copyright = String(body.copyright);
+    if (body.collectionColor !== undefined) fields.collectionColor = String(body.collectionColor);
     if (files?.cover?.[0]) fields.collectionCover = files.cover[0].filename;
     res.json(await store.updatePlayerSetup(fields));
   });

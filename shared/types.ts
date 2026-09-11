@@ -9,6 +9,7 @@ export type Album = {
   heroPortrait: string;
   thumb: string;
   artistThumb: string;
+  color: string;
   sortOrder: number;
   hidden: boolean;
   createdAt?: string;
@@ -60,4 +61,5 @@ export type PlayerSetup = {
   copyright: string;
   collectionCover: string;
   collectionCoverUrl: string;
+  collectionColor: string;
 };

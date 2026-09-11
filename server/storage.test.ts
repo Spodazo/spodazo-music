@@ -37,6 +37,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(album.tagline, DEFAULT_PLAYER_SETUP.theme);
   assert.equal(album.credits, DEFAULT_PLAYER_SETUP.credits);
   assert.equal(album.copyright, SITE_COPYRIGHT);
+  assert.equal(album.color, "ink");
   const track = await store.createTrack({
     albumId: album.id,
     n: 1,
@@ -115,7 +116,10 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(saved.appName, "New Player");
   assert.equal(saved.theme, DEFAULT_PLAYER_SETUP.theme);
   assert.equal(saved.collectionCover, "");
+  assert.equal(saved.collectionColor, "ink");
   assert.equal((await store.getPlayerSetup()).appName, "New Player");
+  const withColor = await store.updatePlayerSetup({ collectionColor: "navy" });
+  assert.equal(withColor.collectionColor, "navy");
   const withCover = await store.updatePlayerSetup({ collectionCover: "Collection.webp" });
   assert.equal(withCover.collectionCover, "Collection.webp");
   assert.match(withCover.collectionCoverUrl, /Collection\.webp/);

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { PALETTES, paletteById } from "@shared/palettes";
 import { DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import {
@@ -22,6 +23,7 @@ import {
   updateTrack,
 } from "../lib/api";
 import { assignSrc, pipelineIsDead, playSong, unlockAudio } from "../lib/audioCache";
+import { applyPalette } from "../lib/palette";
 
 type AdminQueue = {
   albumId: string;
@@ -270,7 +272,9 @@ export default function AdminPage() {
         setAuthed(me.admin);
         if (me.admin) {
           await refresh();
-          setPlayerSetup(await fetchPlayerSetup());
+          const next = await fetchPlayerSetup();
+          setPlayerSetup(next);
+          applyPalette(next.collectionColor);
         }
       })
       .catch((err: Error) => setError(err.message))
@@ -292,7 +296,9 @@ export default function AdminPage() {
               await adminLogin(password);
               setAuthed(true);
               await refresh();
-              setPlayerSetup(await fetchPlayerSetup());
+              const next = await fetchPlayerSetup();
+              setPlayerSetup(next);
+              applyPalette(next.collectionColor);
             } catch (err) {
               setError(err instanceof Error ? err.message : "Login failed");
             }
@@ -344,11 +350,12 @@ export default function AdminPage() {
         </button>
       </section>
       {setupOpen ? (
-        <AdminDialog title="Player Setup" onClose={() => setSetupOpen(false)}>
+        <AdminDialog title="Player Setup" onClose={() => { applyPalette(playerSetup.collectionColor); setSetupOpen(false); }}>
           <PlayerSetupForm
             setup={playerSetup}
             onSaved={(next) => {
               setPlayerSetup(next);
+              applyPalette(next.collectionColor);
               setSetupOpen(false);
             }}
             onCancel={() => setSetupOpen(false)}
@@ -485,6 +492,53 @@ function CoverField({
   );
 }
 
+function ColorField({
+  label,
+  name,
+  value,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange?: (id: string) => void;
+}) {
+  const current = paletteById(value);
+  return (
+    <>
+      <label>{label}</label>
+      <div className="palette-current" aria-hidden="true">
+        <span className="palette-swatch" style={{ background: current.bg }} />
+        <span className="palette-swatch" style={{ background: current.card }} />
+        <span className="palette-swatch" style={{ background: current.input }} />
+        <span className="palette-swatch" style={{ background: current.text }} />
+        <span className="palette-swatch" style={{ background: current.muted }} />
+        <span className="palette-swatch" style={{ background: current.accent }} />
+        <span>{current.name}</span>
+      </div>
+      <div className="palette-choices">
+        {PALETTES.map((palette) => (
+          <label key={palette.id} className={`palette-choice${palette.id === current.id ? " on" : ""}`}>
+            <input
+              type="radio"
+              name={name}
+              value={palette.id}
+              checked={palette.id === current.id}
+              onChange={() => onChange?.(palette.id)}
+            />
+            <span className="palette-choice-swatches">
+              <span className="palette-swatch" style={{ background: palette.bg }} />
+              <span className="palette-swatch" style={{ background: palette.card }} />
+              <span className="palette-swatch" style={{ background: palette.accent }} />
+            </span>
+            <span>{palette.name}</span>
+          </label>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function PlayerSetupForm({
   setup,
   onSaved,
@@ -495,6 +549,7 @@ function PlayerSetupForm({
   onCancel: () => void;
 }) {
   const [error, setError] = useState("");
+  const [color, setColor] = useState(setup.collectionColor);
   return (
     <form
       onSubmit={async (event) => {
@@ -509,6 +564,15 @@ function PlayerSetupForm({
       }}
     >
       <CoverField label="Collection Cover" name="cover" currentUrl={setup.collectionCoverUrl} />
+      <ColorField
+        label="Collection Color"
+        name="collectionColor"
+        value={color}
+        onChange={(id) => {
+          setColor(id);
+          applyPalette(id);
+        }}
+      />
       <label>App Name</label>
       <input name="appName" defaultValue={setup.appName} required />
       <label>Theme</label>
@@ -519,7 +583,14 @@ function PlayerSetupForm({
       <textarea name="copyright" className="player-setup-copyright" defaultValue={setup.copyright} />
       <div className="form-actions">
         <button type="submit">Save Player Setup</button>
-        <button type="button" className="ghost" onClick={onCancel}>
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => {
+            applyPalette(setup.collectionColor);
+            onCancel();
+          }}
+        >
           Cancel
         </button>
       </div>
@@ -540,6 +611,7 @@ function AlbumSetupForm({
   onCancel: () => void;
 }) {
   const [error, setError] = useState("");
+  const [color, setColor] = useState(album.color);
   const copied = {
     theme: album.tagline || setup.theme,
     credits: album.credits || setup.credits,
@@ -560,6 +632,7 @@ function AlbumSetupForm({
       }}
     >
       <CoverField label="Album Cover" name="thumb" currentUrl={album.thumbUrl} />
+      <ColorField label="Album Color" name="color" value={color} onChange={setColor} />
       <label>Album Name</label>
       <input name="title" defaultValue={album.title} required />
       <label>Theme</label>

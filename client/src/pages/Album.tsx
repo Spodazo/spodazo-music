@@ -16,6 +16,7 @@ import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
 import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
+import { applyPalette } from "../lib/palette";
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -108,6 +109,7 @@ export default function AlbumPage() {
     fetchAlbum(slug)
       .then((data) => {
         setAlbum(data);
+        applyPalette(data.color);
         document.title = `${data.title} — ${data.artists}`;
       })
       .catch((err: Error) => setError(err.message));

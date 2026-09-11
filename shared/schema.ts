@@ -11,6 +11,7 @@ export const albums = pgTable("albums", {
   heroPortrait: text("hero_portrait").notNull().default(""),
   thumb: text("thumb").notNull().default(""),
   artistThumb: text("artist_thumb").notNull().default(""),
+  color: text("color").notNull().default("ink"),
   sortOrder: integer("sort_order").notNull().default(0),
   hidden: boolean("hidden").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -24,6 +25,7 @@ export const playerSetup = pgTable("player_setup", {
   credits: text("credits").notNull().default(""),
   copyright: text("copyright").notNull().default(""),
   collectionCover: text("collection_cover").notNull().default(""),
+  collectionColor: text("collection_color").notNull().default("ink"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
