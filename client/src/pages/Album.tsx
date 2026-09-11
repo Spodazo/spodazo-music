@@ -14,7 +14,7 @@ import { fetchAlbum } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
-import { copyrightLines, SITE_COPYRIGHT } from "@shared/seed-data";
+import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
 function formatTime(seconds: number): string {
@@ -579,7 +579,7 @@ export default function AlbumPage() {
           ))}
         </div>
         <footer className="site-footer">
-          <CopyrightLines text={album.copyright || SITE_COPYRIGHT} />
+          <CopyrightLines text={album.copyright || DEFAULT_PLAYER_SETUP.copyright} />
           <div className="sdg">
             <IconCross />
             Soli Deo Gloria
@@ -684,7 +684,7 @@ export default function AlbumPage() {
                   </>
                 ) : null}
                 <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
-                  <CopyrightLines text={album.copyright || SITE_COPYRIGHT} />
+                  <CopyrightLines text={album.copyright || DEFAULT_PLAYER_SETUP.copyright} />
                   <div className="sdg">
                     <IconCross />
                     Soli Deo Gloria

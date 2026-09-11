@@ -1,4 +1,4 @@
-import type { AlbumListItem, PublicAlbum, Track } from "@shared/types";
+import type { AlbumListItem, PlayerSetup, PublicAlbum, Track } from "@shared/types";
 
 async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -6,6 +6,18 @@ async function parse<T>(res: Response): Promise<T> {
     throw new Error(body.error || res.statusText);
   }
   return res.json() as Promise<T>;
+}
+
+export function fetchPlayerSetup(): Promise<PlayerSetup> {
+  return fetch("/api/player-setup").then((res) => parse<PlayerSetup>(res));
+}
+
+export function updatePlayerSetup(setup: PlayerSetup): Promise<PlayerSetup> {
+  return fetch("/api/admin/player-setup", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(setup),
+  }).then((res) => parse<PlayerSetup>(res));
 }
 
 export function fetchAlbums(): Promise<AlbumListItem[]> {

@@ -52,3 +52,10 @@ export type AlbumListItem = Album & {
   thumbUrl: string;
   trackCount: number;
 };
+
+export type PlayerSetup = {
+  appName: string;
+  theme: string;
+  credits: string;
+  copyright: string;
+};

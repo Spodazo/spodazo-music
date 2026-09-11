@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { SITE_COPYRIGHT } from "@shared/seed-data";
-import type { AlbumListItem, PublicAlbum, PublicTrack } from "@shared/types";
+import { DEFAULT_PLAYER_SETUP, SITE_COPYRIGHT } from "@shared/seed-data";
+import type { AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
   adminLogout,
@@ -11,12 +11,14 @@ import {
   deleteAlbum,
   fetchAlbum,
   fetchAlbums,
+  fetchPlayerSetup,
   reorderAlbums,
   reorderTracks,
   setAlbumHidden,
   setTrackArchived,
   trackFileUrl,
   updateAlbum,
+  updatePlayerSetup,
   updateTrack,
 } from "../lib/api";
 import { assignSrc, pipelineIsDead, playSong, unlockAudio } from "../lib/audioCache";
@@ -246,6 +248,8 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [albums, setAlbums] = useState<AlbumListItem[]>([]);
   const [selected, setSelected] = useState<PublicAlbum | null>(null);
+  const [playerSetup, setPlayerSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
+  const [setupOpen, setSetupOpen] = useState(false);
   const player = useAdminPlayer();
 
   async function refresh() {
@@ -263,7 +267,10 @@ export default function AdminPage() {
     adminMe()
       .then(async (me) => {
         setAuthed(me.admin);
-        if (me.admin) await refresh();
+        if (me.admin) {
+          await refresh();
+          setPlayerSetup(await fetchPlayerSetup());
+        }
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setReady(true));
@@ -274,7 +281,7 @@ export default function AdminPage() {
   if (!authed) {
     return (
       <main className="admin">
-        <h1>Spodazo Music Admin</h1>
+        <h1>{playerSetup.appName} Admin</h1>
         <p>The public player stays open. This password only unlocks adding albums, songs, artwork, and lyrics.</p>
         <form
           onSubmit={async (event) => {
@@ -284,6 +291,7 @@ export default function AdminPage() {
               await adminLogin(password);
               setAuthed(true);
               await refresh();
+              setPlayerSetup(await fetchPlayerSetup());
             } catch (err) {
               setError(err instanceof Error ? err.message : "Login failed");
             }
@@ -308,7 +316,7 @@ export default function AdminPage() {
   return (
     <main className={`admin${player.current ? " has-player" : ""}`}>
       <header className="admin-top">
-        <h1>Spodazo Music Admin</h1>
+        <h1>{playerSetup.appName} Admin</h1>
         <div className="admin-top-actions">
           <a href="/" className="ghost">View site</a>
           <button
@@ -324,6 +332,28 @@ export default function AdminPage() {
         </div>
       </header>
       {error ? <p className="error">{error}</p> : null}
+
+      <section className="card player-setup-card">
+        <div>
+          <h2>Player Setup</h2>
+          <p className="hint">App name, theme, credits, and copyright on the public player.</p>
+        </div>
+        <button type="button" onClick={() => setSetupOpen(true)}>
+          Edit
+        </button>
+      </section>
+      {setupOpen ? (
+        <AdminDialog title="Player Setup" onClose={() => setSetupOpen(false)}>
+          <PlayerSetupForm
+            setup={playerSetup}
+            onSaved={(next) => {
+              setPlayerSetup(next);
+              setSetupOpen(false);
+            }}
+            onCancel={() => setSetupOpen(false)}
+          />
+        </AdminDialog>
+      ) : null}
 
       <AlbumList
         albums={albums}
@@ -412,6 +442,55 @@ export default function AdminPage() {
         onPlayingChange={player.setPlaying}
       />
     </main>
+  );
+}
+
+function PlayerSetupForm({
+  setup,
+  onSaved,
+  onCancel,
+}: {
+  setup: PlayerSetup;
+  onSaved: (setup: PlayerSetup) => void;
+  onCancel: () => void;
+}) {
+  const [error, setError] = useState("");
+  return (
+    <form
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setError("");
+        const form = new FormData(event.currentTarget);
+        try {
+          onSaved(
+            await updatePlayerSetup({
+              appName: String(form.get("appName") || ""),
+              theme: String(form.get("theme") || ""),
+              credits: String(form.get("credits") || ""),
+              copyright: String(form.get("copyright") || ""),
+            }),
+          );
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Save failed");
+        }
+      }}
+    >
+      <label>App Name</label>
+      <input name="appName" defaultValue={setup.appName} required />
+      <label>Theme</label>
+      <input name="theme" defaultValue={setup.theme} />
+      <label>Credits</label>
+      <input name="credits" defaultValue={setup.credits} />
+      <label>Copyright</label>
+      <textarea name="copyright" className="player-setup-copyright" defaultValue={setup.copyright} />
+      <div className="form-actions">
+        <button type="submit">Save Player Setup</button>
+        <button type="button" className="ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+    </form>
   );
 }
 

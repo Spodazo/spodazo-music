@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { SITE_COPYRIGHT } from "../shared/seed-data";
+import { DEFAULT_PLAYER_SETUP, SITE_COPYRIGHT } from "../shared/seed-data";
 import { JsonMusicStore } from "./storage";
 
 test("JSON store seeds Echoes and supports album/track admin writes", async () => {
@@ -109,4 +109,12 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(afterRestore?.archivedTracks.length, 0);
   assert.equal(afterRestore?.tracks.length, 2);
   assert.ok(afterRestore?.tracks.some((item) => item.id === track.id && !item.archived));
+
+  assert.deepEqual(await store.getPlayerSetup(), DEFAULT_PLAYER_SETUP);
+  const saved = await store.updatePlayerSetup({ appName: "New Player" });
+  assert.equal(saved.appName, "New Player");
+  assert.equal(saved.theme, DEFAULT_PLAYER_SETUP.theme);
+  assert.equal((await store.getPlayerSetup()).appName, "New Player");
+  const afterName = await store.getAlbumBySlug("echoes");
+  assert.equal(afterName?.copyright, DEFAULT_PLAYER_SETUP.copyright);
 });

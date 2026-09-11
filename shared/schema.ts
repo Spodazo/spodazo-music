@@ -17,6 +17,15 @@ export const albums = pgTable("albums", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+export const playerSetup = pgTable("player_setup", {
+  id: text("id").primaryKey(),
+  appName: text("app_name").notNull().default(""),
+  theme: text("theme").notNull().default(""),
+  credits: text("credits").notNull().default(""),
+  copyright: text("copyright").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 export const tracks = pgTable("tracks", {
   id: text("id").primaryKey(),
   albumId: text("album_id")

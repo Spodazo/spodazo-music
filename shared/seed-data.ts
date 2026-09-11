@@ -1,4 +1,4 @@
-import type { Album, Track } from "./types";
+import type { Album, PlayerSetup, Track } from "./types";
 
 export function slugify(value: string): string {
   return value
@@ -31,6 +31,22 @@ export function uniqueSlug(base: string, used: Set<string>): string {
 
 export const SITE_COPYRIGHT =
   "Produced by Spodazo LLC, trading as Spodazo Music Ltd © 2026. All Rights Reserved. This material may not be copied — in whole or in part — or distributed without previous permission from the Producers.";
+
+export const DEFAULT_PLAYER_SETUP: PlayerSetup = {
+  appName: "SPODAZO MUSIC",
+  theme: "Crisis of faith answered through the Word of God",
+  credits: "Music, lyrics and graphics by Spodazo.  |  Vocals by Brody Vale & Eden Blue",
+  copyright: SITE_COPYRIGHT,
+};
+
+export function normalizePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerSetup {
+  return {
+    appName: raw?.appName?.trim() || DEFAULT_PLAYER_SETUP.appName,
+    theme: raw?.theme?.trim() || DEFAULT_PLAYER_SETUP.theme,
+    credits: raw?.credits?.trim() || DEFAULT_PLAYER_SETUP.credits,
+    copyright: raw?.copyright?.trim() || DEFAULT_PLAYER_SETUP.copyright,
+  };
+}
 
 export function copyrightLines(text: string): string[] {
   const marker = "Reserved.";

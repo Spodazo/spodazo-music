@@ -847,6 +847,16 @@ button.m-cover.enlarged {
   margin: 0;
   text-decoration: none;
 }
+.player-setup-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.player-setup-card h2 { margin: 0 0 4px; }
+.player-setup-card .hint { margin: 0; }
+.player-setup-card button { margin: 0; flex: none; }
+.admin textarea.player-setup-copyright { min-height: 110px; }
 .admin form, .admin .card {
   background: #121a24;
   border: 1px solid var(--border);
@@ -1329,6 +1339,11 @@ button.m-cover.enlarged {
     padding: 14px;
     margin: 12px 0;
   }
+  .player-setup-card {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .player-setup-card button { width: 100%; }
   .label-full { display: none; }
   .label-short { display: inline; }
   .album-admin {

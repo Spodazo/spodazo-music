@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
+import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
@@ -110,6 +111,23 @@ export function registerRoutes(app: Express): void {
       musicDataDir: process.env.MUSIC_DATA_DIR || ".music-data",
       database: process.env.DATABASE_URL ? "postgres" : "json",
     });
+  });
+
+  app.get("/api/player-setup", async (_req, res) => {
+    const store = await getStore();
+    res.set("Cache-Control", "no-store");
+    res.json(await store.getPlayerSetup());
+  });
+
+  app.patch("/api/admin/player-setup", requireAdmin, async (req, res) => {
+    const store = await getStore();
+    const body = req.body || {};
+    const fields: Partial<PlayerSetup> = {};
+    if (body.appName !== undefined) fields.appName = String(body.appName);
+    if (body.theme !== undefined) fields.theme = String(body.theme);
+    if (body.credits !== undefined) fields.credits = String(body.credits);
+    if (body.copyright !== undefined) fields.copyright = String(body.copyright);
+    res.json(await store.updatePlayerSetup(fields));
   });
 
   app.get("/api/albums", async (req, res) => {

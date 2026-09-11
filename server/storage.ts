@@ -2,9 +2,9 @@ import fs from "fs";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { albums, tracks } from "../shared/schema";
-import { DEFAULT_CATALOG, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, seedLyricsForTrack } from "../shared/seed-data";
-import type { Album, AlbumListItem, PublicAlbum, PublicTrack, Track } from "../shared/types";
+import { albums, playerSetup, tracks } from "../shared/schema";
+import { DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizePlayerSetup, seedLyricsForTrack } from "../shared/seed-data";
+import type { Album, AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, durationLabelForFile, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
 
@@ -53,6 +53,8 @@ export interface MusicStore {
   setTrackArchived(id: string, archived: boolean): Promise<Track | null>;
   reorderTracks(albumId: string, trackIds: string[]): Promise<Track[]>;
   reorderAlbums(albumIds: string[]): Promise<Album[]>;
+  getPlayerSetup(): Promise<PlayerSetup>;
+  updatePlayerSetup(input: Partial<PlayerSetup>): Promise<PlayerSetup>;
 }
 
 function nowIso(): string {
@@ -74,11 +76,11 @@ function hydrateTrack(track: Track) {
   };
 }
 
-function hydrateAlbum(album: Album, albumTracks: Track[]): PublicAlbum {
+function hydrateAlbum(album: Album, albumTracks: Track[], setup: PlayerSetup): PublicAlbum {
   const mapped = albumTracks.map(hydrateTrack);
   return {
     ...album,
-    copyright: album.copyright || SITE_COPYRIGHT,
+    copyright: setup.copyright || album.copyright || SITE_COPYRIGHT,
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
     artistUrl: imageUrl(album.artistThumb || album.thumb || album.heroPortrait),
@@ -96,7 +98,7 @@ function toListItem(album: Album, trackCount: number): AlbumListItem {
   };
 }
 
-type CatalogFile = { albums: Album[]; tracks: Track[] };
+type CatalogFile = { albums: Album[]; tracks: Track[]; player?: PlayerSetup };
 
 export class JsonMusicStore implements MusicStore {
   constructor() {
@@ -113,6 +115,7 @@ export class JsonMusicStore implements MusicStore {
           createdAt: nowIso(),
           updatedAt: nowIso(),
         })),
+        player: DEFAULT_PLAYER_SETUP,
       });
     } else {
       this.backfillEmptyLyrics();
@@ -177,6 +180,7 @@ export class JsonMusicStore implements MusicStore {
         archived: Boolean(track.archived),
         introduction: track.introduction || "",
       })),
+      player: raw.player,
     };
   }
 
@@ -205,6 +209,7 @@ export class JsonMusicStore implements MusicStore {
     return hydrateAlbum(
       album,
       catalog.tracks.filter((track) => track.albumId === album.id),
+      await this.getPlayerSetup(),
     );
   }
 
@@ -215,7 +220,19 @@ export class JsonMusicStore implements MusicStore {
     return hydrateAlbum(
       album,
       catalog.tracks.filter((track) => track.albumId === album.id),
+      await this.getPlayerSetup(),
     );
+  }
+
+  async getPlayerSetup(): Promise<PlayerSetup> {
+    return normalizePlayerSetup(this.read().player);
+  }
+
+  async updatePlayerSetup(input: Partial<PlayerSetup>): Promise<PlayerSetup> {
+    const catalog = this.read();
+    catalog.player = normalizePlayerSetup({ ...catalog.player, ...input });
+    this.write(catalog);
+    return catalog.player;
   }
 
   async getTrackById(id: string): Promise<PublicTrack | null> {
@@ -233,7 +250,7 @@ export class JsonMusicStore implements MusicStore {
       tagline: input.tagline || "",
       credits: input.credits || "",
       artists: input.artists || "",
-      copyright: input.copyright || SITE_COPYRIGHT,
+      copyright: input.copyright || (await this.getPlayerSetup()).copyright,
       heroPortrait: input.heroPortrait || "",
       thumb: input.thumb || "",
       artistThumb: input.artistThumb || "",
@@ -446,6 +463,23 @@ export class PostgresMusicStore implements MusicStore {
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`);
     await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
     await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS introduction TEXT NOT NULL DEFAULT ''`);
+    await this.db.execute(sql`
+      CREATE TABLE IF NOT EXISTS player_setup (
+        id TEXT PRIMARY KEY,
+        app_name TEXT NOT NULL DEFAULT '',
+        theme TEXT NOT NULL DEFAULT '',
+        credits TEXT NOT NULL DEFAULT '',
+        copyright TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
+    const existingSetup = await this.db.select({ id: playerSetup.id }).from(playerSetup).limit(1);
+    if (existingSetup.length === 0) {
+      await this.db.insert(playerSetup).values({
+        id: "site",
+        ...DEFAULT_PLAYER_SETUP,
+      });
+    }
     const existing = await this.db.select({ id: albums.id }).from(albums).limit(1);
     if (existing.length === 0) {
       for (const album of DEFAULT_CATALOG.albums) {
@@ -513,6 +547,7 @@ export class PostgresMusicStore implements MusicStore {
     return hydrateAlbum(
       rowAlbum(row),
       albumTracks.map(rowTrack),
+      await this.getPlayerSetup(),
     );
   }
 
@@ -527,6 +562,7 @@ export class PostgresMusicStore implements MusicStore {
     return hydrateAlbum(
       rowAlbum(row),
       albumTracks.map(rowTrack),
+      await this.getPlayerSetup(),
     );
   }
 
@@ -546,7 +582,7 @@ export class PostgresMusicStore implements MusicStore {
         tagline: input.tagline || "",
         credits: input.credits || "",
         artists: input.artists || "",
-        copyright: input.copyright || SITE_COPYRIGHT,
+        copyright: input.copyright || (await this.getPlayerSetup()).copyright,
         heroPortrait: input.heroPortrait || "",
         thumb: input.thumb || "",
         artistThumb: input.artistThumb || "",
@@ -687,6 +723,24 @@ export class PostgresMusicStore implements MusicStore {
     }
     const rows = await this.db.select().from(albums).orderBy(asc(albums.sortOrder), asc(albums.title));
     return rows.map(rowAlbum);
+  }
+
+  async getPlayerSetup(): Promise<PlayerSetup> {
+    const [row] = await this.db.select().from(playerSetup).where(eq(playerSetup.id, "site")).limit(1);
+    return normalizePlayerSetup(row);
+  }
+
+  async updatePlayerSetup(input: Partial<PlayerSetup>): Promise<PlayerSetup> {
+    const current = await this.getPlayerSetup();
+    const next = normalizePlayerSetup({ ...current, ...input });
+    await this.db
+      .insert(playerSetup)
+      .values({ id: "site", ...next, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: playerSetup.id,
+        set: { ...next, updatedAt: new Date() },
+      });
+    return next;
   }
 }
 

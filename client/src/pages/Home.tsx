@@ -1,24 +1,31 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
-import { fetchAlbums } from "../lib/api";
-import { copyrightLines, SITE_COPYRIGHT } from "@shared/seed-data";
-import type { AlbumListItem } from "@shared/types";
+import { fetchAlbums, fetchPlayerSetup } from "../lib/api";
+import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
+import type { AlbumListItem, PlayerSetup } from "@shared/types";
 
 export default function HomePage() {
   const [albums, setAlbums] = useState<AlbumListItem[]>([]);
+  const [setup, setSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
   const [error, setError] = useState("");
 
   useEffect(() => {
     fetchAlbums()
       .then(setAlbums)
       .catch((err: Error) => setError(err.message));
+    fetchPlayerSetup()
+      .then((next) => {
+        setSetup(next);
+        document.title = next.appName;
+      })
+      .catch(() => undefined);
   }, []);
 
   return (
     <main className="home">
       <AdminLoginLink />
-      <p className="home-kicker">Spodazo Music</p>
+      <p className="home-kicker">{setup.appName}</p>
       <div className="home-main">
         {error ? <p className="error">{error}</p> : null}
         <div className="album-grid">
@@ -35,10 +42,10 @@ export default function HomePage() {
         </div>
       </div>
       <footer className="home-foot">
-        <p className="home-foot-tag">Crisis of faith answered through the Word of God</p>
-        <p className="home-foot-credit">Music, lyrics and graphics by Spodazo. &nbsp;|&nbsp; Vocals by Brody Vale &amp; Eden Blue</p>
+        <p className="home-foot-tag">{setup.theme}</p>
+        <p className="home-foot-credit">{setup.credits}</p>
         <p className="home-foot-copy">
-          {copyrightLines(SITE_COPYRIGHT).map((line, index) => (
+          {copyrightLines(setup.copyright).map((line, index) => (
             <span key={index}>
               {index > 0 ? <br /> : null}
               {line}

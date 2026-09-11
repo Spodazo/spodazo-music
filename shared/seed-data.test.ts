@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { copyrightLines, DEFAULT_CATALOG, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
+import { copyrightLines, DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizePlayerSetup, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
 
 test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(ECHOES_ALBUM.slug, "echoes");
@@ -32,6 +32,12 @@ test("uniqueSlug keeps album deep links distinct", () => {
   const used = new Set(["our-light"]);
   assert.equal(uniqueSlug("Our Light", used), "our-light-2");
   assert.equal(uniqueSlug("Be Thou My Vision", used), "be-thou-my-vision");
+});
+
+test("normalizePlayerSetup fills blank fields from the site defaults", () => {
+  assert.deepEqual(normalizePlayerSetup({}), DEFAULT_PLAYER_SETUP);
+  assert.equal(normalizePlayerSetup({ appName: "  New Name  " }).appName, "New Name");
+  assert.equal(normalizePlayerSetup({ appName: "  New Name  " }).theme, DEFAULT_PLAYER_SETUP.theme);
 });
 
 test("copyrightLines splits the reserved notice onto two lines", () => {
