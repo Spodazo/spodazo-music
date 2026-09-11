@@ -39,6 +39,14 @@ export const DEFAULT_PLAYER_SETUP: PlayerSetup = {
   copyright: SITE_COPYRIGHT,
 };
 
+export function albumSetupFromPlayer(setup: PlayerSetup): Pick<Album, "tagline" | "credits" | "copyright"> {
+  return {
+    tagline: setup.theme,
+    credits: setup.credits,
+    copyright: setup.copyright,
+  };
+}
+
 export function normalizePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerSetup {
   return {
     appName: raw?.appName?.trim() || DEFAULT_PLAYER_SETUP.appName,

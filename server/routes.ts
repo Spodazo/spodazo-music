@@ -50,28 +50,30 @@ const upload = multer({
   limits: { fileSize: 80 * 1024 * 1024 },
 });
 
-function albumFields(body: Request["body"]) {
+function albumFields(body: Request["body"], partial = false) {
+  const has = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
   const fields: {
-    slug: string;
-    title: string;
-    tagline: string;
-    credits: string;
-    artists: string;
-    copyright: string;
+    slug?: string;
+    title?: string;
+    tagline?: string;
+    credits?: string;
+    artists?: string;
+    copyright?: string;
     heroPortrait?: string;
     thumb?: string;
     artistThumb?: string;
     sortOrder?: number;
-    hidden: boolean;
-  } = {
-    slug: String(body.slug || slugify(body.title || "")).trim(),
-    title: String(body.title || "").trim(),
-    tagline: String(body.tagline || ""),
-    credits: String(body.credits || ""),
-    artists: String(body.artists || ""),
-    copyright: String(body.copyright || ""),
-    hidden: body.hidden === true || body.hidden === "true",
-  };
+    hidden?: boolean;
+  } = {};
+  if (!partial || has("title")) fields.title = String(body.title || "").trim();
+  if (!partial || has("slug") || has("title")) {
+    fields.slug = String(body.slug || slugify(body.title || "")).trim();
+  }
+  if (!partial || has("tagline")) fields.tagline = String(body.tagline || "");
+  if (!partial || has("credits")) fields.credits = String(body.credits || "");
+  if (!partial || has("artists")) fields.artists = String(body.artists || "");
+  if (!partial || has("copyright")) fields.copyright = String(body.copyright || "");
+  if (!partial || has("hidden")) fields.hidden = body.hidden === true || body.hidden === "true";
   if (body.heroPortrait) fields.heroPortrait = String(body.heroPortrait);
   if (body.thumb) fields.thumb = String(body.thumb);
   if (body.artistThumb) fields.artistThumb = String(body.artistThumb);
@@ -199,7 +201,7 @@ export function registerRoutes(app: Express): void {
   ]), async (req, res) => {
     const store = await getStore();
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
-    const fields = albumFields(req.body);
+    const fields = albumFields(req.body, true);
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
     if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
     if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;

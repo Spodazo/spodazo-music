@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { albums, playerSetup, tracks } from "../shared/schema";
-import { DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizePlayerSetup, seedLyricsForTrack } from "../shared/seed-data";
+import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizePlayerSetup, seedLyricsForTrack } from "../shared/seed-data";
 import type { Album, AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, durationLabelForFile, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
@@ -80,7 +80,7 @@ function hydrateAlbum(album: Album, albumTracks: Track[], setup: PlayerSetup): P
   const mapped = albumTracks.map(hydrateTrack);
   return {
     ...album,
-    copyright: setup.copyright || album.copyright || SITE_COPYRIGHT,
+    copyright: album.copyright || setup.copyright || SITE_COPYRIGHT,
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
     artistUrl: imageUrl(album.artistThumb || album.thumb || album.heroPortrait),
@@ -121,7 +121,7 @@ export class JsonMusicStore implements MusicStore {
       this.backfillEmptyLyrics();
       this.backfillEchoesCover();
       this.backfillEchoesArtistPhoto();
-      this.backfillEmptyCopyright();
+      this.backfillAlbumSetupFromPlayer();
     }
   }
 
@@ -144,12 +144,25 @@ export class JsonMusicStore implements MusicStore {
     this.write(catalog);
   }
 
-  private backfillEmptyCopyright(): void {
+  private backfillAlbumSetupFromPlayer(): void {
     const catalog = this.read();
+    const copied = albumSetupFromPlayer(normalizePlayerSetup(catalog.player));
     let changed = false;
     for (const album of catalog.albums) {
+      let next = false;
+      if (!album.tagline?.trim()) {
+        album.tagline = copied.tagline;
+        next = true;
+      }
+      if (!album.credits?.trim()) {
+        album.credits = copied.credits;
+        next = true;
+      }
       if (!album.copyright?.trim()) {
-        album.copyright = SITE_COPYRIGHT;
+        album.copyright = copied.copyright;
+        next = true;
+      }
+      if (next) {
         album.updatedAt = nowIso();
         changed = true;
       }
@@ -243,14 +256,15 @@ export class JsonMusicStore implements MusicStore {
 
   async createAlbum(input: AlbumInput): Promise<Album> {
     const catalog = this.read();
+    const copied = albumSetupFromPlayer(await this.getPlayerSetup());
     const album: Album = {
       id: input.id || newId("album"),
       slug: input.slug,
       title: input.title,
-      tagline: input.tagline || "",
-      credits: input.credits || "",
+      tagline: input.tagline || copied.tagline,
+      credits: input.credits || copied.credits,
       artists: input.artists || "",
-      copyright: input.copyright || (await this.getPlayerSetup()).copyright,
+      copyright: input.copyright || copied.copyright,
       heroPortrait: input.heroPortrait || "",
       thumb: input.thumb || "",
       artistThumb: input.artistThumb || "",
@@ -497,10 +511,17 @@ export class PostgresMusicStore implements MusicStore {
         await this.db.update(tracks).set({ lyrics, updatedAt: new Date() }).where(eq(tracks.id, row.id));
       }
     }
-    await this.db
-      .update(albums)
-      .set({ copyright: SITE_COPYRIGHT, updatedAt: new Date() })
-      .where(eq(albums.copyright, ""));
+    const copied = albumSetupFromPlayer(await this.getPlayerSetup());
+    const albumRows = await this.db.select().from(albums);
+    for (const row of albumRows) {
+      const patch: Partial<typeof albums.$inferInsert> = {};
+      if (!String(row.tagline || "").trim()) patch.tagline = copied.tagline;
+      if (!String(row.credits || "").trim()) patch.credits = copied.credits;
+      if (!String(row.copyright || "").trim()) patch.copyright = copied.copyright;
+      if (Object.keys(patch).length) {
+        await this.db.update(albums).set({ ...patch, updatedAt: new Date() }).where(eq(albums.id, row.id));
+      }
+    }
     const [echoes] = await this.db
       .select({ id: albums.id, thumb: albums.thumb })
       .from(albums)
@@ -573,16 +594,17 @@ export class PostgresMusicStore implements MusicStore {
 
   async createAlbum(input: AlbumInput): Promise<Album> {
     const id = input.id || newId("album");
+    const copied = albumSetupFromPlayer(await this.getPlayerSetup());
     const [row] = await this.db
       .insert(albums)
       .values({
         id,
         slug: input.slug,
         title: input.title,
-        tagline: input.tagline || "",
-        credits: input.credits || "",
+        tagline: input.tagline || copied.tagline,
+        credits: input.credits || copied.credits,
         artists: input.artists || "",
-        copyright: input.copyright || (await this.getPlayerSetup()).copyright,
+        copyright: input.copyright || copied.copyright,
         heroPortrait: input.heroPortrait || "",
         thumb: input.thumb || "",
         artistThumb: input.artistThumb || "",

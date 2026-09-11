@@ -29,13 +29,13 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   const album = await store.createAlbum({
     slug: "second-watch",
     title: "Second Watch",
-    tagline: "A new album",
-    credits: "Spodazo",
     artists: "Brody Vale",
     heroPortrait: "",
     thumb: "",
     sortOrder: 2,
   });
+  assert.equal(album.tagline, DEFAULT_PLAYER_SETUP.theme);
+  assert.equal(album.credits, DEFAULT_PLAYER_SETUP.credits);
   assert.equal(album.copyright, SITE_COPYRIGHT);
   const track = await store.createTrack({
     albumId: album.id,

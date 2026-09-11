@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
-import { DEFAULT_PLAYER_SETUP, SITE_COPYRIGHT } from "@shared/seed-data";
+import { DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
@@ -250,6 +250,7 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<PublicAlbum | null>(null);
   const [playerSetup, setPlayerSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [albumSetupOpen, setAlbumSetupOpen] = useState(false);
   const player = useAdminPlayer();
 
   async function refresh() {
@@ -360,7 +361,7 @@ export default function AdminPage() {
         selectedId={selected?.id || null}
         playingId={player.queue?.albumId || null}
         playing={player.playing}
-        onSelect={async (slug) => { await loadAlbum(slug); }}
+        onSelect={async (slug) => { setAlbumSetupOpen(false); await loadAlbum(slug); }}
         onPlay={async (slug) => {
           const album = selected?.slug === slug ? selected : await loadAlbum(slug);
           player.playAlbum(album);
@@ -375,6 +376,30 @@ export default function AdminPage() {
 
       {selected ? (
         <>
+          <section className="card player-setup-card">
+            <div>
+              <h2>Album Setup</h2>
+              <p className="hint">Album name, theme, credits, and copyright for {selected.title}.</p>
+            </div>
+            <button type="button" onClick={() => setAlbumSetupOpen(true)}>
+              Edit
+            </button>
+          </section>
+          {albumSetupOpen ? (
+            <AdminDialog title="Album Setup" onClose={() => setAlbumSetupOpen(false)}>
+              <AlbumSetupForm
+                album={selected}
+                setup={playerSetup}
+                onSaved={async (slug) => {
+                  setAlbumSetupOpen(false);
+                  const list = await fetchAlbums();
+                  setAlbums(list);
+                  await loadAlbum(slug);
+                }}
+                onCancel={() => setAlbumSetupOpen(false)}
+              />
+            </AdminDialog>
+          ) : null}
           <TrackAdmin
             album={selected}
             currentTrackId={player.current?.id || null}
@@ -494,6 +519,56 @@ function PlayerSetupForm({
   );
 }
 
+function AlbumSetupForm({
+  album,
+  setup,
+  onSaved,
+  onCancel,
+}: {
+  album: PublicAlbum;
+  setup: PlayerSetup;
+  onSaved: (slug: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [error, setError] = useState("");
+  const copied = {
+    theme: album.tagline || setup.theme,
+    credits: album.credits || setup.credits,
+    copyright: album.copyright || setup.copyright,
+  };
+  return (
+    <form
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setError("");
+        const form = new FormData(event.currentTarget);
+        try {
+          const saved = await updateAlbum(album.id, form);
+          await onSaved(saved.slug);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Save failed");
+        }
+      }}
+    >
+      <label>Album Name</label>
+      <input name="title" defaultValue={album.title} required />
+      <label>Theme</label>
+      <input name="tagline" defaultValue={copied.theme} />
+      <label>Credits</label>
+      <input name="credits" defaultValue={copied.credits} />
+      <label>Copyright</label>
+      <textarea name="copyright" className="player-setup-copyright" defaultValue={copied.copyright} />
+      <div className="form-actions">
+        <button type="submit">Save Album Setup</button>
+        <button type="button" className="ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+    </form>
+  );
+}
+
 function AlbumForm({
   album,
   onSaved,
@@ -522,24 +597,22 @@ function AlbumForm({
       }}
     >
       <h2>{album ? `Edit ${album.title}` : "New album"}</h2>
-      <div className="row-2">
-        <div>
+      {album ? null : (
+        <>
           <label>Title</label>
-          <input name="title" defaultValue={album?.title} required />
-        </div>
+          <input name="title" required />
+        </>
+      )}
+      <div className="row-2">
         <div>
           <label>URL slug</label>
           <input name="slug" defaultValue={album?.slug} placeholder="echoes" />
         </div>
+        <div>
+          <label>Artists</label>
+          <input name="artists" defaultValue={album?.artists} />
+        </div>
       </div>
-      <label>Artists</label>
-      <input name="artists" defaultValue={album?.artists} />
-      <label>Tagline</label>
-      <input name="tagline" defaultValue={album?.tagline} />
-      <label>Credits</label>
-      <input name="credits" defaultValue={album?.credits} />
-      <label>Copyright</label>
-      <textarea name="copyright" defaultValue={album?.copyright || SITE_COPYRIGHT} />
       <div className="row-2">
         <div>
           <label>Hero portrait</label>
