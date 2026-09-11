@@ -442,14 +442,44 @@ a { color: inherit; }
   position: relative;
 }
 .track-row:hover { background: color-mix(in srgb, var(--amber) 7%, transparent); }
-.track-row.playing { background: color-mix(in srgb, var(--amber) 11%, transparent); }
-.t-num {
+.track-row.active { background: color-mix(in srgb, var(--amber) 8%, transparent); }
+.track-row.playing { background: color-mix(in srgb, var(--amber) 14%, transparent); }
+.t-num,
+.t-eq {
   font-size: 0.65rem;
   color: var(--muted);
   min-width: 20px;
   text-align: right;
   flex-shrink: 0;
   opacity: 0.7;
+}
+.t-eq {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 2px;
+  height: 14px;
+  opacity: 1;
+  color: var(--amber);
+}
+.t-eq i {
+  display: block;
+  width: 3px;
+  height: 4px;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: bottom;
+  animation: eq-bar 0.85s ease-in-out infinite;
+}
+.t-eq i:nth-child(1) { animation-delay: 0s; height: 6px; }
+.t-eq i:nth-child(2) { animation-delay: -0.28s; height: 12px; }
+.t-eq i:nth-child(3) { animation-delay: -0.5s; height: 8px; }
+@keyframes eq-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-eq i { animation: none; }
 }
 .t-thumb {
   width: 44px;
@@ -504,6 +534,7 @@ button.m-cover.enlarged {
   z-index: 6;
 }
 .track-row:hover .t-thumb,
+.track-row.active .t-thumb,
 .track-row.playing .t-thumb { opacity: 1; }
 .t-info { flex: 1; min-width: 0; }
 .t-title {
@@ -517,7 +548,18 @@ button.m-cover.enlarged {
   line-height: 1.3;
   transition: color 0.2s;
 }
+.track-row.active .t-title,
 .track-row.playing .t-title { color: var(--amber); }
+.t-now {
+  display: inline-block;
+  margin-top: 3px;
+  font-family: Inter, sans-serif;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
 .t-instrumental {
   font-size: 0.62rem;
   letter-spacing: 0.1em;
@@ -609,6 +651,7 @@ button.m-cover.enlarged {
   opacity: 0.95;
 }
 .track-row:hover .t-play-icon,
+.track-row.active .t-play-icon,
 .track-row.playing .t-play-icon {
   border-color: var(--amber);
   color: var(--amber);

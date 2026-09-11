@@ -572,6 +572,7 @@ export default function AlbumPage() {
               index={index}
               durationLabel={durations[item.id] || item.durationLabel}
               active={active === index}
+              isPlaying={active === index && playing}
               enlarged={enlargedCover === `list:${item.id}`}
               onZoom={
                 item.imageUrl
@@ -755,6 +756,7 @@ function TrackRow({
   index,
   durationLabel,
   active,
+  isPlaying,
   enlarged,
   onZoom,
   onWarm,
@@ -765,6 +767,7 @@ function TrackRow({
   index: number;
   durationLabel?: string;
   active: boolean;
+  isPlaying: boolean;
   enlarged?: boolean;
   onZoom?: () => void;
   onWarm: () => void;
@@ -783,12 +786,19 @@ function TrackRow({
 
   return (
     <div
-      className={`track-row${active ? " playing" : ""}${enlarged ? " cover-enlarged" : ""}`}
+      className={`track-row${active ? " active" : ""}${isPlaying ? " playing" : ""}${enlarged ? " cover-enlarged" : ""}`}
       data-i={index}
+      aria-current={isPlaying ? "true" : undefined}
       onPointerDown={onWarm}
       onClick={onPlay}
     >
-      <span className="t-num">{pad(track.n)}</span>
+      {isPlaying ? (
+        <span className="t-eq" aria-hidden="true">
+          <i /><i /><i />
+        </span>
+      ) : (
+        <span className="t-num">{pad(track.n)}</span>
+      )}
       {track.imageUrl && onZoom ? (
         <button
           type="button"
@@ -818,6 +828,7 @@ function TrackRow({
             </>
           ) : null}
         </div>
+        {isPlaying ? <div className="t-now">Playing</div> : null}
         {track.scripture ? <div className="t-subtitle">{track.scripture}</div> : null}
       </div>
       <button
@@ -830,7 +841,7 @@ function TrackRow({
         {copied ? "Copied" : <IconLink />}
       </button>
       <span className="t-dur">{durationLabel || "—"}</span>
-      <div className="t-play-icon"><IconPlay /></div>
+      <div className="t-play-icon" aria-hidden="true">{isPlaying ? <IconPause /> : <IconPlay />}</div>
     </div>
   );
 }
