@@ -15,9 +15,7 @@ import {
   fetchAlbum,
   fetchAlbums,
   fetchPlayerSetup,
-  reorderAlbums,
   reorderTracks,
-  setAlbumHidden,
   setTrackArchived,
   trackFileUrl,
   updateAlbum,
@@ -261,6 +259,7 @@ export default function AdminPage() {
   const [curatorRecover, setCuratorRecover] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [albumSetupOpen, setAlbumSetupOpen] = useState(false);
+  const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
   const player = useAdminPlayer();
 
   async function refresh() {
@@ -479,27 +478,30 @@ export default function AdminPage() {
           />
         </AdminDialog>
       ) : null}
+      {createAlbumOpen ? (
+        <AdminDialog title="Create new Album" onClose={() => setCreateAlbumOpen(false)}>
+          <AlbumForm
+            embedded
+            onCancel={() => setCreateAlbumOpen(false)}
+            onSaved={async (slug) => {
+              setCreateAlbumOpen(false);
+              const list = await fetchAlbums();
+              setAlbums(list);
+              await loadAlbum(slug);
+              setAlbumSetupOpen(true);
+            }}
+          />
+        </AdminDialog>
+      ) : null}
 
-      <AlbumList
+      <AlbumCoverRow
         albums={albums}
         selectedId={selected?.id || null}
-        playingId={player.queue?.albumId || null}
-        playing={player.playing}
-        onSelect={async (slug) => { setAlbumSetupOpen(false); await loadAlbum(slug); }}
-        onSetup={async (slug) => {
+        onOpen={async (slug) => {
           if (selected?.slug !== slug) await loadAlbum(slug);
           setAlbumSetupOpen(true);
         }}
-        onPlay={async (slug) => {
-          const album = selected?.slug === slug ? selected : await loadAlbum(slug);
-          player.playAlbum(album);
-        }}
-        onReordered={setAlbums}
-        onChanged={async () => {
-          const list = await fetchAlbums();
-          setAlbums(list);
-          if (selected) await loadAlbum(selected.slug);
-        }}
+        onCreate={() => setCreateAlbumOpen(true)}
       />
 
       {selected ? (
@@ -545,13 +547,6 @@ export default function AdminPage() {
           />
         </>
       ) : null}
-
-      <AlbumForm
-        onSaved={async () => {
-          setSelected(null);
-          await refresh();
-        }}
-      />
 
       <AdminPlayer
         audioRef={player.audioRef}
@@ -1031,17 +1026,21 @@ function AlbumSetupForm({
 
 function AlbumForm({
   album,
+  embedded,
   onSaved,
+  onCancel,
   onDeleted,
 }: {
   album?: PublicAlbum;
+  embedded?: boolean;
   onSaved: (slug: string) => Promise<void>;
+  onCancel?: () => void;
   onDeleted?: () => Promise<void>;
 }) {
   const [error, setError] = useState("");
   return (
     <form
-      className="card"
+      className={embedded ? undefined : "card"}
       onSubmit={async (event) => {
         event.preventDefault();
         setError("");
@@ -1056,7 +1055,7 @@ function AlbumForm({
         }
       }}
     >
-      <h2>{album ? `Edit ${album.title}` : "New album"}</h2>
+      {embedded ? null : <h2>{album ? `Edit ${album.title}` : "New album"}</h2>}
       {album ? null : (
         <>
           <label>Title</label>
@@ -1104,6 +1103,11 @@ function AlbumForm({
       </label>
       <div className="form-actions">
         <button type="submit">{album ? "Save album" : "Create album"}</button>
+        {onCancel ? (
+          <button type="button" className="ghost" onClick={onCancel}>
+            Cancel
+          </button>
+        ) : null}
         {album && onDeleted ? (
           <button
             type="button"
@@ -1134,125 +1138,42 @@ function moveById<T extends { id: string }>(items: T[], fromId: string, toId: st
   return next;
 }
 
-function AlbumList({
+function AlbumCoverRow({
   albums,
   selectedId,
-  playingId,
-  playing,
-  onSelect,
-  onSetup,
-  onPlay,
-  onReordered,
-  onChanged,
+  onOpen,
+  onCreate,
 }: {
   albums: AlbumListItem[];
   selectedId: string | null;
-  playingId: string | null;
-  playing: boolean;
-  onSelect: (slug: string) => Promise<void>;
-  onSetup: (slug: string) => Promise<void>;
-  onPlay: (slug: string) => Promise<void>;
-  onReordered: (albums: AlbumListItem[]) => void;
-  onChanged: () => Promise<void>;
+  onOpen: (slug: string) => Promise<void>;
+  onCreate: () => void;
 }) {
-  const [rows, setRows] = useState(albums);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setRows(albums);
-  }, [albums]);
-
-  async function dropOn(fromId: string | null, targetId: string) {
-    setDraggingId(null);
-    if (!fromId) return;
-    const next = moveById(rows, fromId, targetId);
-    if (next === rows) return;
-    setRows(next);
-    try {
-      onReordered(await reorderAlbums(next.map((album) => album.id)));
-    } catch {
-      setRows(albums);
-    }
-  }
-
   return (
-    <div className="card">
-      <h2>Albums</h2>
-      <p className="hint">Drag to reorder. Hidden albums stay off the public homepage.</p>
-      {rows.map((album) => (
-        <div
-          className={`album-admin${selectedId === album.id ? " selected" : ""}${draggingId === album.id ? " dragging" : ""}`}
-          key={album.id}
-          onDragOver={(event) => {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-          }}
-          onDrop={(event) => {
-            event.preventDefault();
-            void dropOn(event.dataTransfer.getData("text/plain") || draggingId, album.id);
-          }}
-        >
-          <button
-            type="button"
-            className="drag-handle"
-            draggable
-            title="Drag to reorder"
-            aria-label={`Reorder ${album.title}`}
-            onDragStart={(event) => {
-              setDraggingId(album.id);
-              event.dataTransfer.effectAllowed = "move";
-              event.dataTransfer.setData("text/plain", album.id);
-            }}
-            onDragEnd={() => setDraggingId(null)}
-          >
-            ⋮⋮
-          </button>
-          <button
-            type="button"
-            className={`album-admin-select${selectedId === album.id ? " selected" : ""}`}
-            onClick={() => void onSelect(album.slug)}
-          >
-            <span className="album-admin-name">{album.title}</span>
-            {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
-          </button>
-          <button
-            type="button"
-            className="album-admin-setup ghost"
-            onClick={() => void onSetup(album.slug)}
-          >
-            <span className="label-full">Album Setup</span>
-            <span className="label-short">Setup</span>
-          </button>
-          <button
-            type="button"
-            className={`album-admin-visibility${album.hidden ? "" : " ghost"}`}
-            onClick={async () => {
-              await setAlbumHidden(album.id, !album.hidden);
-              await onChanged();
-            }}
-          >
-            {album.hidden ? (
-              <>
-                <span className="label-full">Show on site</span>
-                <span className="label-short">Show</span>
-              </>
-            ) : (
-              <>
-                <span className="label-full">Hide from site</span>
-                <span className="label-short">Hide</span>
-              </>
-            )}
-          </button>
-          <button
-            type="button"
-            className={`album-admin-play${playingId === album.id ? "" : " ghost"}`}
-            onClick={() => void onPlay(album.slug)}
-          >
-            {playingId === album.id && playing ? "Pause" : "Play"}
-          </button>
-        </div>
-      ))}
-    </div>
+    <section className="card album-setup-gallery">
+      <h2>Album Setup</h2>
+      <p className="hint">Click an album cover to edit it.</p>
+      <div className="album-cover-row">
+        {albums.map((album) => {
+          const coverUrl = album.thumbUrl || album.heroUrl;
+          return (
+            <button
+              key={album.id}
+              type="button"
+              className={`album-cover-tile${selectedId === album.id ? " selected" : ""}`}
+              onClick={() => void onOpen(album.slug)}
+            >
+              {coverUrl ? <img src={coverUrl} alt="" /> : <span className="album-cover-empty" />}
+              <span className="album-cover-title">{album.title}</span>
+              {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
+            </button>
+          );
+        })}
+        <button type="button" className="album-cover-tile album-cover-create" onClick={onCreate}>
+          <span>Create new Album</span>
+        </button>
+      </div>
+    </section>
   );
 }
 
