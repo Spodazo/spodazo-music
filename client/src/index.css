@@ -23,11 +23,11 @@
 }
 [data-palette="navy"] {
   --bg: #12213d;
-  --bg2: #1a2c4c;
-  --bg3: #314569;
-  --card: #24395f;
-  --input: #172847;
-  --portrait: #0e192e;
+  --bg2: #162846;
+  --bg3: #1b3052;
+  --card: #172a4a;
+  --input: #142442;
+  --portrait: #0f2546;
   --amber: #a8c4e8;
   --amber2: #8fb0d4;
   --gold: #a8c4e8;
@@ -36,15 +36,15 @@
   --text: #ece8e0;
   --text2: #b8b0a4;
   --footer: #c8c8c8;
-  --panel: #1a2c4c;
+  --panel: #162846;
 }
 [data-palette="forest"] {
   --bg: #102a1e;
-  --bg2: #163727;
-  --bg3: #2c513e;
-  --card: #1e4632;
-  --input: #143224;
-  --portrait: #0c2016;
+  --bg2: #143325;
+  --bg3: #193f2d;
+  --card: #153727;
+  --input: #122f21;
+  --portrait: #0d3322;
   --amber: #b4d4a8;
   --amber2: #9fcb9a;
   --gold: #b4d4a8;
@@ -53,15 +53,15 @@
   --text: #ece8e0;
   --text2: #b8b0a4;
   --footer: #c8c8c8;
-  --panel: #163727;
+  --panel: #143325;
 }
 [data-palette="espresso"] {
   --bg: #271911;
-  --bg2: #342216;
-  --bg3: #4e392b;
-  --card: #432c1d;
-  --input: #2f1e14;
-  --portrait: #1d130d;
+  --bg2: #302015;
+  --bg3: #3c281a;
+  --card: #342216;
+  --input: #2c1c13;
+  --portrait: #301d0e;
   --amber: #e0b890;
   --amber2: #c9a27a;
   --gold: #e0b890;
@@ -70,15 +70,15 @@
   --text: #ece8e0;
   --text2: #b8b0a4;
   --footer: #c8c8c8;
-  --panel: #342216;
+  --panel: #302015;
 }
 [data-palette="plum"] {
   --bg: #221630;
-  --bg2: #2d1d40;
-  --bg3: #46335d;
-  --card: #3a2653;
-  --input: #291a3a;
-  --portrait: #1a1024;
+  --bg2: #291a39;
+  --bg3: #311f45;
+  --card: #2b1b3d;
+  --input: #251835;
+  --portrait: #261339;
   --amber: #d4b8e0;
   --amber2: #c4a8d4;
   --gold: #d4b8e0;
@@ -87,15 +87,15 @@
   --text: #ece8e0;
   --text2: #b8b0a4;
   --footer: #c8c8c8;
-  --panel: #2d1d40;
+  --panel: #291a39;
 }
 [data-palette="teal"] {
   --bg: #0d2a2e;
-  --bg2: #12373c;
-  --bg3: #255258;
-  --card: #17474d;
-  --input: #103237;
-  --portrait: #0a2022;
+  --bg2: #113137;
+  --bg3: #163943;
+  --card: #12333b;
+  --input: #0f2d33;
+  --portrait: #0a2e37;
   --amber: #8ed4d0;
   --amber2: #7ec8c4;
   --gold: #8ed4d0;
@@ -104,7 +104,7 @@
   --text: #ece8e0;
   --text2: #b8b0a4;
   --footer: #c8c8c8;
-  --panel: #12373c;
+  --panel: #113137;
 }
 
 * { box-sizing: border-box; }
