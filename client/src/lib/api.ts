@@ -12,11 +12,10 @@ export function fetchPlayerSetup(): Promise<PlayerSetup> {
   return fetch("/api/player-setup").then((res) => parse<PlayerSetup>(res));
 }
 
-export function updatePlayerSetup(setup: PlayerSetup): Promise<PlayerSetup> {
+export function updatePlayerSetup(form: FormData): Promise<PlayerSetup> {
   return fetch("/api/admin/player-setup", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(setup),
+    body: form,
   }).then((res) => parse<PlayerSetup>(res));
 }
 

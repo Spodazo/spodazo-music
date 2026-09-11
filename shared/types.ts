@@ -58,4 +58,6 @@ export type PlayerSetup = {
   theme: string;
   credits: string;
   copyright: string;
+  collectionCover: string;
+  collectionCoverUrl: string;
 };

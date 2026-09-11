@@ -98,6 +98,24 @@ function toListItem(album: Album, trackCount: number): AlbumListItem {
   };
 }
 
+function hydratePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerSetup {
+  const setup = normalizePlayerSetup(raw);
+  return {
+    ...setup,
+    collectionCoverUrl: imageUrl(setup.collectionCover),
+  };
+}
+
+function playerSetupRecord(setup: PlayerSetup) {
+  return {
+    appName: setup.appName,
+    theme: setup.theme,
+    credits: setup.credits,
+    copyright: setup.copyright,
+    collectionCover: setup.collectionCover,
+  };
+}
+
 type CatalogFile = { albums: Album[]; tracks: Track[]; player?: PlayerSetup };
 
 export class JsonMusicStore implements MusicStore {
@@ -238,14 +256,14 @@ export class JsonMusicStore implements MusicStore {
   }
 
   async getPlayerSetup(): Promise<PlayerSetup> {
-    return normalizePlayerSetup(this.read().player);
+    return hydratePlayerSetup(this.read().player);
   }
 
   async updatePlayerSetup(input: Partial<PlayerSetup>): Promise<PlayerSetup> {
     const catalog = this.read();
     catalog.player = normalizePlayerSetup({ ...catalog.player, ...input });
     this.write(catalog);
-    return catalog.player;
+    return hydratePlayerSetup(catalog.player);
   }
 
   async getTrackById(id: string): Promise<PublicTrack | null> {
@@ -484,14 +502,16 @@ export class PostgresMusicStore implements MusicStore {
         theme TEXT NOT NULL DEFAULT '',
         credits TEXT NOT NULL DEFAULT '',
         copyright TEXT NOT NULL DEFAULT '',
+        collection_cover TEXT NOT NULL DEFAULT '',
         updated_at TIMESTAMPTZ DEFAULT now()
       )
     `);
+    await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_cover TEXT NOT NULL DEFAULT ''`);
     const existingSetup = await this.db.select({ id: playerSetup.id }).from(playerSetup).limit(1);
     if (existingSetup.length === 0) {
       await this.db.insert(playerSetup).values({
         id: "site",
-        ...DEFAULT_PLAYER_SETUP,
+        ...playerSetupRecord(DEFAULT_PLAYER_SETUP),
       });
     }
     const existing = await this.db.select({ id: albums.id }).from(albums).limit(1);
@@ -749,20 +769,21 @@ export class PostgresMusicStore implements MusicStore {
 
   async getPlayerSetup(): Promise<PlayerSetup> {
     const [row] = await this.db.select().from(playerSetup).where(eq(playerSetup.id, "site")).limit(1);
-    return normalizePlayerSetup(row);
+    return hydratePlayerSetup(row);
   }
 
   async updatePlayerSetup(input: Partial<PlayerSetup>): Promise<PlayerSetup> {
     const current = await this.getPlayerSetup();
     const next = normalizePlayerSetup({ ...current, ...input });
+    const stored = playerSetupRecord(next);
     await this.db
       .insert(playerSetup)
-      .values({ id: "site", ...next, updatedAt: new Date() })
+      .values({ id: "site", ...stored, updatedAt: new Date() })
       .onConflictDoUpdate({
         target: playerSetup.id,
-        set: { ...next, updatedAt: new Date() },
+        set: { ...stored, updatedAt: new Date() },
       });
-    return next;
+    return hydratePlayerSetup(next);
   }
 }
 
@@ -791,6 +812,12 @@ export async function remapImageFilenames(renames: Map<string, string>): Promise
       await store.updateTrack(track.id, { img: nextImg });
       changed += 1;
     }
+  }
+  const setup = await store.getPlayerSetup();
+  const nextCover = setup.collectionCover ? renames.get(setup.collectionCover) : undefined;
+  if (nextCover) {
+    await store.updatePlayerSetup({ collectionCover: nextCover });
+    changed += 1;
   }
   if (changed) console.log(`[media] remapped ${changed} image reference${changed === 1 ? "" : "s"}`);
   return changed;

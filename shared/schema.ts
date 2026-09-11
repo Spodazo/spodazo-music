@@ -23,6 +23,7 @@ export const playerSetup = pgTable("player_setup", {
   theme: text("theme").notNull().default(""),
   credits: text("credits").notNull().default(""),
   copyright: text("copyright").notNull().default(""),
+  collectionCover: text("collection_cover").notNull().default(""),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 

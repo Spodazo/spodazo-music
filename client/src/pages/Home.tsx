@@ -28,6 +28,9 @@ export default function HomePage() {
       <p className="home-kicker">{setup.appName}</p>
       <div className="home-main">
         {error ? <p className="error">{error}</p> : null}
+        {setup.collectionCoverUrl ? (
+          <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} />
+        ) : null}
         <div className="album-grid">
           {albums.map((album) => (
             <Link key={album.id} href={`/${album.slug}`} className="album-card">

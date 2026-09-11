@@ -46,6 +46,8 @@ test("normalizePlayerSetup fills blank fields from the site defaults", () => {
   assert.deepEqual(normalizePlayerSetup({}), DEFAULT_PLAYER_SETUP);
   assert.equal(normalizePlayerSetup({ appName: "  New Name  " }).appName, "New Name");
   assert.equal(normalizePlayerSetup({ appName: "  New Name  " }).theme, DEFAULT_PLAYER_SETUP.theme);
+  assert.equal(normalizePlayerSetup({ collectionCover: "  Cover.webp  " }).collectionCover, "Cover.webp");
+  assert.equal(normalizePlayerSetup({ collectionCover: "  Cover.webp  " }).collectionCoverUrl, "");
 });
 
 test("copyrightLines splits the reserved notice onto two lines", () => {

@@ -121,14 +121,18 @@ export function registerRoutes(app: Express): void {
     res.json(await store.getPlayerSetup());
   });
 
-  app.patch("/api/admin/player-setup", requireAdmin, async (req, res) => {
+  app.patch("/api/admin/player-setup", requireAdmin, upload.fields([
+    { name: "cover", maxCount: 1 },
+  ]), async (req, res) => {
     const store = await getStore();
+    const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const body = req.body || {};
     const fields: Partial<PlayerSetup> = {};
     if (body.appName !== undefined) fields.appName = String(body.appName);
     if (body.theme !== undefined) fields.theme = String(body.theme);
     if (body.credits !== undefined) fields.credits = String(body.credits);
     if (body.copyright !== undefined) fields.copyright = String(body.copyright);
+    if (files?.cover?.[0]) fields.collectionCover = files.cover[0].filename;
     res.json(await store.updatePlayerSetup(fields));
   });
 

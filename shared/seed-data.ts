@@ -37,6 +37,8 @@ export const DEFAULT_PLAYER_SETUP: PlayerSetup = {
   theme: "Crisis of faith answered through the Word of God",
   credits: "Music, lyrics and graphics by Spodazo.  |  Vocals by Brody Vale & Eden Blue",
   copyright: SITE_COPYRIGHT,
+  collectionCover: "",
+  collectionCoverUrl: "",
 };
 
 export function albumSetupFromPlayer(setup: PlayerSetup): Pick<Album, "tagline" | "credits" | "copyright"> {
@@ -53,6 +55,8 @@ export function normalizePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerS
     theme: raw?.theme?.trim() || DEFAULT_PLAYER_SETUP.theme,
     credits: raw?.credits?.trim() || DEFAULT_PLAYER_SETUP.credits,
     copyright: raw?.copyright?.trim() || DEFAULT_PLAYER_SETUP.copyright,
+    collectionCover: raw?.collectionCover?.trim() || "",
+    collectionCoverUrl: "",
   };
 }
 

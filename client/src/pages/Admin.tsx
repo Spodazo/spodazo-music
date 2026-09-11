@@ -337,7 +337,7 @@ export default function AdminPage() {
       <section className="card player-setup-card">
         <div>
           <h2>Player Setup</h2>
-          <p className="hint">App name, theme, credits, and copyright on the public player.</p>
+          <p className="hint">Collection cover, app name, theme, credits, and copyright on the public player.</p>
         </div>
         <button type="button" onClick={() => setSetupOpen(true)}>
           Edit
@@ -467,6 +467,24 @@ export default function AdminPage() {
   );
 }
 
+function CoverField({
+  label,
+  name,
+  currentUrl,
+}: {
+  label: string;
+  name: string;
+  currentUrl?: string;
+}) {
+  return (
+    <>
+      <label>{label}</label>
+      {currentUrl ? <img className="setup-cover-preview" src={currentUrl} alt="" /> : null}
+      <input name={name} type="file" accept="image/*" />
+    </>
+  );
+}
+
 function PlayerSetupForm({
   setup,
   onSaved,
@@ -484,19 +502,13 @@ function PlayerSetupForm({
         setError("");
         const form = new FormData(event.currentTarget);
         try {
-          onSaved(
-            await updatePlayerSetup({
-              appName: String(form.get("appName") || ""),
-              theme: String(form.get("theme") || ""),
-              credits: String(form.get("credits") || ""),
-              copyright: String(form.get("copyright") || ""),
-            }),
-          );
+          onSaved(await updatePlayerSetup(form));
         } catch (err) {
           setError(err instanceof Error ? err.message : "Save failed");
         }
       }}
     >
+      <CoverField label="Collection Cover" name="cover" currentUrl={setup.collectionCoverUrl} />
       <label>App Name</label>
       <input name="appName" defaultValue={setup.appName} required />
       <label>Theme</label>
@@ -547,6 +559,7 @@ function AlbumSetupForm({
         }
       }}
     >
+      <CoverField label="Album Cover" name="thumb" currentUrl={album.thumbUrl} />
       <label>Album Name</label>
       <input name="title" defaultValue={album.title} required />
       <label>Theme</label>
@@ -616,12 +629,25 @@ function AlbumForm({
           <input name="hero" type="file" accept="image/*" />
         </div>
         <div>
-          <label>Album cover</label>
-          <input name="thumb" type="file" accept="image/*" />
+          {album ? (
+            <>
+              <label>Artist photo (player thumbnail)</label>
+              <input name="artist" type="file" accept="image/*" />
+            </>
+          ) : (
+            <>
+              <label>Album cover</label>
+              <input name="thumb" type="file" accept="image/*" />
+            </>
+          )}
         </div>
       </div>
-      <label>Artist photo (player thumbnail)</label>
-      <input name="artist" type="file" accept="image/*" />
+      {album ? null : (
+        <>
+          <label>Artist photo (player thumbnail)</label>
+          <input name="artist" type="file" accept="image/*" />
+        </>
+      )}
       <label>
         <input name="hidden" type="checkbox" value="true" defaultChecked={album ? album.hidden : true} /> Hide from the
         public site. You can still play it while signed in as admin.

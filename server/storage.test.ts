@@ -114,7 +114,12 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   const saved = await store.updatePlayerSetup({ appName: "New Player" });
   assert.equal(saved.appName, "New Player");
   assert.equal(saved.theme, DEFAULT_PLAYER_SETUP.theme);
+  assert.equal(saved.collectionCover, "");
   assert.equal((await store.getPlayerSetup()).appName, "New Player");
+  const withCover = await store.updatePlayerSetup({ collectionCover: "Collection.webp" });
+  assert.equal(withCover.collectionCover, "Collection.webp");
+  assert.match(withCover.collectionCoverUrl, /Collection\.webp/);
+  assert.equal((await store.getPlayerSetup()).collectionCover, "Collection.webp");
   const afterName = await store.getAlbumBySlug("echoes");
   assert.equal(afterName?.copyright, DEFAULT_PLAYER_SETUP.copyright);
 });
