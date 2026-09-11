@@ -612,6 +612,10 @@ function AlbumSetupForm({
 }) {
   const [error, setError] = useState("");
   const [color, setColor] = useState(album.color);
+  useEffect(() => {
+    applyPalette(album.color);
+    return () => applyPalette(setup.collectionColor);
+  }, [album.color, setup.collectionColor]);
   const copied = {
     theme: album.tagline || setup.theme,
     credits: album.credits || setup.credits,
@@ -632,7 +636,15 @@ function AlbumSetupForm({
       }}
     >
       <CoverField label="Album Cover" name="thumb" currentUrl={album.thumbUrl} />
-      <ColorField label="Album Color" name="color" value={color} onChange={setColor} />
+      <ColorField
+        label="Album Color"
+        name="color"
+        value={color}
+        onChange={(id) => {
+          setColor(id);
+          applyPalette(id);
+        }}
+      />
       <label>Album Name</label>
       <input name="title" defaultValue={album.title} required />
       <label>Theme</label>
