@@ -268,8 +268,6 @@ export default function AdminPage() {
     if (selected) {
       const next = await fetchAlbum(selected.slug);
       setSelected(next);
-    } else if (list[0]) {
-      setSelected(await fetchAlbum(list[0].slug));
     }
   }
 
@@ -497,7 +495,11 @@ export default function AdminPage() {
       <AlbumCoverRow
         albums={albums}
         selectedId={selected?.id || null}
-        onOpen={async (slug) => {
+        onSelect={async (slug) => {
+          setAlbumSetupOpen(false);
+          if (selected?.slug !== slug) await loadAlbum(slug);
+        }}
+        onEdit={async (slug) => {
           if (selected?.slug !== slug) await loadAlbum(slug);
           setAlbumSetupOpen(true);
         }}
@@ -1141,32 +1143,37 @@ function moveById<T extends { id: string }>(items: T[], fromId: string, toId: st
 function AlbumCoverRow({
   albums,
   selectedId,
-  onOpen,
+  onSelect,
+  onEdit,
   onCreate,
 }: {
   albums: AlbumListItem[];
   selectedId: string | null;
-  onOpen: (slug: string) => Promise<void>;
+  onSelect: (slug: string) => Promise<void>;
+  onEdit: (slug: string) => Promise<void>;
   onCreate: () => void;
 }) {
   return (
     <section className="card album-setup-gallery">
       <h2>Album Setup</h2>
-      <p className="hint">Click an album cover to edit it.</p>
       <div className="album-cover-row">
         {albums.map((album) => {
           const coverUrl = album.thumbUrl || album.heroUrl;
           return (
-            <button
-              key={album.id}
-              type="button"
-              className={`album-cover-tile${selectedId === album.id ? " selected" : ""}`}
-              aria-label={album.title}
-              onClick={() => void onOpen(album.slug)}
-            >
-              {coverUrl ? <img src={coverUrl} alt="" /> : <span className="album-cover-empty" />}
-              {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
-            </button>
+            <div key={album.id} className="album-cover-item">
+              <button
+                type="button"
+                className={`album-cover-tile${selectedId === album.id ? " selected" : ""}`}
+                aria-label={album.title}
+                onClick={() => void onSelect(album.slug)}
+              >
+                {coverUrl ? <img src={coverUrl} alt="" /> : <span className="album-cover-empty" />}
+                {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
+              </button>
+              <button type="button" className="album-cover-edit" onClick={() => void onEdit(album.slug)}>
+                Edit
+              </button>
+            </div>
           );
         })}
         <button type="button" className="album-cover-tile album-cover-create" onClick={onCreate}>

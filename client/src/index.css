@@ -1152,13 +1152,20 @@ button.m-cover.enlarged {
   min-height: 44px;
 }
 .admin .drag-handle:active { cursor: grabbing; }
-.album-setup-gallery h2 { margin: 0 0 4px; }
-.album-setup-gallery .hint { margin: 0; }
+.album-setup-gallery h2 { margin: 0; }
 .album-cover-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 16px;
   margin-top: 16px;
+}
+.album-cover-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 196px;
 }
 .admin .album-cover-tile {
   position: relative;
@@ -1171,6 +1178,15 @@ button.m-cover.enlarged {
   color: #fff;
   border: 1px solid var(--border);
   cursor: pointer;
+}
+.admin .album-cover-edit {
+  margin: 0;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
 }
 .admin .album-cover-tile img,
 .album-cover-empty {
@@ -1543,8 +1559,12 @@ button.m-cover.enlarged {
   .curator-fields { grid-template-columns: 1fr; }
   .label-full { display: none; }
   .label-short { display: inline; }
-  .admin .album-cover-tile {
+  .album-cover-item,
+  .admin .album-cover-create {
     width: calc(50% - 8px);
+  }
+  .admin .album-cover-tile {
+    width: 100%;
   }
   .track-head {
     flex-direction: column;
