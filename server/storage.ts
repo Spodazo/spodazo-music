@@ -2,10 +2,10 @@ import fs from "fs";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-import { albums, playerSetup, tracks } from "../shared/schema";
-import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizePlayerSetup, seedLyricsForTrack } from "../shared/seed-data";
+import { albums, curator, playerSetup, tracks } from "../shared/schema";
+import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, seedLyricsForTrack } from "../shared/seed-data";
 import { normalizePaletteId } from "../shared/palettes";
-import type { Album, AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
+import type { Album, AlbumListItem, Curator, CuratorRecord, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, durationLabelForFile, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
 
@@ -57,6 +57,9 @@ export interface MusicStore {
   reorderAlbums(albumIds: string[]): Promise<Album[]>;
   getPlayerSetup(): Promise<PlayerSetup>;
   updatePlayerSetup(input: Partial<PlayerSetup>): Promise<PlayerSetup>;
+  getCurator(): Promise<Curator>;
+  getCuratorRecord(): Promise<CuratorRecord>;
+  updateCurator(input: Partial<CuratorRecord>): Promise<Curator>;
 }
 
 function nowIso(): string {
@@ -121,7 +124,7 @@ function playerSetupRecord(setup: PlayerSetup) {
   };
 }
 
-type CatalogFile = { albums: Album[]; tracks: Track[]; player?: PlayerSetup };
+type CatalogFile = { albums: Album[]; tracks: Track[]; player?: PlayerSetup; curator?: CuratorRecord };
 
 export class JsonMusicStore implements MusicStore {
   constructor() {
@@ -139,6 +142,7 @@ export class JsonMusicStore implements MusicStore {
           updatedAt: nowIso(),
         })),
         player: DEFAULT_PLAYER_SETUP,
+        curator: DEFAULT_CURATOR,
       });
     } else {
       this.backfillEmptyLyrics();
@@ -217,6 +221,7 @@ export class JsonMusicStore implements MusicStore {
         introduction: track.introduction || "",
       })),
       player: raw.player,
+      curator: raw.curator,
     };
   }
 
@@ -269,6 +274,21 @@ export class JsonMusicStore implements MusicStore {
     catalog.player = normalizePlayerSetup({ ...catalog.player, ...input });
     this.write(catalog);
     return hydratePlayerSetup(catalog.player);
+  }
+
+  async getCuratorRecord(): Promise<CuratorRecord> {
+    return normalizeCurator(this.read().curator);
+  }
+
+  async getCurator(): Promise<Curator> {
+    return publicCurator(await this.getCuratorRecord());
+  }
+
+  async updateCurator(input: Partial<CuratorRecord>): Promise<Curator> {
+    const catalog = this.read();
+    catalog.curator = normalizeCurator({ ...catalog.curator, ...input });
+    this.write(catalog);
+    return publicCurator(catalog.curator);
   }
 
   async getTrackById(id: string): Promise<PublicTrack | null> {
@@ -518,11 +538,28 @@ export class PostgresMusicStore implements MusicStore {
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT 'ink'`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_cover TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_color TEXT NOT NULL DEFAULT 'ink'`);
+    await this.db.execute(sql`
+      CREATE TABLE IF NOT EXISTS curator (
+        id TEXT PRIMARY KEY,
+        first_name TEXT NOT NULL DEFAULT '',
+        last_name TEXT NOT NULL DEFAULT '',
+        email TEXT NOT NULL DEFAULT '',
+        password_hash TEXT NOT NULL DEFAULT '',
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
     const existingSetup = await this.db.select({ id: playerSetup.id }).from(playerSetup).limit(1);
     if (existingSetup.length === 0) {
       await this.db.insert(playerSetup).values({
         id: "site",
         ...playerSetupRecord(DEFAULT_PLAYER_SETUP),
+      });
+    }
+    const existingCurator = await this.db.select({ id: curator.id }).from(curator).limit(1);
+    if (existingCurator.length === 0) {
+      await this.db.insert(curator).values({
+        id: "site",
+        ...DEFAULT_CURATOR,
       });
     }
     const existing = await this.db.select({ id: albums.id }).from(albums).limit(1);
@@ -797,6 +834,28 @@ export class PostgresMusicStore implements MusicStore {
         set: { ...stored, updatedAt: new Date() },
       });
     return hydratePlayerSetup(next);
+  }
+
+  async getCuratorRecord(): Promise<CuratorRecord> {
+    const [row] = await this.db.select().from(curator).where(eq(curator.id, "site")).limit(1);
+    return normalizeCurator(row);
+  }
+
+  async getCurator(): Promise<Curator> {
+    return publicCurator(await this.getCuratorRecord());
+  }
+
+  async updateCurator(input: Partial<CuratorRecord>): Promise<Curator> {
+    const current = await this.getCuratorRecord();
+    const next = normalizeCurator({ ...current, ...input });
+    await this.db
+      .insert(curator)
+      .values({ id: "site", ...next, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: curator.id,
+        set: { ...next, updatedAt: new Date() },
+      });
+    return publicCurator(next);
   }
 }
 

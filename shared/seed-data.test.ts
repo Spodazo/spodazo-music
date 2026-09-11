@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_PALETTE_ID, normalizePaletteId } from "./palettes";
-import { albumSetupFromPlayer, copyrightLines, DEFAULT_CATALOG, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizePlayerSetup, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
+import { albumSetupFromPlayer, copyrightLines, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
 
 test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(ECHOES_ALBUM.slug, "echoes");
@@ -54,6 +54,16 @@ test("normalizePlayerSetup fills blank fields from the site defaults", () => {
   assert.equal(normalizePlayerSetup({}).collectionColor, DEFAULT_PALETTE_ID);
   assert.equal(normalizePlayerSetup({ collectionColor: "navy" }).collectionColor, "navy");
   assert.equal(normalizePlayerSetup({ collectionColor: "nope" }).collectionColor, DEFAULT_PALETTE_ID);
+});
+
+test("normalizeCurator trims fields and publicCurator hides the password hash", () => {
+  assert.deepEqual(normalizeCurator({}), DEFAULT_CURATOR);
+  assert.equal(normalizeCurator({ firstName: "  Wernard  " }).firstName, "Wernard");
+  assert.deepEqual(publicCurator({ firstName: "Wernard", passwordHash: "secret" }), {
+    firstName: "Wernard",
+    lastName: "",
+    email: "",
+  });
 });
 
 test("normalizePaletteId keeps known palettes and falls back to ink", () => {

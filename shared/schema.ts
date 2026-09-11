@@ -18,6 +18,15 @@ export const albums = pgTable("albums", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });
 
+export const curator = pgTable("curator", {
+  id: text("id").primaryKey(),
+  firstName: text("first_name").notNull().default(""),
+  lastName: text("last_name").notNull().default(""),
+  email: text("email").notNull().default(""),
+  passwordHash: text("password_hash").notNull().default(""),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
 export const playerSetup = pgTable("player_setup", {
   id: text("id").primaryKey(),
   appName: text("app_name").notNull().default(""),

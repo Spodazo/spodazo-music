@@ -63,3 +63,13 @@ export type PlayerSetup = {
   collectionCoverUrl: string;
   collectionColor: string;
 };
+
+export type Curator = {
+  firstName: string;
+  lastName: string;
+  email: string;
+};
+
+export type CuratorRecord = Curator & {
+  passwordHash: string;
+};

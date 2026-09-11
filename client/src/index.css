@@ -946,15 +946,96 @@ button.m-cover.enlarged {
   margin: 0;
   text-decoration: none;
 }
-.player-setup-card {
+.player-setup-card,
+.curator-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
-.player-setup-card h2 { margin: 0 0 4px; }
+.player-setup-card h2,
+.curator-card h2 { margin: 0 0 4px; }
 .player-setup-card .hint { margin: 0; }
-.player-setup-card button { margin: 0; flex: none; }
+.player-setup-card button,
+.curator-card > button { margin: 0; flex: none; }
+.curator-card { align-items: flex-start; }
+.curator-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 24px;
+  margin: 12px 0 0;
+}
+.curator-fields dt {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.curator-fields dd {
+  margin: 2px 0 0;
+  color: var(--text);
+}
+.password-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.password-field input {
+  flex: 1;
+  min-width: 0;
+}
+.admin .password-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  font-size: 13px;
+  font-weight: 600;
+  flex: none;
+}
+.password-switch-track {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--input);
+  border: 1px solid var(--border);
+}
+.admin .password-switch[aria-checked="true"] {
+  color: var(--text);
+}
+.admin .password-switch[aria-checked="true"] .password-switch-track {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+.password-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: left 0.15s ease;
+}
+.admin .password-switch[aria-checked="true"] .password-switch-knob {
+  left: 18px;
+  background: #111;
+}
+.admin .lost-password {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--amber);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
 .admin textarea.player-setup-copyright { min-height: 110px; }
 .setup-cover-preview {
   width: 120px;
@@ -1448,11 +1529,14 @@ button.m-cover.enlarged {
     padding: 14px;
     margin: 12px 0;
   }
-  .player-setup-card {
+  .player-setup-card,
+  .curator-card {
     flex-wrap: wrap;
     align-items: flex-start;
   }
-  .player-setup-card button { width: 100%; }
+  .player-setup-card button,
+  .curator-card > button { width: 100%; }
+  .curator-fields { grid-template-columns: 1fr; }
   .label-full { display: none; }
   .label-short { display: inline; }
   .album-admin {

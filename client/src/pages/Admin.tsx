@@ -1,12 +1,14 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { PALETTES, paletteById } from "@shared/palettes";
-import { DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
-import type { AlbumListItem, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
+import { DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, publicCurator } from "@shared/seed-data";
+import type { AlbumListItem, Curator, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
   adminLogout,
   adminMe,
   createAlbum,
+  fetchCurator,
+  recoverCuratorPassword,
   createTrack,
   createTracksBulk,
   deleteAlbum,
@@ -19,8 +21,10 @@ import {
   setTrackArchived,
   trackFileUrl,
   updateAlbum,
+  updateCurator,
   updatePlayerSetup,
   updateTrack,
+  verifyCuratorPassword,
 } from "../lib/api";
 import { assignSrc, pipelineIsDead, playSong, unlockAudio } from "../lib/audioCache";
 import { applyPalette } from "../lib/palette";
@@ -247,10 +251,14 @@ export default function AdminPage() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
   const [password, setPassword] = useState("");
+  const [recoverOpen, setRecoverOpen] = useState(false);
   const [error, setError] = useState("");
   const [albums, setAlbums] = useState<AlbumListItem[]>([]);
   const [selected, setSelected] = useState<PublicAlbum | null>(null);
   const [playerSetup, setPlayerSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
+  const [curator, setCurator] = useState<Curator>(publicCurator(DEFAULT_CURATOR));
+  const [curatorOpen, setCuratorOpen] = useState(false);
+  const [curatorRecover, setCuratorRecover] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
   const [albumSetupOpen, setAlbumSetupOpen] = useState(false);
   const player = useAdminPlayer();
@@ -274,6 +282,7 @@ export default function AdminPage() {
           await refresh();
           const next = await fetchPlayerSetup();
           setPlayerSetup(next);
+          setCurator(await fetchCurator());
           applyPalette(next.collectionColor);
         }
       })
@@ -288,27 +297,58 @@ export default function AdminPage() {
       <main className="admin">
         <h1>{playerSetup.appName} Admin</h1>
         <p>The public player stays open. This password only unlocks adding albums, songs, artwork, and lyrics.</p>
-        <form
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setError("");
-            try {
-              await adminLogin(password);
+        {recoverOpen ? (
+          <LostPasswordForm
+            needRecoveryKey
+            onRecovered={async () => {
+              setRecoverOpen(false);
               setAuthed(true);
               await refresh();
               const next = await fetchPlayerSetup();
               setPlayerSetup(next);
+              setCurator(await fetchCurator());
               applyPalette(next.collectionColor);
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Login failed");
-            }
-          }}
-        >
-          <label htmlFor="password">Admin password</label>
-          <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          <button type="submit">Sign in</button>
-          {error ? <p className="error">{error}</p> : null}
-        </form>
+            }}
+            onCancel={() => {
+              setError("");
+              setRecoverOpen(false);
+            }}
+          />
+        ) : (
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setError("");
+              try {
+                await adminLogin(password);
+                setAuthed(true);
+                await refresh();
+                const next = await fetchPlayerSetup();
+                setPlayerSetup(next);
+                setCurator(await fetchCurator());
+                applyPalette(next.collectionColor);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Login failed");
+              }
+            }}
+          >
+            <PasswordField
+              id="password"
+              label="Admin password"
+              autoComplete="current-password"
+              value={password}
+              onChange={setPassword}
+              required
+            />
+            <button type="button" className="lost-password" onClick={() => { setError(""); setRecoverOpen(true); }}>
+              Lost Password?
+            </button>
+            <div className="form-actions">
+              <button type="submit">Sign in</button>
+            </div>
+            {error ? <p className="error">{error}</p> : null}
+          </form>
+        )}
       </main>
     );
   }
@@ -339,6 +379,66 @@ export default function AdminPage() {
         </div>
       </header>
       {error ? <p className="error">{error}</p> : null}
+
+      <section className="card curator-card">
+        <div>
+          <h2>Curator</h2>
+          <dl className="curator-fields">
+            <div>
+              <dt>First Name</dt>
+              <dd>{curator.firstName || "—"}</dd>
+            </div>
+            <div>
+              <dt>Last Name</dt>
+              <dd>{curator.lastName || "—"}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{curator.email || "—"}</dd>
+            </div>
+            <div>
+              <dt>Password</dt>
+              <dd>••••••••</dd>
+              <button
+                type="button"
+                className="lost-password"
+                onClick={() => {
+                  setCuratorRecover(true);
+                  setCuratorOpen(true);
+                }}
+              >
+                Lost Password?
+              </button>
+            </div>
+          </dl>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setCuratorRecover(false);
+            setCuratorOpen(true);
+          }}
+        >
+          Edit
+        </button>
+      </section>
+      {curatorOpen ? (
+        <AdminDialog title="Curator" onClose={() => { setCuratorOpen(false); setCuratorRecover(false); }}>
+          <CuratorEditor
+            curator={curator}
+            startRecover={curatorRecover}
+            onSaved={(next) => {
+              setCurator(next);
+              setCuratorOpen(false);
+              setCuratorRecover(false);
+            }}
+            onCancel={() => {
+              setCuratorOpen(false);
+              setCuratorRecover(false);
+            }}
+          />
+        </AdminDialog>
+      ) : null}
 
       <section className="card player-setup-card">
         <div>
@@ -536,6 +636,271 @@ function ColorField({
         ))}
       </div>
     </>
+  );
+}
+
+function PasswordField({
+  id,
+  label,
+  value,
+  onChange,
+  autoComplete,
+  placeholder,
+  required,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete?: string;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <>
+      <label htmlFor={id}>{label}</label>
+      <div className="password-field">
+        <input
+          id={id}
+          type={visible ? "text" : "password"}
+          autoComplete={autoComplete}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          required={required}
+        />
+        <button
+          type="button"
+          className="password-switch"
+          role="switch"
+          aria-checked={visible}
+          aria-label={visible ? "Hide password" : "View password"}
+          onClick={() => setVisible((open) => !open)}
+        >
+          <span className="password-switch-track" aria-hidden="true">
+            <span className="password-switch-knob" />
+          </span>
+          <span>{visible ? "Hide" : "View"}</span>
+        </button>
+      </div>
+    </>
+  );
+}
+
+function LostPasswordForm({
+  needRecoveryKey,
+  onRecovered,
+  onCancel,
+}: {
+  needRecoveryKey: boolean;
+  onRecovered: (password: string) => void | Promise<void>;
+  onCancel: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [recoveryPassword, setRecoveryPassword] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  return (
+    <form
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setError("");
+        if (password !== confirmPassword) {
+          setError("New passwords do not match");
+          return;
+        }
+        try {
+          await recoverCuratorPassword({
+            password,
+            email: needRecoveryKey ? email : undefined,
+            recoveryPassword: needRecoveryKey ? recoveryPassword : undefined,
+          });
+          await onRecovered(password);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Could not reset password");
+        }
+      }}
+    >
+      <p className="hint">
+        {needRecoveryKey
+          ? "Enter the email on your Curator profile and the Admin password from your hosting settings, then choose a new password."
+          : "Choose a new curator password. You are already signed in."}
+      </p>
+      {needRecoveryKey ? (
+        <>
+          <label htmlFor="recover-email">Email</label>
+          <input
+            id="recover-email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+          />
+          <PasswordField
+            id="recover-key"
+            label="Recovery password"
+            autoComplete="current-password"
+            value={recoveryPassword}
+            onChange={setRecoveryPassword}
+            required
+          />
+        </>
+      ) : null}
+      <PasswordField
+        id="recover-password"
+        label="New password"
+        autoComplete="new-password"
+        value={password}
+        onChange={setPassword}
+        required
+      />
+      <PasswordField
+        id="recover-confirm"
+        label="Confirm new password"
+        autoComplete="new-password"
+        value={confirmPassword}
+        onChange={setConfirmPassword}
+        required
+      />
+      <div className="form-actions">
+        <button type="submit">Reset password</button>
+        <button type="button" className="ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+    </form>
+  );
+}
+
+function CuratorEditor({
+  curator,
+  startRecover,
+  onSaved,
+  onCancel,
+}: {
+  curator: Curator;
+  startRecover?: boolean;
+  onSaved: (curator: Curator) => void;
+  onCancel: () => void;
+}) {
+  const [error, setError] = useState("");
+  const [recovering, setRecovering] = useState(Boolean(startRecover));
+  const [verifiedPassword, setVerifiedPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [firstName, setFirstName] = useState(curator.firstName);
+  const [lastName, setLastName] = useState(curator.lastName);
+  const [email, setEmail] = useState(curator.email);
+  const [nextPassword, setNextPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  if (recovering) {
+    return (
+      <LostPasswordForm
+        needRecoveryKey={false}
+        onRecovered={(password) => {
+          setVerifiedPassword(password);
+          setRecovering(false);
+        }}
+        onCancel={() => {
+          if (startRecover) onCancel();
+          else setRecovering(false);
+        }}
+      />
+    );
+  }
+
+  if (!verifiedPassword) {
+    return (
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setError("");
+          try {
+            await verifyCuratorPassword(currentPassword);
+            setVerifiedPassword(currentPassword);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Wrong password");
+          }
+        }}
+      >
+        <p className="hint">Enter your current password to edit curator details.</p>
+        <PasswordField
+          id="curator-verify"
+          label="Password"
+          autoComplete="current-password"
+          value={currentPassword}
+          onChange={setCurrentPassword}
+          required
+        />
+        <button type="button" className="lost-password" onClick={() => { setError(""); setRecovering(true); }}>
+          Lost Password?
+        </button>
+        <div className="form-actions">
+          <button type="submit">Continue</button>
+          <button type="button" className="ghost" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+        {error ? <p className="error">{error}</p> : null}
+      </form>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setError("");
+        if (nextPassword && nextPassword !== confirmPassword) {
+          setError("New passwords do not match");
+          return;
+        }
+        try {
+          onSaved(await updateCurator({
+            currentPassword: verifiedPassword,
+            firstName,
+            lastName,
+            email,
+            password: nextPassword || undefined,
+          }));
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Save failed");
+        }
+      }}
+    >
+      <label htmlFor="curator-first">First Name</label>
+      <input id="curator-first" value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+      <label htmlFor="curator-last">Last Name</label>
+      <input id="curator-last" value={lastName} onChange={(event) => setLastName(event.target.value)} />
+      <label htmlFor="curator-email">Email</label>
+      <input id="curator-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+      <PasswordField
+        id="curator-password"
+        label="New password"
+        autoComplete="new-password"
+        value={nextPassword}
+        onChange={setNextPassword}
+        placeholder="Leave blank to keep the current password"
+      />
+      <PasswordField
+        id="curator-confirm"
+        label="Confirm new password"
+        autoComplete="new-password"
+        value={confirmPassword}
+        onChange={setConfirmPassword}
+      />
+      <div className="form-actions">
+        <button type="submit">Save Curator</button>
+        <button type="button" className="ghost" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+    </form>
   );
 }
 

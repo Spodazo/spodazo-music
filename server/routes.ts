@@ -5,6 +5,7 @@ import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
+import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
 import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
@@ -161,7 +162,9 @@ export function registerRoutes(app: Express): void {
 
   app.post("/api/admin/login", async (req, res) => {
     const password = String(req.body?.password || "");
-    if (!process.env.ADMIN_PASSWORD) {
+    const store = await getStore();
+    const record = await store.getCuratorRecord();
+    if (!record.passwordHash && !process.env.ADMIN_PASSWORD) {
       res.status(500).json({ error: "ADMIN_PASSWORD is not set" });
       return;
     }
@@ -175,6 +178,82 @@ export function registerRoutes(app: Express): void {
       console.error("[admin] login session error:", err);
       res.status(500).json({ error: "Could not start admin session" });
     }
+  });
+
+  app.get("/api/admin/curator", requireAdmin, async (_req, res) => {
+    const store = await getStore();
+    res.set("Cache-Control", "no-store");
+    res.json(await store.getCurator());
+  });
+
+  app.post("/api/admin/curator/verify", requireAdmin, async (req, res) => {
+    const password = String(req.body?.password || "");
+    const store = await getStore();
+    const record = await store.getCuratorRecord();
+    if (!(await curatorPasswordMatches(password, record.passwordHash))) {
+      res.status(401).json({ error: "Wrong password" });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  app.patch("/api/admin/curator", requireAdmin, async (req, res) => {
+    const body = req.body || {};
+    const currentPassword = String(body.currentPassword || "");
+    const store = await getStore();
+    const record = await store.getCuratorRecord();
+    if (!(await curatorPasswordMatches(currentPassword, record.passwordHash))) {
+      res.status(401).json({ error: "Wrong password" });
+      return;
+    }
+    const firstName = String(body.firstName ?? record.firstName);
+    const lastName = String(body.lastName ?? record.lastName);
+    const email = String(body.email ?? record.email).trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({ error: "Enter a valid email" });
+      return;
+    }
+    const nextPassword = String(body.password || "");
+    if (nextPassword && nextPassword.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ error: "New password must be at least 8 characters" });
+      return;
+    }
+    const fields: Partial<typeof record> = { firstName, lastName, email };
+    if (nextPassword) fields.passwordHash = await hashPassword(nextPassword);
+    res.json(await store.updateCurator(fields));
+  });
+
+  app.post("/api/admin/curator/recover", async (req, res) => {
+    const body = req.body || {};
+    const store = await getStore();
+    const record = await store.getCuratorRecord();
+    const isAdmin = Boolean(req.session?.admin);
+    const password = String(body.password || "");
+    const problem = curatorRecoveryError({
+      isAdmin,
+      email: String(body.email || ""),
+      recoveryPassword: String(body.recoveryPassword || ""),
+      newPassword: password,
+      curatorEmail: record.email,
+    });
+    if (problem) {
+      res.status(problem.status).json({ error: problem.error });
+      return;
+    }
+    await store.updateCurator({ passwordHash: await hashPassword(password) });
+    if (!isAdmin) {
+      try {
+        if (!(await loginAdmin(req, password))) {
+          res.status(500).json({ error: "Password was reset, but sign-in failed" });
+          return;
+        }
+      } catch (err) {
+        console.error("[admin] recover session error:", err);
+        res.status(500).json({ error: "Password was reset, but sign-in failed" });
+        return;
+      }
+    }
+    res.json({ ok: true });
   });
 
   app.post("/api/admin/logout", async (req, res) => {

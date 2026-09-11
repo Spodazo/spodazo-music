@@ -1,5 +1,5 @@
 import { DEFAULT_PALETTE_ID, normalizePaletteId } from "./palettes";
-import type { Album, PlayerSetup, Track } from "./types";
+import type { Album, Curator, CuratorRecord, PlayerSetup, Track } from "./types";
 
 export function slugify(value: string): string {
   return value
@@ -42,6 +42,31 @@ export const DEFAULT_PLAYER_SETUP: PlayerSetup = {
   collectionCoverUrl: "",
   collectionColor: DEFAULT_PALETTE_ID,
 };
+
+export const DEFAULT_CURATOR: CuratorRecord = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  passwordHash: "",
+};
+
+export function normalizeCurator(raw?: Partial<CuratorRecord> | null): CuratorRecord {
+  return {
+    firstName: raw?.firstName?.trim() || "",
+    lastName: raw?.lastName?.trim() || "",
+    email: raw?.email?.trim() || "",
+    passwordHash: raw?.passwordHash?.trim() || "",
+  };
+}
+
+export function publicCurator(raw?: Partial<CuratorRecord> | null): Curator {
+  const record = normalizeCurator(raw);
+  return {
+    firstName: record.firstName,
+    lastName: record.lastName,
+    email: record.email,
+  };
+}
 
 export function albumSetupFromPlayer(setup: PlayerSetup): Pick<Album, "tagline" | "credits" | "copyright" | "color"> {
   return {

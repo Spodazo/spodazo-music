@@ -1,22 +1,13 @@
 import type { NextFunction, Request, Response } from "express";
-import { timingSafeEqual } from "crypto";
+import { curatorPasswordMatches, passwordsMatch } from "./password";
+import { getStore } from "./storage";
+
+export { passwordsMatch };
 
 declare module "express-session" {
   interface SessionData {
     admin?: boolean;
   }
-}
-
-function adminPassword(): string {
-  return process.env.ADMIN_PASSWORD || "";
-}
-
-export function passwordsMatch(provided: string, expected: string): boolean {
-  if (!expected) return false;
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
@@ -27,9 +18,10 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
   res.status(401).json({ error: "Admin login required" });
 }
 
-export function loginAdmin(req: Request, password: string): Promise<boolean> {
-  const expected = adminPassword();
-  if (!passwordsMatch(password, expected)) return Promise.resolve(false);
+export async function loginAdmin(req: Request, password: string): Promise<boolean> {
+  const store = await getStore();
+  const curator = await store.getCuratorRecord();
+  if (!(await curatorPasswordMatches(password, curator.passwordHash))) return false;
   return new Promise((resolve, reject) => {
     req.session.regenerate((err) => {
       if (err) {

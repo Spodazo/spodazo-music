@@ -124,6 +124,12 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(withCover.collectionCover, "Collection.webp");
   assert.match(withCover.collectionCoverUrl, /Collection\.webp/);
   assert.equal((await store.getPlayerSetup()).collectionCover, "Collection.webp");
+  assert.deepEqual(await store.getCurator(), { firstName: "", lastName: "", email: "" });
+  assert.equal((await store.getCuratorRecord()).passwordHash, "");
+  const curator = await store.updateCurator({ firstName: "Wernard", lastName: "Broodryk", email: "w@example.com", passwordHash: "hashed" });
+  assert.deepEqual(curator, { firstName: "Wernard", lastName: "Broodryk", email: "w@example.com" });
+  assert.equal((await store.getCuratorRecord()).passwordHash, "hashed");
+  assert.equal("passwordHash" in curator, false);
   const afterName = await store.getAlbumBySlug("echoes");
   assert.equal(afterName?.copyright, DEFAULT_PLAYER_SETUP.copyright);
 });

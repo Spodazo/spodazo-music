@@ -1,4 +1,4 @@
-import type { AlbumListItem, PlayerSetup, PublicAlbum, Track } from "@shared/types";
+import type { AlbumListItem, Curator, PlayerSetup, PublicAlbum, Track } from "@shared/types";
 
 async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -41,6 +41,44 @@ export function adminLogin(password: string): Promise<void> {
 
 export function adminLogout(): Promise<void> {
   return fetch("/api/admin/logout", { method: "POST" }).then((res) => parse(res)).then(() => undefined);
+}
+
+export function fetchCurator(): Promise<Curator> {
+  return fetch("/api/admin/curator").then((res) => parse<Curator>(res));
+}
+
+export function verifyCuratorPassword(password: string): Promise<void> {
+  return fetch("/api/admin/curator/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  }).then((res) => parse<{ ok: boolean }>(res)).then(() => undefined);
+}
+
+export function updateCurator(fields: {
+  currentPassword: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password?: string;
+}): Promise<Curator> {
+  return fetch("/api/admin/curator", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  }).then((res) => parse<Curator>(res));
+}
+
+export function recoverCuratorPassword(fields: {
+  password: string;
+  email?: string;
+  recoveryPassword?: string;
+}): Promise<void> {
+  return fetch("/api/admin/curator/recover", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(fields),
+  }).then((res) => parse<{ ok: boolean }>(res)).then(() => undefined);
 }
 
 export function createAlbum(form: FormData): Promise<PublicAlbum> {
