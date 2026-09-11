@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { SITE_COPYRIGHT } from "../shared/seed-data";
 import { JsonMusicStore } from "./storage";
 
 test("JSON store seeds Echoes and supports album/track admin writes", async () => {
@@ -23,6 +24,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(byId?.file, echoes.tracks[0].file);
   assert.match(echoes.tracks[0].audioUrl, /^\/media\/songs\//);
   assert.match(echoes.heroUrl, /^\/media\/images\//);
+  assert.equal(echoes.copyright, SITE_COPYRIGHT);
 
   const album = await store.createAlbum({
     slug: "second-watch",
@@ -30,11 +32,11 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
     tagline: "A new album",
     credits: "Spodazo",
     artists: "Brody Vale",
-    copyright: "© 2026",
     heroPortrait: "",
     thumb: "",
     sortOrder: 2,
   });
+  assert.equal(album.copyright, SITE_COPYRIGHT);
   const track = await store.createTrack({
     albumId: album.id,
     n: 1,

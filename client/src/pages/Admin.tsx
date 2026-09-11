@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { SITE_COPYRIGHT } from "@shared/seed-data";
 import type { AlbumListItem, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
@@ -459,7 +460,7 @@ function AlbumForm({
       <label>Credits</label>
       <input name="credits" defaultValue={album?.credits} />
       <label>Copyright</label>
-      <textarea name="copyright" defaultValue={album?.copyright} />
+      <textarea name="copyright" defaultValue={album?.copyright || SITE_COPYRIGHT} />
       <div className="row-2">
         <div>
           <label>Hero portrait</label>

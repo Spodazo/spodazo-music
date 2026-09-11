@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import { fetchAlbums } from "../lib/api";
+import { copyrightLines, SITE_COPYRIGHT } from "@shared/seed-data";
 import type { AlbumListItem } from "@shared/types";
 
 export default function HomePage() {
@@ -37,9 +38,12 @@ export default function HomePage() {
         <p className="home-foot-tag">Crisis of faith answered through the Word of God</p>
         <p className="home-foot-credit">Music, lyrics and graphics by Spodazo. &nbsp;|&nbsp; Vocals by Brody Vale &amp; Eden Blue</p>
         <p className="home-foot-copy">
-          Produced by Spodazo LLC, trading as Spodazo Music Ltd © 2026. All Rights Reserved.
-          <br />
-          This material may not be copied — in whole or in part — or distributed without previous permission from the Producers.
+          {copyrightLines(SITE_COPYRIGHT).map((line, index) => (
+            <span key={index}>
+              {index > 0 ? <br /> : null}
+              {line}
+            </span>
+          ))}
         </p>
         <div className="sdg sdg-sm">
           <svg className="sdg-cross" viewBox="0 0 10 11" aria-hidden="true">

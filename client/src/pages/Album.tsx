@@ -14,6 +14,7 @@ import { fetchAlbum } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
+import { copyrightLines, SITE_COPYRIGHT } from "@shared/seed-data";
 import type { PublicAlbum, PublicTrack } from "@shared/types";
 
 function formatTime(seconds: number): string {
@@ -25,15 +26,6 @@ function formatTime(seconds: number): string {
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
-}
-
-function copyrightParts(text: string): string[] {
-  const marker = "Reserved.";
-  const at = text.indexOf(marker);
-  if (at < 0) return [text];
-  const first = text.slice(0, at + marker.length).trim();
-  const rest = text.slice(at + marker.length).trim();
-  return rest ? [first, rest] : [first];
 }
 
 function introductionBody(text: string): string {
@@ -57,7 +49,7 @@ function AlbumsBack({ className = "" }: { className?: string }) {
 }
 
 function CopyrightLines({ text }: { text: string }) {
-  const parts = copyrightParts(text);
+  const parts = copyrightLines(text);
   return (
     <p className="copyright">
       {parts.map((line, index) => (
@@ -587,7 +579,7 @@ export default function AlbumPage() {
           ))}
         </div>
         <footer className="site-footer">
-          <CopyrightLines text={album.copyright} />
+          <CopyrightLines text={album.copyright || SITE_COPYRIGHT} />
           <div className="sdg">
             <IconCross />
             Soli Deo Gloria
@@ -692,7 +684,7 @@ export default function AlbumPage() {
                   </>
                 ) : null}
                 <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
-                  <CopyrightLines text={album.copyright} />
+                  <CopyrightLines text={album.copyright || SITE_COPYRIGHT} />
                   <div className="sdg">
                     <IconCross />
                     Soli Deo Gloria

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_CATALOG, ECHOES_ALBUM, ECHOES_TRACKS, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
+import { copyrightLines, DEFAULT_CATALOG, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
 
 test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(ECHOES_ALBUM.slug, "echoes");
@@ -13,6 +13,7 @@ test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(ECHOES_ALBUM.thumb, "Echoes of Storms.webp");
   assert.equal(ECHOES_ALBUM.artistThumb, "Brody and Eden.webp");
   assert.equal(ECHOES_ALBUM.hidden, false);
+  assert.equal(ECHOES_ALBUM.copyright, SITE_COPYRIGHT);
 });
 
 test("every Echoes track has lyrics from the live player", () => {
@@ -31,6 +32,13 @@ test("uniqueSlug keeps album deep links distinct", () => {
   const used = new Set(["our-light"]);
   assert.equal(uniqueSlug("Our Light", used), "our-light-2");
   assert.equal(uniqueSlug("Be Thou My Vision", used), "be-thou-my-vision");
+});
+
+test("copyrightLines splits the reserved notice onto two lines", () => {
+  assert.deepEqual(copyrightLines(SITE_COPYRIGHT), [
+    "Produced by Spodazo LLC, trading as Spodazo Music Ltd © 2026. All Rights Reserved.",
+    "This material may not be copied — in whole or in part — or distributed without previous permission from the Producers.",
+  ]);
 });
 
 test("slugify matches player deep links", () => {

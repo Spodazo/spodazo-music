@@ -29,6 +29,18 @@ export function uniqueSlug(base: string, used: Set<string>): string {
   return candidate;
 }
 
+export const SITE_COPYRIGHT =
+  "Produced by Spodazo LLC, trading as Spodazo Music Ltd © 2026. All Rights Reserved. This material may not be copied — in whole or in part — or distributed without previous permission from the Producers.";
+
+export function copyrightLines(text: string): string[] {
+  const marker = "Reserved.";
+  const at = text.indexOf(marker);
+  if (at < 0) return [text];
+  const first = text.slice(0, at + marker.length).trim();
+  const rest = text.slice(at + marker.length).trim();
+  return rest ? [first, rest] : [first];
+}
+
 const ECHOES_ALBUM_ID = "album-echoes";
 
 export const ECHOES_ALBUM: Album = {
@@ -38,8 +50,7 @@ export const ECHOES_ALBUM: Album = {
   tagline: "Crisis of faith answered through the Word of God",
   credits: "Music, lyrics and graphics by Spodazo. | Vocals by Brody Vale & Eden Blue",
   artists: "Brody Vale with Eden Blue",
-  copyright:
-    "Produced by Spodazo LLC, trading as Spodazo Music Ltd © 2026. All Rights Reserved. This material may not be copied — in whole or in part — or distributed without previous permission from the Producers.",
+  copyright: SITE_COPYRIGHT,
   heroPortrait: "Echoes of Storms Web Portrait.webp",
   thumb: "Echoes of Storms.webp",
   artistThumb: "Brody and Eden.webp",

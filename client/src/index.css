@@ -497,8 +497,7 @@ button.m-cover.enlarged {
 }
 .site-footer .copyright {
   font-size: 0.6rem;
-  color: var(--muted);
-  opacity: 0.5;
+  color: #c8c8c8;
   letter-spacing: 0.04em;
   line-height: 1.6;
   margin: 0;

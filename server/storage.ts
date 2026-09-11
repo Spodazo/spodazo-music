@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { albums, tracks } from "../shared/schema";
-import { DEFAULT_CATALOG, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, seedLyricsForTrack } from "../shared/seed-data";
+import { DEFAULT_CATALOG, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, seedLyricsForTrack } from "../shared/seed-data";
 import type { Album, AlbumListItem, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, durationLabelForFile, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
@@ -78,6 +78,7 @@ function hydrateAlbum(album: Album, albumTracks: Track[]): PublicAlbum {
   const mapped = albumTracks.map(hydrateTrack);
   return {
     ...album,
+    copyright: album.copyright || SITE_COPYRIGHT,
     heroUrl: imageUrl(album.heroPortrait),
     thumbUrl: imageUrl(album.thumb || album.heroPortrait),
     artistUrl: imageUrl(album.artistThumb || album.thumb || album.heroPortrait),
@@ -117,6 +118,7 @@ export class JsonMusicStore implements MusicStore {
       this.backfillEmptyLyrics();
       this.backfillEchoesCover();
       this.backfillEchoesArtistPhoto();
+      this.backfillEmptyCopyright();
     }
   }
 
@@ -137,6 +139,19 @@ export class JsonMusicStore implements MusicStore {
     album.artistThumb = ECHOES_ALBUM.artistThumb;
     album.updatedAt = nowIso();
     this.write(catalog);
+  }
+
+  private backfillEmptyCopyright(): void {
+    const catalog = this.read();
+    let changed = false;
+    for (const album of catalog.albums) {
+      if (!album.copyright?.trim()) {
+        album.copyright = SITE_COPYRIGHT;
+        album.updatedAt = nowIso();
+        changed = true;
+      }
+    }
+    if (changed) this.write(catalog);
   }
 
   private backfillEmptyLyrics(): void {
@@ -218,7 +233,7 @@ export class JsonMusicStore implements MusicStore {
       tagline: input.tagline || "",
       credits: input.credits || "",
       artists: input.artists || "",
-      copyright: input.copyright || "",
+      copyright: input.copyright || SITE_COPYRIGHT,
       heroPortrait: input.heroPortrait || "",
       thumb: input.thumb || "",
       artistThumb: input.artistThumb || "",
@@ -448,6 +463,10 @@ export class PostgresMusicStore implements MusicStore {
         await this.db.update(tracks).set({ lyrics, updatedAt: new Date() }).where(eq(tracks.id, row.id));
       }
     }
+    await this.db
+      .update(albums)
+      .set({ copyright: SITE_COPYRIGHT, updatedAt: new Date() })
+      .where(eq(albums.copyright, ""));
     const [echoes] = await this.db
       .select({ id: albums.id, thumb: albums.thumb })
       .from(albums)
@@ -527,7 +546,7 @@ export class PostgresMusicStore implements MusicStore {
         tagline: input.tagline || "",
         credits: input.credits || "",
         artists: input.artists || "",
-        copyright: input.copyright || "",
+        copyright: input.copyright || SITE_COPYRIGHT,
         heroPortrait: input.heroPortrait || "",
         thumb: input.thumb || "",
         artistThumb: input.artistThumb || "",
