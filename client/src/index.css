@@ -996,7 +996,7 @@ button.m-cover.enlarged {
 .track-admin.playing { background: rgba(232, 184, 109, 0.06); }
 .admin .track-admin-actions {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 6px;
@@ -1009,21 +1009,30 @@ button.m-cover.enlarged {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 16px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 1;
   text-decoration: none;
 }
 .admin .track-admin-actions > .admin-track-play {
-  width: auto;
-  min-width: 0;
-  padding: 10px 16px;
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
 }
 .admin-track-play.on {
   background: var(--amber);
   color: #111;
   border-color: var(--amber);
 }
-.admin .admin-track-play svg { width: 18px; height: 18px; fill: currentColor; }
+.admin .admin-track-play svg { width: 14px; height: 14px; fill: currentColor; }
 .admin-track-play:disabled { opacity: 0.35; cursor: not-allowed; }
+.admin .track-admin-actions > .danger {
+  background: rgba(232, 184, 109, 0.1);
+  color: var(--amber);
+  border: 1px solid rgba(232, 184, 109, 0.28);
+}
 .archive-block {
   margin-top: 24px;
   padding-top: 16px;
@@ -1316,15 +1325,16 @@ button.m-cover.enlarged {
   .admin .track-admin-actions > a.ghost,
   .admin .track-admin-actions > span.ghost {
     flex: 1;
-    min-height: 44px;
-    padding: 8px 12px;
-    font-size: 14px;
+    height: 38px;
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 13px;
   }
   .admin .track-admin-actions > .admin-track-play {
-    flex: 0 0 auto;
-    width: auto;
-    min-width: 44px;
-    padding: 8px 12px;
+    flex: 0 0 38px;
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
   }
   .archive-row {
     grid-template-columns: 40px minmax(0, 1fr);
