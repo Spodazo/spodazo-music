@@ -34,6 +34,7 @@ export const playerSetup = pgTable("player_setup", {
   credits: text("credits").notNull().default(""),
   copyright: text("copyright").notNull().default(""),
   collectionCover: text("collection_cover").notNull().default(""),
+  logo: text("logo").notNull().default(""),
   collectionColor: text("collection_color").notNull().default("ink"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
 });

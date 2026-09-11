@@ -159,13 +159,39 @@ a { color: inherit; }
   background: rgba(18, 26, 36, 0.92);
 }
 .admin-login svg { width: 16px; height: 16px; fill: currentColor; }
-.home-kicker {
+.home-brand {
   flex: 0 0 auto;
-  color: var(--amber);
-  letter-spacing: 0.28em;
+  width: min(280px, 100%);
+  margin: 0 0 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.home-logo {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: contain;
+}
+.home-logo-placeholder {
+  min-height: 72px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   font-size: 12px;
-  margin: 0 0 24px;
+  font-weight: 600;
+}
+.home-theme {
+  margin: 10px 0 0;
+  width: 100%;
+  font-family: "Playfair Display", serif;
+  font-style: italic;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--amber2);
 }
 .collection-cover {
   width: min(320px, 100%);
@@ -1045,6 +1071,15 @@ button.m-cover.enlarged {
   margin: 0 0 8px;
   border: 1px solid var(--border);
 }
+.setup-logo-preview {
+  width: 200px;
+  max-height: 80px;
+  object-fit: contain;
+  display: block;
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  background: var(--input);
+}
 .admin form, .admin .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -1513,14 +1548,10 @@ button.m-cover.enlarged {
     padding-left: 16px;
     padding-right: 16px;
   }
-  .home-kicker {
+  .home-brand {
     box-sizing: border-box;
-    width: 100%;
-    min-height: max(96px, 16vh);
-    margin: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: min(280px, 100%);
+    margin: 16px 0 20px;
   }
   .admin {
     padding: 20px 16px 48px;

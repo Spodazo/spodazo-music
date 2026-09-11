@@ -110,6 +110,7 @@ function hydratePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerSetup {
   return {
     ...setup,
     collectionCoverUrl: imageUrl(setup.collectionCover),
+    logoUrl: imageUrl(setup.logo),
   };
 }
 
@@ -120,6 +121,7 @@ function playerSetupRecord(setup: PlayerSetup) {
     credits: setup.credits,
     copyright: setup.copyright,
     collectionCover: setup.collectionCover,
+    logo: setup.logo,
     collectionColor: setup.collectionColor,
   };
 }
@@ -538,6 +540,7 @@ export class PostgresMusicStore implements MusicStore {
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT 'ink'`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_cover TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_color TEXT NOT NULL DEFAULT 'ink'`);
+    await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS logo TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`
       CREATE TABLE IF NOT EXISTS curator (
         id TEXT PRIMARY KEY,
@@ -887,8 +890,12 @@ export async function remapImageFilenames(renames: Map<string, string>): Promise
   }
   const setup = await store.getPlayerSetup();
   const nextCover = setup.collectionCover ? renames.get(setup.collectionCover) : undefined;
-  if (nextCover) {
-    await store.updatePlayerSetup({ collectionCover: nextCover });
+  const nextLogo = setup.logo ? renames.get(setup.logo) : undefined;
+  if (nextCover || nextLogo) {
+    await store.updatePlayerSetup({
+      ...(nextCover ? { collectionCover: nextCover } : {}),
+      ...(nextLogo ? { logo: nextLogo } : {}),
+    });
     changed += 1;
   }
   if (changed) console.log(`[media] remapped ${changed} image reference${changed === 1 ? "" : "s"}`);

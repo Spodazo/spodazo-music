@@ -40,6 +40,8 @@ export const DEFAULT_PLAYER_SETUP: PlayerSetup = {
   copyright: SITE_COPYRIGHT,
   collectionCover: "",
   collectionCoverUrl: "",
+  logo: "",
+  logoUrl: "",
   collectionColor: DEFAULT_PALETTE_ID,
 };
 
@@ -85,6 +87,8 @@ export function normalizePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerS
     copyright: raw?.copyright?.trim() || DEFAULT_PLAYER_SETUP.copyright,
     collectionCover: raw?.collectionCover?.trim() || "",
     collectionCoverUrl: "",
+    logo: raw?.logo?.trim() || "",
+    logoUrl: "",
     collectionColor: normalizePaletteId(raw?.collectionColor),
   };
 }

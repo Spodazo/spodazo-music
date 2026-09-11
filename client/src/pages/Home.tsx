@@ -27,7 +27,16 @@ export default function HomePage() {
   return (
     <main className="home">
       <AdminLoginLink />
-      <p className="home-kicker">{setup.appName}</p>
+      <div className="home-brand">
+        {setup.logoUrl ? (
+          <img className="home-logo" src={setup.logoUrl} alt={setup.appName} />
+        ) : (
+          <div className="home-logo home-logo-placeholder" aria-label={setup.appName}>
+            Logo
+          </div>
+        )}
+        {setup.theme ? <p className="home-theme">{setup.theme}</p> : null}
+      </div>
       <div className="home-main">
         {error ? <p className="error">{error}</p> : null}
         {setup.collectionCoverUrl ? (
@@ -47,7 +56,6 @@ export default function HomePage() {
         </div>
       </div>
       <footer className="home-foot">
-        <p className="home-foot-tag">{setup.theme}</p>
         <p className="home-foot-credit">{setup.credits}</p>
         <p className="home-foot-copy">
           {copyrightLines(setup.copyright).map((line, index) => (

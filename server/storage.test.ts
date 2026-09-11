@@ -116,6 +116,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(saved.appName, "New Player");
   assert.equal(saved.theme, DEFAULT_PLAYER_SETUP.theme);
   assert.equal(saved.collectionCover, "");
+  assert.equal(saved.logo, "");
   assert.equal(saved.collectionColor, "ink");
   assert.equal((await store.getPlayerSetup()).appName, "New Player");
   const withColor = await store.updatePlayerSetup({ collectionColor: "navy" });
@@ -124,6 +125,10 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(withCover.collectionCover, "Collection.webp");
   assert.match(withCover.collectionCoverUrl, /Collection\.webp/);
   assert.equal((await store.getPlayerSetup()).collectionCover, "Collection.webp");
+  const withLogo = await store.updatePlayerSetup({ logo: "Mark.webp" });
+  assert.equal(withLogo.logo, "Mark.webp");
+  assert.match(withLogo.logoUrl, /Mark\.webp/);
+  assert.equal((await store.getPlayerSetup()).logo, "Mark.webp");
   assert.deepEqual(await store.getCurator(), { firstName: "", lastName: "", email: "" });
   assert.equal((await store.getCuratorRecord()).passwordHash, "");
   const curator = await store.updateCurator({ firstName: "Wernard", lastName: "Broodryk", email: "w@example.com", passwordHash: "hashed" });

@@ -51,6 +51,8 @@ test("normalizePlayerSetup fills blank fields from the site defaults", () => {
   assert.equal(normalizePlayerSetup({ appName: "  New Name  " }).theme, DEFAULT_PLAYER_SETUP.theme);
   assert.equal(normalizePlayerSetup({ collectionCover: "  Cover.webp  " }).collectionCover, "Cover.webp");
   assert.equal(normalizePlayerSetup({ collectionCover: "  Cover.webp  " }).collectionCoverUrl, "");
+  assert.equal(normalizePlayerSetup({ logo: "  Mark.webp  " }).logo, "Mark.webp");
+  assert.equal(normalizePlayerSetup({ logo: "  Mark.webp  " }).logoUrl, "");
   assert.equal(normalizePlayerSetup({}).collectionColor, DEFAULT_PALETTE_ID);
   assert.equal(normalizePlayerSetup({ collectionColor: "navy" }).collectionColor, "navy");
   assert.equal(normalizePlayerSetup({ collectionColor: "nope" }).collectionColor, DEFAULT_PALETTE_ID);

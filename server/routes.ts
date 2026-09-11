@@ -126,6 +126,7 @@ export function registerRoutes(app: Express): void {
 
   app.patch("/api/admin/player-setup", requireAdmin, upload.fields([
     { name: "cover", maxCount: 1 },
+    { name: "logo", maxCount: 1 },
   ]), async (req, res) => {
     const store = await getStore();
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
@@ -137,6 +138,7 @@ export function registerRoutes(app: Express): void {
     if (body.copyright !== undefined) fields.copyright = String(body.copyright);
     if (body.collectionColor !== undefined) fields.collectionColor = String(body.collectionColor);
     if (files?.cover?.[0]) fields.collectionCover = files.cover[0].filename;
+    if (files?.logo?.[0]) fields.logo = files.logo[0].filename;
     res.json(await store.updatePlayerSetup(fields));
   });
 

@@ -440,7 +440,7 @@ export default function AdminPage() {
       <section className="card player-setup-card">
         <div>
           <h2>Player Setup</h2>
-          <p className="hint">Collection cover, app name, theme, credits, and copyright on the public player.</p>
+          <p className="hint">Collection cover, logo, app name, theme, credits, and copyright on the public player.</p>
         </div>
         <button type="button" onClick={() => setSetupOpen(true)}>
           Edit
@@ -575,15 +575,17 @@ function CoverField({
   label,
   name,
   currentUrl,
+  previewClass = "setup-cover-preview",
 }: {
   label: string;
   name: string;
   currentUrl?: string;
+  previewClass?: string;
 }) {
   return (
     <>
       <label>{label}</label>
-      {currentUrl ? <img className="setup-cover-preview" src={currentUrl} alt="" /> : null}
+      {currentUrl ? <img className={previewClass} src={currentUrl} alt="" /> : null}
       <input name={name} type="file" accept="image/*" />
     </>
   );
@@ -926,6 +928,7 @@ function PlayerSetupForm({
       }}
     >
       <CoverField label="Collection Cover" name="cover" currentUrl={setup.collectionCoverUrl} />
+      <CoverField label="Logo" name="logo" currentUrl={setup.logoUrl} previewClass="setup-logo-preview" />
       <ColorField
         label="Collection Color"
         name="collectionColor"

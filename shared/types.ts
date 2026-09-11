@@ -61,6 +61,8 @@ export type PlayerSetup = {
   copyright: string;
   collectionCover: string;
   collectionCoverUrl: string;
+  logo: string;
+  logoUrl: string;
   collectionColor: string;
 };
 
