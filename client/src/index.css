@@ -1005,27 +1005,24 @@ button.m-cover.enlarged {
 .admin .track-admin-actions > a.ghost,
 .admin .track-admin-actions > span.ghost {
   margin: 0;
-  height: 52px;
-  min-height: 52px;
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 1;
-  padding: 0 16px;
+  padding: 10px 16px;
   text-decoration: none;
 }
 .admin .track-admin-actions > .admin-track-play {
-  width: 52px;
-  min-width: 52px;
-  padding: 0;
+  width: auto;
+  min-width: 0;
+  padding: 10px 16px;
 }
 .admin-track-play.on {
   background: var(--amber);
   color: #111;
   border-color: var(--amber);
 }
-.admin .admin-track-play svg { width: 36px; height: 36px; fill: currentColor; }
+.admin .admin-track-play svg { width: 18px; height: 18px; fill: currentColor; }
 .admin-track-play:disabled { opacity: 0.35; cursor: not-allowed; }
 .archive-block {
   margin-top: 24px;
@@ -1319,14 +1316,15 @@ button.m-cover.enlarged {
   .admin .track-admin-actions > a.ghost,
   .admin .track-admin-actions > span.ghost {
     flex: 1;
-    height: 52px;
-    min-height: 52px;
-    padding: 0 12px;
+    min-height: 44px;
+    padding: 8px 12px;
     font-size: 14px;
   }
   .admin .track-admin-actions > .admin-track-play {
-    flex: 0 0 52px;
-    width: 52px;
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 44px;
+    padding: 8px 12px;
   }
   .archive-row {
     grid-template-columns: 40px minmax(0, 1fr);
