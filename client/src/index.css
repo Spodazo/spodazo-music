@@ -187,11 +187,15 @@ a { color: inherit; }
 .home-theme {
   margin: 10px 0 0;
   width: 100%;
-  font-family: "Playfair Display", serif;
-  font-style: italic;
-  font-size: 0.85rem;
-  line-height: 1.4;
-  color: var(--amber2);
+  max-width: 100%;
+  font-family: "Playfair Display", "Times New Roman", serif;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-align: center;
+  color: #f4ecd8;
 }
 .collection-cover {
   width: min(320px, 100%);

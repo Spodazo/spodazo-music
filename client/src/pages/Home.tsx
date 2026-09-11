@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import { fetchAlbums, fetchPlayerSetup } from "../lib/api";
@@ -6,10 +6,43 @@ import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { applyPalette } from "../lib/palette";
 
+function useFitOneLine(text: string) {
+  const ref = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function fit() {
+      const max = el.parentElement?.clientWidth || el.clientWidth;
+      if (!max) return;
+      el.style.fontSize = "16px";
+      const width = el.scrollWidth;
+      if (width > max) el.style.fontSize = `${Math.max(8, (16 * max) / width)}px`;
+    }
+
+    let cancelled = false;
+    const run = () => {
+      if (!cancelled) fit();
+    };
+    run();
+    void document.fonts?.ready.then(run);
+    const observer = new ResizeObserver(run);
+    if (el.parentElement) observer.observe(el.parentElement);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [text]);
+
+  return ref;
+}
+
 export default function HomePage() {
   const [albums, setAlbums] = useState<AlbumListItem[]>([]);
   const [setup, setSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
   const [error, setError] = useState("");
+  const themeRef = useFitOneLine(setup.theme);
 
   useEffect(() => {
     fetchAlbums()
@@ -35,7 +68,7 @@ export default function HomePage() {
             Logo
           </div>
         )}
-        {setup.theme ? <p className="home-theme">{setup.theme}</p> : null}
+        {setup.theme ? <p ref={themeRef} className="home-theme">{setup.theme}</p> : null}
       </div>
       <div className="home-main">
         {error ? <p className="error">{error}</p> : null}
