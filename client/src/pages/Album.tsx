@@ -135,7 +135,7 @@ export default function AlbumPage() {
   const hasOwnBackground = Boolean(album?.heroPortrait && album.heroPortrait !== album.thumb);
   const backgroundUrl = hasOwnBackground && album ? album.heroUrl : "";
   const albumCoverUrl = album?.thumbUrl || (!backgroundUrl ? album?.heroUrl || "" : "");
-  const songCoverUrl = playing && track?.imageUrl && portraitFailed !== track.imageUrl ? track.imageUrl : "";
+  const songCoverUrl = track?.imageUrl && portraitFailed !== track.imageUrl ? track.imageUrl : "";
   const coverUrl = songCoverUrl || albumCoverUrl;
   const coverAlt =
     songCoverUrl && track
@@ -157,6 +157,12 @@ export default function AlbumPage() {
     }
   }, [album]);
 
+  function promoteCover(cover: { url: string; alt: string }) {
+    setBaseCover(cover);
+    setNextCover(null);
+    setNextReady(false);
+  }
+
   useEffect(() => {
     if (!coverUrl) return;
     if (!baseCover.url) {
@@ -164,8 +170,10 @@ export default function AlbumPage() {
       return;
     }
     if (coverUrl === baseCover.url) {
-      setNextCover(null);
-      setNextReady(false);
+      if (nextCover) {
+        setNextCover(null);
+        setNextReady(false);
+      }
       return;
     }
     if (coverUrl === nextCover?.url) return;
@@ -175,11 +183,7 @@ export default function AlbumPage() {
 
   useEffect(() => {
     if (!nextReady || !nextCover) return;
-    const timer = window.setTimeout(() => {
-      setBaseCover(nextCover);
-      setNextCover(null);
-      setNextReady(false);
-    }, 1400);
+    const timer = window.setTimeout(() => promoteCover(nextCover), 1400);
     return () => window.clearTimeout(timer);
   }, [nextReady, nextCover]);
 
@@ -573,13 +577,17 @@ export default function AlbumPage() {
       <AdminLoginLink />
       <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
         <AlbumsBack className="albums-back-on-art" />
-        <div className="portrait-stage">
+        <div
+          className="portrait-stage"
+          style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
+        >
           {backgroundUrl ? (
-            <img className="portrait-bg" src={backgroundUrl} alt="" fetchPriority="low" decoding="async" />
+            <img className="portrait-bg" src={backgroundUrl} alt="" decoding="async" />
           ) : null}
           {baseCover.url ? (
             <div className="portrait-cover">
               <img
+                key={baseCover.url}
                 className="portrait-img"
                 src={baseCover.url}
                 alt={baseCover.alt}
@@ -591,6 +599,7 @@ export default function AlbumPage() {
               />
               {nextCover ? (
                 <img
+                  key={nextCover.url}
                   className={`portrait-img incoming${nextReady ? " ready" : ""}`}
                   src={nextCover.url}
                   alt={nextCover.alt}
@@ -607,10 +616,8 @@ export default function AlbumPage() {
                     setNextReady(false);
                   }}
                   onTransitionEnd={(event) => {
-                    if (event.propertyName !== "opacity" || !nextReady || !nextCover) return;
-                    setBaseCover(nextCover);
-                    setNextCover(null);
-                    setNextReady(false);
+                    if (event.propertyName !== "opacity" || !nextReady) return;
+                    promoteCover(nextCover);
                   }}
                 />
               ) : null}
@@ -684,7 +691,11 @@ export default function AlbumPage() {
                   : undefined
               }
               onWarm={() => warm()}
-              onPlay={() => openAt(index, true)}
+              onOpen={() => openAt(index, true)}
+              onPlayPause={() => {
+                if (active === index && currentUrlRef.current) togglePlay();
+                else playAt(index, true);
+              }}
             />
           ))}
         </div>
@@ -864,7 +875,8 @@ function TrackRow({
   enlarged,
   onZoom,
   onWarm,
-  onPlay,
+  onOpen,
+  onPlayPause,
 }: {
   track: PublicTrack;
   albumSlug: string;
@@ -875,7 +887,8 @@ function TrackRow({
   enlarged?: boolean;
   onZoom?: () => void;
   onWarm: () => void;
-  onPlay: () => void;
+  onOpen: () => void;
+  onPlayPause: () => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -894,7 +907,7 @@ function TrackRow({
       data-i={index}
       aria-current={isPlaying ? "true" : undefined}
       onPointerDown={onWarm}
-      onClick={onPlay}
+      onClick={onOpen}
     >
       {isPlaying ? (
         <span className="t-eq" aria-hidden="true">
@@ -945,7 +958,18 @@ function TrackRow({
         {copied ? "Copied" : <IconLink />}
       </button>
       <span className="t-dur">{durationLabel || "—"}</span>
-      <div className="t-play-icon" aria-hidden="true">{isPlaying ? <IconPause /> : <IconPlay />}</div>
+      <button
+        type="button"
+        className="t-play-icon"
+        title={isPlaying ? "Pause" : "Play"}
+        aria-label={isPlaying ? `Pause ${track.title}` : `Play ${track.title}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onPlayPause();
+        }}
+      >
+        {isPlaying ? <IconPause /> : <IconPlay />}
+      </button>
     </div>
   );
 }

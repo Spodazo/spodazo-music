@@ -333,7 +333,6 @@ a { color: inherit; }
   flex: 0 0 58%;
   width: 58%;
   max-width: 58%;
-  container-type: size;
 }
 .portrait-bg {
   position: absolute;
@@ -343,19 +342,26 @@ a { color: inherit; }
   object-fit: cover;
   display: block;
 }
-.portrait-panel.has-bg::after {
+.portrait-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--portrait);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+.portrait-panel.has-bg .portrait-stage::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
   background: radial-gradient(circle at center, transparent 32%, rgba(0, 0, 0, 0.28) 100%);
-}
-.portrait-stage {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
 }
 .portrait-cover {
   position: relative;
@@ -391,10 +397,10 @@ a { color: inherit; }
   opacity: 1;
 }
 .portrait-panel.has-bg .portrait-cover {
-  width: min(70cqw, 70cqh);
-  height: min(70cqw, 70cqh);
+  width: min(70%, 70vh);
+  height: auto;
   max-width: none;
-  max-height: none;
+  max-height: 70%;
   aspect-ratio: 1;
   filter:
     drop-shadow(0 16px 24px rgba(0, 0, 0, 0.55))
@@ -767,16 +773,21 @@ button.m-cover.enlarged {
   opacity: 1;
 }
 .t-copy.on { background: color-mix(in srgb, var(--amber) 12%, transparent); }
-.t-play-icon {
+button.t-play-icon {
   width: 34px;
   height: 34px;
+  margin: 0;
+  padding: 0;
   border-radius: 50%;
   border: 1.5px solid var(--text2);
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  font: inherit;
   color: var(--text2);
+  background: transparent;
+  cursor: pointer;
   transition: all 0.2s;
   opacity: 0.95;
 }
@@ -1171,11 +1182,12 @@ button.m-cover.enlarged {
 .curator-fields dt {
   margin: 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * 1.2);
 }
 .curator-fields dd {
   margin: 2px 0 0;
   color: var(--text);
+  font-size: 1.2em;
 }
 .password-field {
   display: flex;
@@ -1195,7 +1207,7 @@ button.m-cover.enlarged {
   background: transparent;
   color: var(--muted);
   border: 0;
-  font-size: 13px;
+  font-size: calc(13px * 1.2);
   font-weight: 600;
   flex: none;
 }
@@ -1235,7 +1247,7 @@ button.m-cover.enlarged {
   background: none;
   border: 0;
   color: var(--amber);
-  font-size: 13px;
+  font-size: calc(13px * 1.2);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1263,13 +1275,14 @@ button.m-cover.enlarged {
   padding: 20px;
   margin: 16px 0;
 }
-.admin label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 13px; }
+.admin label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: calc(13px * 1.2); }
 .admin input, .admin textarea, .admin select {
   width: 100%;
   background: var(--input);
   color: var(--text);
   border: 1px solid var(--border);
   padding: 10px;
+  font-size: 1.2em;
 }
 .admin input[type="checkbox"] {
   width: auto;
@@ -1288,6 +1301,7 @@ button.m-cover.enlarged {
   color: #111;
   border: 0;
   padding: 10px 16px;
+  font-size: 1.2em;
   font-weight: 700;
   cursor: pointer;
   margin-right: 8px;
@@ -1296,6 +1310,7 @@ button.m-cover.enlarged {
 .ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
 .danger { background: #8b2e2e; color: #fff; }
 .error { color: #f0b4b4; }
+.admin .error { font-size: 1.2em; }
 .form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1332,7 +1347,7 @@ button.m-cover.enlarged {
   border-bottom: 1px solid var(--border);
 }
 .track-admin .drag-handle { grid-area: handle; }
-.track-admin-num { grid-area: num; color: var(--muted); font-variant-numeric: tabular-nums; }
+.track-admin-num { grid-area: num; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 1.2em; }
 .track-admin img,
 .track-admin-placeholder { grid-area: art; }
 .track-admin-info { grid-area: info; min-width: 0; }
@@ -1341,10 +1356,11 @@ button.m-cover.enlarged {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 1.2em;
 }
 .track-admin-info div {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * 1.2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1397,7 +1413,7 @@ button.m-cover.enlarged {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-  font-size: 13px;
+  font-size: calc(13px * 1.2);
   font-weight: 600;
 }
 .admin .album-cover-tile img,
@@ -1425,7 +1441,7 @@ button.m-cover.enlarged {
   background: transparent;
   color: var(--text);
   border-style: dashed;
-  font-size: 16px;
+  font-size: calc(16px * 1.2);
   font-weight: 700;
   text-align: center;
   padding: 16px;
@@ -1450,6 +1466,9 @@ button.m-cover.enlarged {
   vertical-align: middle;
   flex: none;
 }
+.admin .hidden-badge {
+  font-size: calc(11px * 1.2);
+}
 .track-admin img { width: 56px; height: 56px; object-fit: cover; }
 .track-admin-placeholder {
   width: 56px;
@@ -1459,11 +1478,11 @@ button.m-cover.enlarged {
   background: var(--input);
   border: 1px dashed var(--border);
   color: var(--muted);
-  font-size: 10px;
+  font-size: calc(10px * 1.2);
   text-align: center;
   line-height: 1.2;
 }
-.admin .hint { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.admin .hint { color: var(--muted); font-size: calc(13px * 1.2); margin: 0 0 8px; }
 .track-head {
   display: flex;
   align-items: center;
@@ -1512,7 +1531,7 @@ button.m-cover.enlarged {
   height: 38px;
   min-height: 38px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: calc(13px * 1.2);
   line-height: 1;
   text-decoration: none;
 }
@@ -1576,6 +1595,7 @@ button.m-cover.enlarged {
 .admin-player-art.placeholder { background: var(--input); }
 .admin-player-meta { grid-area: meta; min-width: 0; }
 .admin-player-title {
+  font-size: 1.2em;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -1583,7 +1603,7 @@ button.m-cover.enlarged {
 }
 .admin-player-album {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * 1.2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1680,7 +1700,7 @@ button.m-cover.enlarged {
 
 @media (max-width: 600px) {
   html, body { overflow-y: auto; overflow-x: hidden; }
-  .layout { flex-direction: column; height: auto; min-height: 100vh; }
+  .layout { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
   .portrait-panel,
   .portrait-panel.has-bg {
     flex: 0 0 auto;
@@ -1691,20 +1711,22 @@ button.m-cover.enlarged {
     max-width: 100%;
     height: auto;
     overflow: visible;
-    container-type: normal;
   }
   .portrait-stage {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 1;
+    overflow: hidden;
+  }
+  .portrait-bg {
+    position: relative;
+    inset: auto;
+    display: block;
     width: 100%;
     height: auto;
     aspect-ratio: 1;
-    overflow: hidden;
-    background: var(--portrait);
-  }
-  .portrait-bg {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
     object-fit: cover;
   }
   .portrait-cover,
@@ -1875,7 +1897,7 @@ button.m-cover.enlarged {
     height: 38px;
     min-height: 38px;
     padding: 0 10px;
-    font-size: 13px;
+    font-size: calc(13px * 1.2);
   }
   .admin .track-admin-actions > .admin-track-play {
     flex: 0 0 38px;
@@ -1903,8 +1925,8 @@ button.m-cover.enlarged {
     padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
   }
   .admin-player-art { width: 40px; height: 40px; }
-  .admin-player-title { font-size: 14px; }
-  .admin-player-album { font-size: 12px; }
+  .admin-player-title { font-size: calc(14px * 1.2); }
+  .admin-player-album { font-size: calc(12px * 1.2); }
   .admin-player-ctrl {
     width: 48px;
     height: 48px;
@@ -1962,4 +1984,4 @@ button.m-cover.enlarged {
   background: color-mix(in srgb, var(--amber) 10%, var(--input));
 }
 .palette-choice-swatches { display: flex; gap: 4px; }
-.palette-choice span { font-size: 12px; color: var(--muted); }
+.palette-choice span { font-size: calc(12px * 1.2); color: var(--muted); }
