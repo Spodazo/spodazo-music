@@ -712,25 +712,24 @@ export default function AlbumPage() {
 
       {track && modalOpen ? (
         <div className="modal open">
-          <div
-            className={`modal-card${backgroundUrl ? " has-bg" : ""}${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}
-            style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
-          >
-            {backgroundUrl ? (
-              <img className="modal-bg" src={backgroundUrl} alt="" decoding="async" />
-            ) : null}
+          <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
             <div className="modal-head">
-              {track.imageUrl ? (
-                <button
-                  type="button"
-                  className={`m-cover${enlargedCover === `player:${track.id}` ? " enlarged" : ""}`}
-                  style={{ backgroundImage: `url("${track.imageUrl}")` }}
-                  aria-label={enlargedCover === `player:${track.id}` ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
-                  onClick={() => setEnlargedCover((cur) => (cur === `player:${track.id}` ? null : `player:${track.id}`))}
-                />
-              ) : (
-                <div className="m-cover" />
-              )}
+              <div className={`m-art${backgroundUrl ? " has-bg" : ""}`}>
+                {backgroundUrl ? (
+                  <img className="m-art-bg" src={backgroundUrl} alt="" decoding="async" />
+                ) : null}
+                {track.imageUrl ? (
+                  <button
+                    type="button"
+                    className={`m-cover${enlargedCover === `player:${track.id}` ? " enlarged" : ""}`}
+                    style={{ backgroundImage: `url("${track.imageUrl}")` }}
+                    aria-label={enlargedCover === `player:${track.id}` ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
+                    onClick={() => setEnlargedCover((cur) => (cur === `player:${track.id}` ? null : `player:${track.id}`))}
+                  />
+                ) : (
+                  <div className="m-cover" />
+                )}
+              </div>
               <div className="m-meta">
                 <div className="m-title">{track.title}</div>
                 {track.scripture ? <div className="m-subtitle">{track.scripture}</div> : null}
