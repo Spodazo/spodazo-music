@@ -929,6 +929,7 @@ function PlayerSetupForm({
     >
       <CoverField label="Collection Cover" name="cover" currentUrl={setup.collectionCoverUrl} />
       <CoverField label="Logo" name="logo" currentUrl={setup.logoUrl} previewClass="setup-logo-preview" />
+      <CoverField label="Footer Image" name="footer" currentUrl={setup.footerImageUrl} previewClass="setup-footer-preview" />
       <ColorField
         label="Collection Color"
         name="collectionColor"

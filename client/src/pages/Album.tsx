@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { Link, useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
+import SdgFooter from "../components/SdgFooter";
 import {
   assignSrc,
   dropLegacyAudioCaches,
@@ -10,12 +11,12 @@ import {
   START_OFFSET,
   unlockAudio,
 } from "../lib/audioCache";
-import { fetchAlbum } from "../lib/api";
+import { fetchAlbum, fetchPlayerSetup } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
 import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
-import type { PublicAlbum, PublicTrack } from "@shared/types";
+import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import { applyPalette } from "../lib/palette";
 
 function formatTime(seconds: number): string {
@@ -67,6 +68,7 @@ export default function AlbumPage() {
   const [, params] = useRoute("/:slug");
   const slug = params?.slug || "";
   const [album, setAlbum] = useState<PublicAlbum | null>(null);
+  const [setup, setSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
   const [error, setError] = useState("");
   const [active, setActive] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -118,6 +120,9 @@ export default function AlbumPage() {
         document.title = `${data.title} — ${data.artists}`;
       })
       .catch((err: Error) => setError(err.message));
+    fetchPlayerSetup()
+      .then(setSetup)
+      .catch(() => undefined);
   }, [slug]);
 
   const track = useMemo(
@@ -701,16 +706,19 @@ export default function AlbumPage() {
         </div>
         <footer className="site-footer">
           <CopyrightLines text={album.copyright || DEFAULT_PLAYER_SETUP.copyright} />
-          <div className="sdg">
-            <IconCross />
-            Soli Deo Gloria
-          </div>
+          <SdgFooter imageUrl={setup.footerImageUrl} />
         </footer>
       </section>
 
       {track && modalOpen ? (
         <div className="modal open">
-          <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
+          <div
+            className={`modal-card${backgroundUrl ? " has-bg" : ""}${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}
+            style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
+          >
+            {backgroundUrl ? (
+              <img className="modal-bg" src={backgroundUrl} alt="" decoding="async" />
+            ) : null}
             <div className="modal-head">
               {track.imageUrl ? (
                 <button
@@ -806,10 +814,7 @@ export default function AlbumPage() {
                 ) : null}
                 <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
                   <CopyrightLines text={album.copyright || DEFAULT_PLAYER_SETUP.copyright} />
-                  <div className="sdg">
-                    <IconCross />
-                    Soli Deo Gloria
-                  </div>
+                  <SdgFooter imageUrl={setup.footerImageUrl} />
                 </footer>
               </div>
               {lyricsOpen && trackHasLyrics(track) ? (
@@ -1052,14 +1057,5 @@ function IconClose() {
 function IconVolume() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" /></svg>
-  );
-}
-
-function IconCross() {
-  return (
-    <svg className="sdg-cross" viewBox="0 0 10 11" aria-hidden="true">
-      <rect x="4" y="0" width="2" height="11" />
-      <rect x="0" y="3.5" width="10" height="2" />
-    </svg>
   );
 }

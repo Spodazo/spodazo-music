@@ -63,6 +63,8 @@ export type PlayerSetup = {
   collectionCoverUrl: string;
   logo: string;
   logoUrl: string;
+  footerImage: string;
+  footerImageUrl: string;
   collectionColor: string;
 };
 

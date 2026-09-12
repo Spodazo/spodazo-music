@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
+import SdgFooter from "../components/SdgFooter";
 import { fetchAlbums, fetchPlayerSetup } from "../lib/api";
 import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
@@ -110,13 +111,7 @@ export default function HomePage() {
             </span>
           ))}
         </p>
-        <div className="sdg sdg-sm">
-          <svg className="sdg-cross" viewBox="0 0 10 11" aria-hidden="true">
-            <rect x="4" y="0" width="2" height="11" />
-            <rect x="0" y="3.5" width="10" height="2" />
-          </svg>
-          Soli Deo Gloria
-        </div>
+        <SdgFooter imageUrl={setup.footerImageUrl} compact />
       </footer>
     </main>
   );

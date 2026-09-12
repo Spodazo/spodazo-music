@@ -828,6 +828,32 @@ button.t-play-icon {
   color: var(--amber);
 }
 .sdg-cross { width: 10px; height: 11px; fill: currentColor; flex: none; }
+.footer-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 10px;
+}
+.site-footer:has(.footer-image) {
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+.site-footer:has(.footer-image) .copyright {
+  padding: 0 32px;
+}
+.home-foot .footer-image {
+  width: calc(100% + 64px);
+  max-width: none;
+  margin-left: -32px;
+  margin-right: -32px;
+}
+.lyrics-static .footer-image {
+  width: calc(100% + 48px);
+  max-width: none;
+  margin-left: -24px;
+  margin-right: -24px;
+}
 
 /* ── PLAYER MODAL (right rail) ── */
 .modal {
@@ -841,14 +867,39 @@ button.t-play-icon {
 }
 .modal.open { display: flex; flex-direction: column; }
 .modal-card {
+  position: relative;
   width: 100%;
   height: 100%;
   background: linear-gradient(170deg, #14202e 0%, #0e161f 100%);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
+}
+.modal-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.modal-card.has-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(8, 12, 18, 0.28) 0%, rgba(8, 12, 18, 0.58) 40%, rgba(8, 12, 18, 0.86) 100%);
+}
+.modal-card > *:not(.modal-bg) {
+  position: relative;
+  z-index: 1;
 }
 .modal-head {
   display: flex;
@@ -1263,6 +1314,15 @@ button.t-play-icon {
 .setup-logo-preview {
   width: 200px;
   max-height: 80px;
+  object-fit: contain;
+  display: block;
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  background: var(--input);
+}
+.setup-footer-preview {
+  width: 100%;
+  max-height: 160px;
   object-fit: contain;
   display: block;
   margin: 0 0 8px;
@@ -1777,6 +1837,7 @@ button.t-play-icon {
   .t-title { font-size: 0.78rem; white-space: normal; }
   .t-subtitle { font-size: 0.58rem; }
   .site-footer { padding: 10px 12px; }
+  .site-footer:has(.footer-image) .copyright { padding: 0 12px; }
   .hero-thumb { width: 76px; height: 76px; }
   .layout.player-open { padding-right: 0; }
   .modal { width: 100%; left: 0; right: 0; }
@@ -1784,6 +1845,11 @@ button.t-play-icon {
   .modal-head { padding: 14px 18px 12px; }
   .transport { padding: 4px 18px 10px; }
   .lyrics-static { padding: 0 18px 20px; }
+  .lyrics-static .footer-image {
+    width: calc(100% + 36px);
+    margin-left: -18px;
+    margin-right: -18px;
+  }
   .lyrics-scroll { padding: 0 16px 16px; }
   .vol-wrap { padding: 0 18px 4px; }
   .row-2 { grid-template-columns: 1fr; }
@@ -1794,6 +1860,11 @@ button.t-play-icon {
     padding-top: env(safe-area-inset-top);
     padding-left: 16px;
     padding-right: 16px;
+  }
+  .home-foot .footer-image {
+    width: calc(100% + 32px);
+    margin-left: -16px;
+    margin-right: -16px;
   }
   .home-brand {
     box-sizing: border-box;
