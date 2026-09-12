@@ -835,6 +835,10 @@ button.t-play-icon {
   height: auto;
   margin: 10px auto 0;
 }
+.site-footer .footer-image,
+.lyrics-static .footer-image {
+  width: 20%;
+}
 
 /* ── PLAYER MODAL (right rail) ── */
 .modal {
