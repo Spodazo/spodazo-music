@@ -276,10 +276,7 @@ export function registerRoutes(app: Express): void {
       return;
     }
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
-    if (files?.thumb?.[0]) {
-      fields.thumb = files.thumb[0].filename;
-      if (!files?.hero?.[0]) fields.heroPortrait = files.thumb[0].filename;
-    }
+    if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
     if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
     const created = await store.createAlbum(fields);
     res.status(201).json(await store.getAlbumById(created.id));
@@ -294,10 +291,7 @@ export function registerRoutes(app: Express): void {
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const fields = albumFields(req.body, true);
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
-    if (files?.thumb?.[0]) {
-      fields.thumb = files.thumb[0].filename;
-      if (!files?.hero?.[0]) fields.heroPortrait = files.thumb[0].filename;
-    }
+    if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
     if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
     const updated = await store.updateAlbum(req.params.id, fields);
     if (!updated) {

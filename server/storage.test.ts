@@ -24,6 +24,9 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(byId?.file, echoes.tracks[0].file);
   assert.match(echoes.tracks[0].audioUrl, /^\/media\/songs\//);
   assert.match(echoes.heroUrl, /^\/media\/images\//);
+  assert.match(echoes.thumbUrl, /Echoes%20of%20Storms\.webp/);
+  assert.match(echoes.heroUrl, /Web%20Portrait/);
+  assert.notEqual(echoes.heroUrl, echoes.thumbUrl);
   assert.equal(echoes.copyright, SITE_COPYRIGHT);
 
   const album = await store.createAlbum({

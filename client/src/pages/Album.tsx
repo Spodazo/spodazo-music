@@ -79,6 +79,7 @@ export default function AlbumPage() {
   const [repeatAll, setRepeatAll] = useState(false);
   const [repeatOne, setRepeatOne] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
+  const [portraitFailed, setPortraitFailed] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
@@ -128,6 +129,21 @@ export default function AlbumPage() {
     [album, durations],
   );
   const introduction = track ? introductionBody(track.introduction) : "";
+  const hasOwnBackground = Boolean(album?.heroPortrait && album.heroPortrait !== album.thumb);
+  const backgroundUrl = hasOwnBackground && album ? album.heroUrl : "";
+  const albumCoverUrl = album?.thumbUrl || (!backgroundUrl ? album?.heroUrl || "" : "");
+  const songCoverUrl = playing && track?.imageUrl && portraitFailed !== track.imageUrl ? track.imageUrl : "";
+  const coverUrl = songCoverUrl || albumCoverUrl;
+  const coverAlt =
+    songCoverUrl && track
+      ? `${track.title}${track.scripture ? ` — ${track.scripture}` : ""}`
+      : album
+        ? `${album.title} — ${album.artists}`
+        : "";
+
+  useEffect(() => {
+    setPortraitFailed("");
+  }, [track?.id, playing]);
 
   useEffect(() => {
     albumRef.current = album;
@@ -508,10 +524,23 @@ export default function AlbumPage() {
       ) : (
     <div className="layout">
       <AdminLoginLink />
-      <aside className="portrait-panel">
+      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
         <AlbumsBack className="albums-back-on-art" />
-        {(album.thumbUrl || album.heroUrl) ? (
-          <img className="portrait-img" src={album.thumbUrl || album.heroUrl} alt={`${album.title} — ${album.artists}`} fetchPriority="low" decoding="async" />
+        {backgroundUrl ? (
+          <img className="portrait-bg" src={backgroundUrl} alt="" fetchPriority="low" decoding="async" />
+        ) : null}
+        {coverUrl ? (
+          <img
+            className="portrait-img"
+            key={coverUrl}
+            src={coverUrl}
+            alt={coverAlt}
+            fetchPriority="low"
+            decoding="async"
+            onError={() => {
+              if (coverUrl) setPortraitFailed(coverUrl);
+            }}
+          />
         ) : null}
       </aside>
       <section className="track-panel">

@@ -1000,6 +1000,7 @@ function AlbumSetupForm({
         }
       }}
     >
+      <CoverField label="Album Background" name="hero" currentUrl={album.heroUrl} />
       <CoverField label="Album Cover" name="thumb" currentUrl={album.thumbUrl} />
       <ColorField
         label="Album Color"
@@ -1079,7 +1080,7 @@ function AlbumForm({
       </div>
       <div className="row-2">
         <div>
-          <label>Hero portrait</label>
+          <label>Album Background</label>
           <input name="hero" type="file" accept="image/*" />
         </div>
         <div>
