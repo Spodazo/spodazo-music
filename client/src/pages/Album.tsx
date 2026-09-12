@@ -530,17 +530,19 @@ export default function AlbumPage() {
           <img className="portrait-bg" src={backgroundUrl} alt="" fetchPriority="low" decoding="async" />
         ) : null}
         {coverUrl ? (
-          <img
-            className="portrait-img"
-            key={coverUrl}
-            src={coverUrl}
-            alt={coverAlt}
-            fetchPriority="low"
-            decoding="async"
-            onError={() => {
-              if (coverUrl) setPortraitFailed(coverUrl);
-            }}
-          />
+          <div className="portrait-cover">
+            <img
+              className="portrait-img"
+              key={coverUrl}
+              src={coverUrl}
+              alt={coverAlt}
+              fetchPriority="low"
+              decoding="async"
+              onError={() => {
+                if (coverUrl) setPortraitFailed(coverUrl);
+              }}
+            />
+          </div>
         ) : null}
       </aside>
       <section className="track-panel">

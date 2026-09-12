@@ -287,7 +287,7 @@ a { color: inherit; }
 }
 .album-card-art.has-bg .album-card-cover {
   width: 70%;
-  height: auto;
+  height: 70%;
   aspect-ratio: 1;
   object-fit: cover;
   filter:
@@ -325,6 +325,12 @@ a { color: inherit; }
   align-items: center;
   justify-content: center;
 }
+.portrait-panel.has-bg {
+  flex: 0 0 58%;
+  width: 58%;
+  max-width: 58%;
+  container-type: size;
+}
 .portrait-bg {
   position: absolute;
   inset: 0;
@@ -341,6 +347,15 @@ a { color: inherit; }
   pointer-events: none;
   background: radial-gradient(circle at center, transparent 32%, rgba(0, 0, 0, 0.28) 100%);
 }
+.portrait-cover {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
 .portrait-img {
   position: relative;
   z-index: 1;
@@ -351,16 +366,22 @@ a { color: inherit; }
   display: block;
   animation: portrait-swap 0.4s ease;
 }
-.portrait-panel.has-bg .portrait-img {
-  width: 70%;
-  max-width: 70%;
-  height: auto;
+.portrait-panel.has-bg .portrait-cover {
+  width: min(70cqw, 70cqh);
+  height: min(70cqw, 70cqh);
+  max-width: none;
   max-height: none;
   aspect-ratio: 1;
-  object-fit: cover;
   filter:
     drop-shadow(0 16px 24px rgba(0, 0, 0, 0.55))
     drop-shadow(0 0 18px color-mix(in srgb, #f4ecd8 34%, transparent));
+}
+.portrait-panel.has-bg .portrait-img {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
   box-shadow:
     0 0 0 1px color-mix(in srgb, #f4ecd8 30%, transparent),
     0 0 36px color-mix(in srgb, var(--amber) 28%, transparent);
@@ -1652,6 +1673,9 @@ button.m-cover.enlarged {
   }
   .portrait-img { width: 100%; height: auto; max-height: none; }
   .portrait-panel.has-bg {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 100%;
     overflow: hidden;
   }
   .portrait-panel.has-bg .portrait-bg {
@@ -1659,16 +1683,18 @@ button.m-cover.enlarged {
     width: 100%;
     height: auto;
   }
-  .portrait-panel.has-bg .portrait-img {
+  .portrait-panel.has-bg {
+    container-type: size;
+  }
+  .portrait-panel.has-bg .portrait-cover {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 70%;
-    height: auto;
-    max-width: 70%;
+    width: min(70cqw, 70cqh);
+    height: min(70cqw, 70cqh);
+    max-width: none;
     max-height: none;
     aspect-ratio: 1;
-    object-fit: cover;
     transform: translate(-50%, -50%);
   }
   .track-panel { flex: 1; overflow: visible; }
