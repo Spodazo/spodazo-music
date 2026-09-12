@@ -76,16 +76,28 @@ export default function HomePage() {
           <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} />
         ) : null}
         <div className="album-grid">
-          {albums.map((album) => (
-            <Link key={album.id} href={`/${album.slug}`} className="album-card">
-              {album.thumbUrl ? <img src={album.thumbUrl} alt={album.title} /> : <div style={{ aspectRatio: "1", background: "var(--bg3)" }} />}
-              <div className="album-card-body">
-                <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
-                <p>{album.artists || album.tagline}</p>
-                <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
-              </div>
-            </Link>
-          ))}
+          {albums.map((album) => {
+            const hasOwnBackground = Boolean(album.heroPortrait && album.heroPortrait !== album.thumb);
+            const backgroundUrl = hasOwnBackground ? album.heroUrl : "";
+            const coverUrl = album.thumbUrl || (!backgroundUrl ? album.heroUrl : "");
+            return (
+              <Link key={album.id} href={`/${album.slug}`} className="album-card">
+                <div className={`album-card-art${backgroundUrl ? " has-bg" : ""}`}>
+                  {backgroundUrl ? <img className="album-card-bg" src={backgroundUrl} alt="" /> : null}
+                  {coverUrl ? (
+                    <img className="album-card-cover" src={coverUrl} alt={album.title} />
+                  ) : (
+                    <div className="album-card-empty" />
+                  )}
+                </div>
+                <div className="album-card-body">
+                  <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
+                  <p>{album.artists || album.tagline}</p>
+                  <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
       <footer className="home-foot">
