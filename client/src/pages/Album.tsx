@@ -179,7 +179,7 @@ export default function AlbumPage() {
       setBaseCover(nextCover);
       setNextCover(null);
       setNextReady(false);
-    }, 500);
+    }, 1400);
     return () => window.clearTimeout(timer);
   }, [nextReady, nextCover]);
 
@@ -573,48 +573,50 @@ export default function AlbumPage() {
       <AdminLoginLink />
       <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
         <AlbumsBack className="albums-back-on-art" />
-        {backgroundUrl ? (
-          <img className="portrait-bg" src={backgroundUrl} alt="" fetchPriority="low" decoding="async" />
-        ) : null}
-        {baseCover.url ? (
-          <div className="portrait-cover">
-            <img
-              className="portrait-img"
-              src={baseCover.url}
-              alt={baseCover.alt}
-              fetchPriority="low"
-              decoding="async"
-              onError={() => {
-                if (baseCover.url) setPortraitFailed(baseCover.url);
-              }}
-            />
-            {nextCover ? (
+        <div className="portrait-stage">
+          {backgroundUrl ? (
+            <img className="portrait-bg" src={backgroundUrl} alt="" fetchPriority="low" decoding="async" />
+          ) : null}
+          {baseCover.url ? (
+            <div className="portrait-cover">
               <img
-                className={`portrait-img incoming${nextReady ? " ready" : ""}`}
-                src={nextCover.url}
-                alt={nextCover.alt}
+                className="portrait-img"
+                src={baseCover.url}
+                alt={baseCover.alt}
                 fetchPriority="low"
                 decoding="async"
-                onLoad={() => {
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => setNextReady(true));
-                  });
-                }}
                 onError={() => {
-                  setPortraitFailed(nextCover.url);
-                  setNextCover(null);
-                  setNextReady(false);
-                }}
-                onTransitionEnd={(event) => {
-                  if (event.propertyName !== "opacity" || !nextReady || !nextCover) return;
-                  setBaseCover(nextCover);
-                  setNextCover(null);
-                  setNextReady(false);
+                  if (baseCover.url) setPortraitFailed(baseCover.url);
                 }}
               />
-            ) : null}
-          </div>
-        ) : null}
+              {nextCover ? (
+                <img
+                  className={`portrait-img incoming${nextReady ? " ready" : ""}`}
+                  src={nextCover.url}
+                  alt={nextCover.alt}
+                  fetchPriority="low"
+                  decoding="async"
+                  onLoad={() => {
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(() => setNextReady(true));
+                    });
+                  }}
+                  onError={() => {
+                    setPortraitFailed(nextCover.url);
+                    setNextCover(null);
+                    setNextReady(false);
+                  }}
+                  onTransitionEnd={(event) => {
+                    if (event.propertyName !== "opacity" || !nextReady || !nextCover) return;
+                    setBaseCover(nextCover);
+                    setNextCover(null);
+                    setNextReady(false);
+                  }}
+                />
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </aside>
       <section className="track-panel">
         <div className="album-head">
