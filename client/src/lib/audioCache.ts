@@ -1,12 +1,18 @@
 /** Safari/PWA playback helpers. Do not prefetch or play from blob URLs — that scratches MP3s. */
 
 export const HAVE_CURRENT_DATA = 2;
-/** Skip the Xing/encoder-delay frame Safari otherwise plays as a scratch. */
+/** First MPEG/Xing frames Safari otherwise plays as a scratch. */
 export const START_OFFSET = 0.05;
+
+let playGen = 0;
+
+export function isResumeTime(time: number): boolean {
+  return time > 0.15 && Number.isFinite(time);
+}
 
 export function mediaUrl(url: string, time = 0): string {
   const base = url.split("#")[0];
-  if (time > 0.15 && Number.isFinite(time)) return `${base}#t=${time.toFixed(2)}`;
+  if (isResumeTime(time)) return `${base}#t=${time.toFixed(2)}`;
   return base;
 }
 
@@ -34,33 +40,64 @@ export function assignSrc(audio: HTMLAudioElement, url: string, time = 0, force 
     }
   } else {
     audio.removeAttribute("src");
-    audio.load();
   }
   audio.src = next;
-  audio.load();
+  if (force) audio.load();
 }
 
-export function playSong(audio: HTMLAudioElement, url: string, time = 0, forceReload = false): Promise<void> {
-  const resume = time > 0.15;
-  const dead = forceReload || pipelineIsDead(audio) || !sameSong(audio, url);
+function fadeVolume(audio: HTMLAudioElement, target: number, ms: number, gen: number) {
+  const from = audio.volume;
+  const started = performance.now();
+  const step = (now: number) => {
+    if (gen !== playGen || audio.paused) return;
+    const p = Math.min(1, (now - started) / ms);
+    audio.volume = from + (target - from) * p;
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume: number, gen: number) {
+  await waitForAudible(audio, START_OFFSET, 2500);
+  if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
+  if (audio.currentTime < START_OFFSET) return;
+  fadeVolume(audio, targetVolume, 50, gen);
+}
+
+export function playSong(
+  audio: HTMLAudioElement,
+  url: string,
+  time = 0,
+  forceReload = false,
+  targetVolume = 1,
+): Promise<void> {
+  const gen = ++playGen;
+  const resume = isResumeTime(time);
+  const dead = forceReload || !sameSong(audio, url);
   if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
-  const play = audio.play().then(() => undefined);
-  const skipTo = time >= START_OFFSET ? time : 0;
-  if (skipTo) {
-    const fix = () => {
-      if (!sameSong(audio, url)) return;
-      if (audio.currentTime < skipTo - 0.02) {
-        try {
-          audio.currentTime = skipTo;
-        } catch {
-          /* Safari may still be opening the file */
+
+  if (resume) {
+    audio.volume = targetVolume;
+    if (dead) {
+      const fix = () => {
+        if (gen !== playGen || !sameSong(audio, url)) return;
+        if (audio.currentTime < time - 0.02) {
+          try {
+            audio.currentTime = time;
+          } catch {
+            /* Safari may still be opening the file */
+          }
         }
-      }
-    };
-    audio.addEventListener("loadedmetadata", fix, { once: true });
-    audio.addEventListener("playing", fix, { once: true });
+      };
+      audio.addEventListener("loadedmetadata", fix, { once: true });
+    }
+    return audio.play().then(() => undefined);
   }
-  return play;
+
+  audio.volume = 0;
+  return audio.play().then(() => {
+    void openStartGate(audio, url, targetVolume, gen);
+  });
 }
 
 export async function dropLegacyAudioCaches(): Promise<void> {
@@ -82,43 +119,8 @@ export function setPlaybackSession() {
   }
 }
 
-const SILENT_WAV =
-  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
-
-let unlocked = false;
-
 export function unlockAudio() {
   setPlaybackSession();
-  if (unlocked) return;
-  unlocked = true;
-  try {
-    const Ctor =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (Ctor) {
-      const ctx = new Ctor({ sampleRate: 48000 });
-      const rate = ctx.sampleRate || 48000;
-      const buffer = ctx.createBuffer(2, Math.max(1, Math.floor(rate * 0.16)), rate);
-      const src = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      gain.gain.value = 0.0001;
-      src.buffer = buffer;
-      src.connect(gain);
-      gain.connect(ctx.destination);
-      void ctx.resume();
-      src.start();
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    const tick = new Audio(SILENT_WAV);
-    tick.setAttribute("playsinline", "true");
-    tick.volume = 0.01;
-    void tick.play().then(() => tick.pause()).catch(() => undefined);
-  } catch {
-    /* ignore */
-  }
 }
 
 export function waitForAudible(audio: HTMLAudioElement, minTime: number, timeoutMs = 1500): Promise<void> {
@@ -126,6 +128,7 @@ export function waitForAudible(audio: HTMLAudioElement, minTime: number, timeout
   return new Promise((resolve) => {
     const finish = () => {
       audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("playing", onTime);
       window.clearTimeout(timer);
       resolve();
     };
@@ -134,5 +137,6 @@ export function waitForAudible(audio: HTMLAudioElement, minTime: number, timeout
     };
     const timer = window.setTimeout(finish, timeoutMs);
     audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("playing", onTime);
   });
 }

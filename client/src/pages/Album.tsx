@@ -246,8 +246,8 @@ export default function AlbumPage() {
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
     unlockAudio();
-    audio.volume = userVolRef.current;
-    return playSong(audio, url, START_OFFSET, true);
+    const force = Boolean(audio.src) && pipelineIsDead(audio);
+    return playSong(audio, url, 0, force, userVolRef.current);
   }
 
   function warm() {

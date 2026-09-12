@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { HAVE_CURRENT_DATA, mediaUrl, pipelineIsDead, waitForAudible } from "./audioCache";
+import { HAVE_CURRENT_DATA, isResumeTime, mediaUrl, pipelineIsDead, waitForAudible } from "./audioCache";
 
 test("mediaUrl only adds a start fragment when resuming mid-song", () => {
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4"), "/media/songs/a.mp3?v=4");
@@ -9,7 +9,13 @@ test("mediaUrl only adds a start fragment when resuming mid-song", () => {
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4", 45.2), "/media/songs/a.mp3?v=4#t=45.20");
 });
 
-test("waitForAudible resolves immediately when the playhead is already past the glitch", async () => {
+test("a song start is not treated as a mid-song resume", () => {
+  assert.equal(isResumeTime(0), false);
+  assert.equal(isResumeTime(0.05), false);
+  assert.equal(isResumeTime(12), true);
+});
+
+test("waitForAudible resolves immediately when the playhead is already past the header", async () => {
   await waitForAudible({ currentTime: 0.4, addEventListener() {}, removeEventListener() {} } as unknown as HTMLAudioElement, 0.22);
 });
 

@@ -59,11 +59,10 @@ function useAdminPlayer() {
     resumeTimeRef.current = 0;
     if (audio.dataset.trackId !== track.id) {
       audio.dataset.trackId = track.id;
-      assignSrc(audio, track.audioUrl);
       setCurrentTime(0);
       setDuration(0);
     }
-    void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    void playSong(audio, track.audioUrl, 0, false).then(() => setPlaying(true)).catch(() => setPlaying(false));
   }
 
   function warmTrack(track: PublicTrack) {
