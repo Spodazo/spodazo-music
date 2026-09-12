@@ -80,6 +80,9 @@ export default function AlbumPage() {
   const [repeatOne, setRepeatOne] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [portraitFailed, setPortraitFailed] = useState("");
+  const [baseCover, setBaseCover] = useState({ url: "", alt: "" });
+  const [nextCover, setNextCover] = useState<{ url: string; alt: string } | null>(null);
+  const [nextReady, setNextReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wakeRef = useRef<WakeLockSentinel | null>(null);
   const albumRef = useRef<PublicAlbum | null>(null);
@@ -144,6 +147,41 @@ export default function AlbumPage() {
   useEffect(() => {
     setPortraitFailed("");
   }, [track?.id, playing]);
+
+  useEffect(() => {
+    if (!album) return;
+    for (const item of album.tracks) {
+      if (!item.imageUrl) continue;
+      const preload = new Image();
+      preload.src = item.imageUrl;
+    }
+  }, [album]);
+
+  useEffect(() => {
+    if (!coverUrl) return;
+    if (!baseCover.url) {
+      setBaseCover({ url: coverUrl, alt: coverAlt });
+      return;
+    }
+    if (coverUrl === baseCover.url) {
+      setNextCover(null);
+      setNextReady(false);
+      return;
+    }
+    if (coverUrl === nextCover?.url) return;
+    setNextReady(false);
+    setNextCover({ url: coverUrl, alt: coverAlt });
+  }, [coverUrl, coverAlt, baseCover.url, nextCover?.url]);
+
+  useEffect(() => {
+    if (!nextReady || !nextCover) return;
+    const timer = window.setTimeout(() => {
+      setBaseCover(nextCover);
+      setNextCover(null);
+      setNextReady(false);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [nextReady, nextCover]);
 
   useEffect(() => {
     albumRef.current = album;
@@ -234,8 +272,17 @@ export default function AlbumPage() {
   }
 
   function openAt(index: number, autoplay: boolean) {
-    playAt(index, autoplay);
+    const sameSong = active === index && Boolean(currentUrlRef.current);
+    if (!sameSong) playAt(index, autoplay);
     setModalOpen(true);
+    if (sameSong) {
+      const next = albumRef.current?.tracks[index];
+      if (next) {
+        window.setTimeout(() => {
+          history.replaceState(null, "", `#${next.slug}`);
+        }, 250);
+      }
+    }
   }
 
   function closeModal() {
@@ -522,26 +569,50 @@ export default function AlbumPage() {
       ) : !album ? (
         <main className="home"><AdminLoginLink /><AlbumsBack /><p>Loading…</p></main>
       ) : (
-    <div className="layout">
+    <div className={`layout${modalOpen ? " player-open" : ""}`}>
       <AdminLoginLink />
       <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
         <AlbumsBack className="albums-back-on-art" />
         {backgroundUrl ? (
           <img className="portrait-bg" src={backgroundUrl} alt="" fetchPriority="low" decoding="async" />
         ) : null}
-        {coverUrl ? (
+        {baseCover.url ? (
           <div className="portrait-cover">
             <img
               className="portrait-img"
-              key={coverUrl}
-              src={coverUrl}
-              alt={coverAlt}
+              src={baseCover.url}
+              alt={baseCover.alt}
               fetchPriority="low"
               decoding="async"
               onError={() => {
-                if (coverUrl) setPortraitFailed(coverUrl);
+                if (baseCover.url) setPortraitFailed(baseCover.url);
               }}
             />
+            {nextCover ? (
+              <img
+                className={`portrait-img incoming${nextReady ? " ready" : ""}`}
+                src={nextCover.url}
+                alt={nextCover.alt}
+                fetchPriority="low"
+                decoding="async"
+                onLoad={() => {
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => setNextReady(true));
+                  });
+                }}
+                onError={() => {
+                  setPortraitFailed(nextCover.url);
+                  setNextCover(null);
+                  setNextReady(false);
+                }}
+                onTransitionEnd={(event) => {
+                  if (event.propertyName !== "opacity" || !nextReady || !nextCover) return;
+                  setBaseCover(nextCover);
+                  setNextCover(null);
+                  setNextReady(false);
+                }}
+              />
+            ) : null}
           </div>
         ) : null}
       </aside>
