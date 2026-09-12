@@ -1335,8 +1335,10 @@ button.t-play-icon {
   background: var(--input);
   color: var(--text);
   border: 1px solid var(--border);
-  padding: 10px;
-  font-size: 1.2em;
+  padding: 9px 11px;
+  font-size: 15px;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
 }
 .admin input[type="checkbox"] {
   width: auto;
