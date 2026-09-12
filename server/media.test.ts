@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import test from "node:test";
-import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, formatDuration, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, prepareMp3, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -22,11 +22,18 @@ test("media urls stay on this app", () => {
   const v = assetVersion();
   assert.equal(imageUrl("Echoes of the Storm.webp"), `/media/images/Echoes%20of%20the%20Storm.webp?v=${v}`);
   assert.equal(
+    imageUrl("Echoes of the Storm.webp", HOME_CARD_WIDTH),
+    `/media/images/Echoes%20of%20the%20Storm.webp?v=${v}&w=${HOME_CARD_WIDTH}`,
+  );
+  assert.equal(imageUrl("Echoes of the Storm.webp", 99), `/media/images/Echoes%20of%20the%20Storm.webp?v=${v}`);
+  assert.equal(
     audioUrl("Echoes of the Storm (Job 5).mp3"),
     `/media/songs/Echoes%20of%20the%20Storm%20(Job%205).mp3?v=${v}`,
   );
   assert.equal(imageUrl(""), "");
   assert.equal(audioUrl(""), "");
+  assert.equal(parseImageWidth("720"), 720);
+  assert.equal(parseImageWidth("99"), undefined);
 });
 
 test("trackDownloadName keeps the live MP3 filename", () => {
@@ -177,6 +184,25 @@ test("shouldConvertImageUpload matches album and song artwork", () => {
   assert.equal(shouldConvertImageUpload({ fieldname: "thumb", mimetype: "image/png", originalname: "Cover.png" }), true);
   assert.equal(shouldConvertImageUpload({ fieldname: "artwork", mimetype: "application/octet-stream", originalname: "Song.tif" }), true);
   assert.equal(shouldConvertImageUpload({ fieldname: "audio", mimetype: "audio/mpeg", originalname: "Song.mp3" }), false);
+});
+
+test("preparedImagePath writes a card-sized WebP once", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-thumbs-"));
+  process.env.MUSIC_DATA_DIR = dir;
+  const source = path.join(dir, "Cover.webp");
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  fs.writeFileSync(path.join(dir, "Cover.png"), png);
+  const name = await convertUploadedImage("Cover.png", dir);
+  const full = path.join(dir, name);
+  const first = await preparedImagePath(full, HOME_CARD_WIDTH);
+  const second = await preparedImagePath(full, HOME_CARD_WIDTH);
+  assert.equal(first, second);
+  assert.notEqual(first, full);
+  const webp = fs.readFileSync(first);
+  assert.equal(webp.subarray(0, 4).toString("ascii"), "RIFF");
 });
 
 test("convertUploadedImage stores album art as WebP", async () => {

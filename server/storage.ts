@@ -6,7 +6,7 @@ import { albums, curator, playerSetup, tracks } from "../shared/schema";
 import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, seedLyricsForTrack } from "../shared/seed-data";
 import { normalizePaletteId } from "../shared/palettes";
 import type { Album, AlbumListItem, Curator, CuratorRecord, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
-import { audioUrl, durationLabelForFile, imageUrl } from "./media";
+import { audioUrl, durationLabelForFile, HOME_CARD_WIDTH, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
 
 export type AlbumInput = {
@@ -99,8 +99,8 @@ function toListItem(album: Album, trackCount: number): AlbumListItem {
   return {
     ...album,
     color: normalizePaletteId(album.color),
-    heroUrl: imageUrl(album.heroPortrait),
-    thumbUrl: imageUrl(album.thumb || album.heroPortrait),
+    heroUrl: imageUrl(album.heroPortrait, HOME_CARD_WIDTH),
+    thumbUrl: imageUrl(album.thumb || album.heroPortrait, HOME_CARD_WIDTH),
     trackCount,
   };
 }

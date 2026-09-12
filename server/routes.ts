@@ -6,7 +6,7 @@ import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
-import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName } from "./media";
+import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, parseImageWidth, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
@@ -450,14 +450,25 @@ export function registerRoutes(app: Express): void {
     res.json(await store.listAlbums());
   });
 
-  app.get("/media/images/:file", (req, res) => {
+  app.get("/media/images/:file", async (req, res) => {
     const file = path.basename(decodeURIComponent(req.params.file));
     const full = path.join(imagesDir(), file);
     if (!fs.existsSync(full)) {
       res.status(404).end();
       return;
     }
-    res.sendFile(full);
+    const width = parseImageWidth(req.query.w);
+    try {
+      const filePath = await preparedImagePath(full, width);
+      res.sendFile(filePath, {
+        headers: {
+          "Cache-Control": "public, max-age=31536000, immutable, no-transform",
+        },
+      });
+    } catch (err) {
+      console.error("[media] could not resize", file, err);
+      res.sendFile(full);
+    }
   });
 
   app.get("/media/songs/:file", (req, res) => {

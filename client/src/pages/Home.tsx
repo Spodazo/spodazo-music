@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import SdgFooter from "../components/SdgFooter";
 import { fetchAlbums, fetchPlayerSetup } from "../lib/api";
+import { readCachedAlbums, writeCachedAlbums } from "../lib/homeCache";
 import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { applyPalette } from "../lib/palette";
@@ -39,15 +40,78 @@ function useFitOneLine(text: string) {
   return ref;
 }
 
+function useDecodedImage(src: string, priority = false) {
+  const [ready, setReady] = useState(!src);
+
+  useEffect(() => {
+    if (!src) {
+      setReady(true);
+      return;
+    }
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      setReady(true);
+    };
+    setReady(false);
+    const image = new Image();
+    if (priority) image.fetchPriority = "high";
+    image.decoding = "async";
+    image.onload = done;
+    image.onerror = done;
+    image.src = src;
+    if (image.complete && image.naturalWidth) done();
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [src, priority]);
+
+  return ready;
+}
+
+function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolean }) {
+  const hasOwnBackground = Boolean(album.heroPortrait && album.heroPortrait !== album.thumb);
+  const backgroundUrl = hasOwnBackground ? album.heroUrl : "";
+  const coverUrl = album.thumbUrl || (!backgroundUrl ? album.heroUrl : "");
+  const bgReady = useDecodedImage(backgroundUrl, priority);
+  const coverReady = useDecodedImage(coverUrl, priority);
+  const ready = bgReady && coverReady;
+
+  return (
+    <Link href={`/${album.slug}`} className="album-card">
+      <div className={`album-card-art${backgroundUrl ? " has-bg" : ""}${ready ? " is-ready" : ""}`}>
+        {ready && backgroundUrl ? (
+          <img className="album-card-bg" src={backgroundUrl} alt="" decoding="async" />
+        ) : null}
+        {ready && coverUrl ? (
+          <img className="album-card-cover" src={coverUrl} alt={album.title} decoding="async" />
+        ) : !coverUrl ? (
+          <div className="album-card-empty" />
+        ) : null}
+      </div>
+      <div className="album-card-body">
+        <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
+        <p>{album.artists || album.tagline}</p>
+        <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
+      </div>
+    </Link>
+  );
+}
+
 export default function HomePage() {
-  const [albums, setAlbums] = useState<AlbumListItem[]>([]);
+  const [albums, setAlbums] = useState<AlbumListItem[]>(() => readCachedAlbums());
   const [setup, setSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
   const [error, setError] = useState("");
   const themeRef = useFitOneLine(setup.theme);
 
   useEffect(() => {
     fetchAlbums()
-      .then(setAlbums)
+      .then((next) => {
+        writeCachedAlbums(next);
+        setAlbums(next);
+      })
       .catch((err: Error) => setError(err.message));
     fetchPlayerSetup()
       .then((next) => {
@@ -63,7 +127,7 @@ export default function HomePage() {
       <AdminLoginLink />
       <div className="home-brand">
         {setup.logoUrl ? (
-          <img className="home-logo" src={setup.logoUrl} alt={setup.appName} />
+          <img className="home-logo" src={setup.logoUrl} alt={setup.appName} decoding="async" fetchPriority="high" />
         ) : (
           <div className="home-logo home-logo-placeholder" aria-label={setup.appName}>
             Logo
@@ -74,31 +138,12 @@ export default function HomePage() {
       <div className="home-main">
         {error ? <p className="error">{error}</p> : null}
         {setup.collectionCoverUrl ? (
-          <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} />
+          <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} decoding="async" />
         ) : null}
         <div className="album-grid">
-          {albums.map((album) => {
-            const hasOwnBackground = Boolean(album.heroPortrait && album.heroPortrait !== album.thumb);
-            const backgroundUrl = hasOwnBackground ? album.heroUrl : "";
-            const coverUrl = album.thumbUrl || (!backgroundUrl ? album.heroUrl : "");
-            return (
-              <Link key={album.id} href={`/${album.slug}`} className="album-card">
-                <div className={`album-card-art${backgroundUrl ? " has-bg" : ""}`}>
-                  {backgroundUrl ? <img className="album-card-bg" src={backgroundUrl} alt="" /> : null}
-                  {coverUrl ? (
-                    <img className="album-card-cover" src={coverUrl} alt={album.title} />
-                  ) : (
-                    <div className="album-card-empty" />
-                  )}
-                </div>
-                <div className="album-card-body">
-                  <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
-                  <p>{album.artists || album.tagline}</p>
-                  <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
-                </div>
-              </Link>
-            );
-          })}
+          {albums.map((album, index) => (
+            <AlbumCard key={album.id} album={album} priority={index === 0} />
+          ))}
         </div>
       </div>
       <footer className="home-foot">

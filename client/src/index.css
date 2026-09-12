@@ -261,6 +261,12 @@ a { color: inherit; }
   align-items: center;
   justify-content: center;
 }
+.album-card-art img {
+  opacity: 0;
+}
+.album-card-art.is-ready img {
+  opacity: 1;
+}
 .album-card-bg {
   position: absolute;
   inset: 0;
@@ -1850,6 +1856,9 @@ button.t-play-icon {
     padding-top: env(safe-area-inset-top);
     padding-left: 16px;
     padding-right: 16px;
+  }
+  .home-foot .footer-image {
+    width: 24%;
   }
   .home-brand {
     box-sizing: border-box;

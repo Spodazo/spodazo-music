@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import { imagesDir, songsDir, uniqueFileName } from "./paths";
+import { dataDir, imagesDir, songsDir, uniqueFileName } from "./paths";
 
 function usableFile(full: string): string | null {
   if (!fs.existsSync(full)) return null;
@@ -23,9 +23,39 @@ export function assetVersion(): string {
   return process.env.BUILD_ID || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || "dev";
 }
 
-export function imageUrl(filename: string): string {
+export const HOME_CARD_WIDTH = 720;
+const IMAGE_WIDTHS = new Set([360, HOME_CARD_WIDTH, 1200]);
+
+export function imageUrl(filename: string, width?: number): string {
   if (!filename) return "";
-  return `/media/images/${encodeURIComponent(filename)}?v=${assetVersion()}`;
+  const params = new URLSearchParams({ v: assetVersion() });
+  if (width && IMAGE_WIDTHS.has(width)) params.set("w", String(width));
+  return `/media/images/${encodeURIComponent(filename)}?${params}`;
+}
+
+export function parseImageWidth(value: unknown): number | undefined {
+  const width = Number(value);
+  return IMAGE_WIDTHS.has(width) ? width : undefined;
+}
+
+export async function preparedImagePath(full: string, width?: number): Promise<string> {
+  if (!width || !fs.existsSync(full)) return full;
+  const thumbs = path.join(dataDir(), "image-thumbs");
+  fs.mkdirSync(thumbs, { recursive: true });
+  const stamp = Math.round(fs.statSync(full).mtimeMs);
+  const dest = path.join(
+    thumbs,
+    `${width}-${stamp}-${path.basename(full, path.extname(full))}.webp`,
+  );
+  if (fs.existsSync(dest) && fs.statSync(dest).size > 32) return dest;
+  const tmp = `${dest}.tmp`;
+  await sharp(full)
+    .rotate()
+    .resize(width, width, { fit: "inside", withoutEnlargement: true })
+    .webp({ quality: 78 })
+    .toFile(tmp);
+  fs.renameSync(tmp, dest);
+  return dest;
 }
 
 export function audioUrl(filename: string): string {

@@ -3,8 +3,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { watchAppUpdates } from "./lib/appUpdate";
 import { dropLegacyAudioCaches } from "./lib/audioCache";
+import { restorePalette } from "./lib/palette";
 import "./index.css";
 
+restorePalette();
 void dropLegacyAudioCaches();
 watchAppUpdates();
 
