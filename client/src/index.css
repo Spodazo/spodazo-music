@@ -831,29 +831,9 @@ button.t-play-icon {
 .sdg-cross { width: 10px; height: 11px; fill: currentColor; flex: none; }
 .footer-image {
   display: block;
-  width: 100%;
+  width: 10%;
   height: auto;
-  margin-top: 10px;
-}
-.site-footer:has(.footer-image) {
-  padding-left: 0;
-  padding-right: 0;
-  padding-bottom: 0;
-}
-.site-footer:has(.footer-image) .copyright {
-  padding: 0 32px;
-}
-.home-foot .footer-image {
-  width: calc(100% + 64px);
-  max-width: none;
-  margin-left: -32px;
-  margin-right: -32px;
-}
-.lyrics-static .footer-image {
-  width: calc(100% + 48px);
-  max-width: none;
-  margin-left: -24px;
-  margin-right: -24px;
+  margin: 10px auto 0;
 }
 
 /* ── PLAYER MODAL (right rail) ── */
@@ -1847,7 +1827,6 @@ button.t-play-icon {
   .t-title { font-size: 0.78rem; white-space: normal; }
   .t-subtitle { font-size: 0.58rem; }
   .site-footer { padding: 10px 12px; }
-  .site-footer:has(.footer-image) .copyright { padding: 0 12px; }
   .hero-thumb { width: 76px; height: 76px; }
   .layout.player-open { padding-right: 0; }
   .modal { width: 100%; left: 0; right: 0; }
@@ -1855,11 +1834,6 @@ button.t-play-icon {
   .modal-head { padding: 14px 18px 12px; }
   .transport { padding: 4px 18px 10px; }
   .lyrics-static { padding: 0 18px 20px; }
-  .lyrics-static .footer-image {
-    width: calc(100% + 36px);
-    margin-left: -18px;
-    margin-right: -18px;
-  }
   .lyrics-scroll { padding: 0 16px 16px; }
   .vol-wrap { padding: 0 18px 4px; }
   .row-2 { grid-template-columns: 1fr; }
@@ -1870,11 +1844,6 @@ button.t-play-icon {
     padding-top: env(safe-area-inset-top);
     padding-left: 16px;
     padding-right: 16px;
-  }
-  .home-foot .footer-image {
-    width: calc(100% + 32px);
-    margin-left: -16px;
-    margin-right: -16px;
   }
   .home-brand {
     box-sizing: border-box;
