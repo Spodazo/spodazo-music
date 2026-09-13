@@ -1,0 +1,30 @@
+---
+description: Safari/PWA MP3 playback — never prefetch, blob URLs, Xing-strip VBR, long opener mutes, or desktop gates. Apply when changing audio, player, songs, media, or homepage load speed.
+alwaysApply: true
+---
+
+# Safari MP3 playback (do not “improve”)
+
+Desktop was always fine. The mobile start-scratch is solved. Later speed or polish work must not reopen it.
+
+All playback goes through `playSong` / `unlockAudio` in `client/src/lib/audioCache.ts`. MP3 prep is `prepareMp3` in `server/media.ts`.
+
+## Required behavior
+
+- Desktop: play immediately at full volume. Do not attach `createMediaElementSource`. Do not mute or hold.
+- Mobile only (`isMobilePlayback`): GainNode at 0, `muted=true`, `play()`, wait `MOBILE_HEADER_HOLD_MS` (30), unmute, fade `MOBILE_HEADER_FADE_MS` (20). Hold + fade must stay ≤ 80ms.
+- Keep Xing on VBR (Echoes). Strip Xing only on CBR.
+- Stream the file URL. Do not prefetch bytes, Cache API audio, or blob/`createObjectURL` playback.
+
+## Never do again (each of these failed or cut the first note)
+
+- Play after a timeout (Safari drops the gesture)
+- Prefetch the first ~1.5MB (Safari caches a stub)
+- Blob URL or `spodazo-audio-*` Cache playback
+- Strip Xing from VBR
+- Seek to `START_OFFSET` after `play()`
+- Force 48 kHz `AudioContext` or unlock a different element
+- Rely on `audio.volume = 0` alone on iOS
+- Wait for `playing` + `currentTime` + a long fade (cuts music on desktop too)
+
+If a change needs both a playback tweak and a new approach, keep this contract and add a failing test first.

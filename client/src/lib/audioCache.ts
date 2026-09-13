@@ -1,10 +1,17 @@
-/** Safari/PWA playback helpers. Do not prefetch or play from blob URLs — that scratches MP3s. */
+/**
+ * Safari/PWA playback helpers.
+ * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
+ * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
+ */
 
 export const HAVE_CURRENT_DATA = 2;
 /** First MPEG/Xing frames Safari otherwise plays as a scratch. */
 export const START_OFFSET = 0.05;
 /** One MPEG/Xing frame plus encoder delay — do not wait longer or the first note is lost. */
 export const HEADER_HOLD = 0.05;
+/** Mobile opener only. Keep the sum with MOBILE_HEADER_FADE_MS at or under 80ms. */
+export const MOBILE_HEADER_HOLD_MS = 30;
+export const MOBILE_HEADER_FADE_MS = 20;
 
 let playGen = 0;
 let gateOpen = true;
@@ -134,11 +141,11 @@ function waitMs(ms: number): Promise<void> {
 }
 
 async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume: number, gen: number) {
-  await waitMs(30);
+  await waitMs(MOBILE_HEADER_HOLD_MS);
   if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
   audio.muted = false;
   gateOpen = true;
-  fadeOutput(audio, targetVolume, 20, gen);
+  fadeOutput(audio, targetVolume, MOBILE_HEADER_FADE_MS, gen);
 }
 
 export function playSong(
