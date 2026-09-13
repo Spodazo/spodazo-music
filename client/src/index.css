@@ -972,7 +972,18 @@ button.t-play-icon {
     0 0 0 1px color-mix(in srgb, #f4ecd8 30%, transparent),
     0 12px 28px rgba(0, 0, 0, 0.55);
 }
-.m-meta { min-width: 0; text-align: center; }
+.m-title-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: start;
+  width: 100%;
+  column-gap: 8px;
+}
+.m-meta {
+  grid-column: 2;
+  min-width: 0;
+  text-align: center;
+}
 .m-title {
   font-family: "Playfair Display", serif;
   font-weight: 600;
@@ -1200,19 +1211,20 @@ button.t-play-icon {
 }
 
 .btn-close {
-  position: absolute;
-  top: 14px;
-  right: 16px;
+  grid-column: 3;
+  justify-self: end;
+  align-self: start;
+  margin-top: 2px;
   background: transparent;
   border: none;
-  color: var(--muted);
+  color: var(--text);
   cursor: pointer;
-  opacity: 0.6;
-  padding: 4px;
+  opacity: 1;
+  padding: 6px;
   transition: opacity 0.2s;
 }
-.btn-close:hover { opacity: 1; }
-.btn-close svg { width: 20px; height: 20px; fill: currentColor; }
+.btn-close:hover { opacity: 0.75; }
+.btn-close svg { width: 22px; height: 22px; fill: currentColor; }
 
 .lightbox {
   position: fixed;
@@ -1993,8 +2005,11 @@ button.t-play-icon {
     padding: 0 0 12px;
     gap: 12px;
   }
+  .m-title-row {
+    padding: 0 10px 0 18px;
+  }
   .m-meta {
-    padding: 0 18px;
+    padding: 0;
   }
   .m-art,
   .m-art.has-bg {
@@ -2012,6 +2027,25 @@ button.t-play-icon {
   }
   .m-art:not(.has-bg) .m-cover {
     width: 80%;
+  }
+  .modal-card.cover-enlarged {
+    overflow: hidden;
+    border-radius: 0;
+  }
+  .modal-card.cover-enlarged .modal-head,
+  .modal-card.cover-enlarged .m-art {
+    overflow: hidden;
+  }
+  .modal-card.cover-enlarged .m-art {
+    display: block;
+    padding: 0;
+  }
+  .modal-card.cover-enlarged button.m-cover.enlarged {
+    transform: none;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 0;
   }
   .transport { padding: 4px 18px 10px; }
   .lyrics-static { padding: 0 18px 20px; }
