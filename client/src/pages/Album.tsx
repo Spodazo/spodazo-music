@@ -50,6 +50,56 @@ function AlbumsBack({ className = "" }: { className?: string }) {
   );
 }
 
+function CoverLayers({
+  imgClass,
+  base,
+  next,
+  nextReady,
+  onIncomingLoad,
+  onIncomingError,
+  onIncomingFaded,
+  onBaseError,
+}: {
+  imgClass: string;
+  base: { url: string; alt: string };
+  next: { url: string; alt: string } | null;
+  nextReady: boolean;
+  onIncomingLoad: () => void;
+  onIncomingError: () => void;
+  onIncomingFaded: () => void;
+  onBaseError: () => void;
+}) {
+  return (
+    <>
+      <img
+        key={base.url}
+        className={imgClass}
+        src={base.url}
+        alt={base.alt}
+        fetchPriority="low"
+        decoding="async"
+        onError={onBaseError}
+      />
+      {next ? (
+        <img
+          key={next.url}
+          className={`${imgClass} incoming${nextReady ? " ready" : ""}`}
+          src={next.url}
+          alt={next.alt}
+          fetchPriority="low"
+          decoding="async"
+          onLoad={onIncomingLoad}
+          onError={onIncomingError}
+          onAnimationEnd={(event) => {
+            if (event.animationName !== "cover-fade-in" || !nextReady) return;
+            onIncomingFaded();
+          }}
+        />
+      ) : null}
+    </>
+  );
+}
+
 function CopyrightLines({ text }: { text: string }) {
   const parts = copyrightLines(text);
   return (
@@ -591,41 +641,26 @@ export default function AlbumPage() {
           ) : null}
           {baseCover.url ? (
             <div className="portrait-cover">
-              <img
-                key={baseCover.url}
-                className="portrait-img"
-                src={baseCover.url}
-                alt={baseCover.alt}
-                fetchPriority="low"
-                decoding="async"
-                onError={() => {
+              <span className="cover-sizer" aria-hidden="true" />
+              <CoverLayers
+                imgClass="portrait-img"
+                base={baseCover}
+                next={nextCover}
+                nextReady={nextReady}
+                onIncomingLoad={() => setNextReady(true)}
+                onIncomingError={() => {
+                  if (!nextCover) return;
+                  setPortraitFailed(nextCover.url);
+                  setNextCover(null);
+                  setNextReady(false);
+                }}
+                onIncomingFaded={() => {
+                  if (nextCover) promoteCover(nextCover);
+                }}
+                onBaseError={() => {
                   if (baseCover.url) setPortraitFailed(baseCover.url);
                 }}
               />
-              {nextCover ? (
-                <img
-                  key={nextCover.url}
-                  className={`portrait-img incoming${nextReady ? " ready" : ""}`}
-                  src={nextCover.url}
-                  alt={nextCover.alt}
-                  fetchPriority="low"
-                  decoding="async"
-                  onLoad={() => {
-                    requestAnimationFrame(() => {
-                      requestAnimationFrame(() => setNextReady(true));
-                    });
-                  }}
-                  onError={() => {
-                    setPortraitFailed(nextCover.url);
-                    setNextCover(null);
-                    setNextReady(false);
-                  }}
-                  onTransitionEnd={(event) => {
-                    if (event.propertyName !== "opacity" || !nextReady) return;
-                    promoteCover(nextCover);
-                  }}
-                />
-              ) : null}
             </div>
           ) : null}
         </div>
@@ -718,14 +753,33 @@ export default function AlbumPage() {
                 {backgroundUrl ? (
                   <img className="m-art-bg" src={backgroundUrl} alt="" decoding="async" />
                 ) : null}
-                {track.imageUrl ? (
+                {baseCover.url ? (
                   <button
                     type="button"
                     className={`m-cover${enlargedCover === `player:${track.id}` ? " enlarged" : ""}`}
-                    style={{ backgroundImage: `url("${track.imageUrl}")` }}
                     aria-label={enlargedCover === `player:${track.id}` ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
                     onClick={() => setEnlargedCover((cur) => (cur === `player:${track.id}` ? null : `player:${track.id}`))}
-                  />
+                  >
+                    <CoverLayers
+                      imgClass="m-cover-layer"
+                      base={baseCover}
+                      next={nextCover}
+                      nextReady={nextReady}
+                      onIncomingLoad={() => setNextReady(true)}
+                      onIncomingError={() => {
+                        if (!nextCover) return;
+                        setPortraitFailed(nextCover.url);
+                        setNextCover(null);
+                        setNextReady(false);
+                      }}
+                      onIncomingFaded={() => {
+                        if (nextCover) promoteCover(nextCover);
+                      }}
+                      onBaseError={() => {
+                        if (baseCover.url) setPortraitFailed(baseCover.url);
+                      }}
+                    />
+                  </button>
                 ) : (
                   <div className="m-cover" />
                 )}
@@ -930,12 +984,30 @@ function TrackRow({
             onZoom();
           }}
         >
-          <img src={track.imageUrl} alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+          <img
+            src={track.imageUrl}
+            alt=""
+            loading={index === 0 ? "eager" : "lazy"}
+            decoding="async"
+            ref={(img) => {
+              if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+            }}
+            onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+          />
         </button>
       ) : (
         <div className="t-thumb">
           {track.imageUrl ? (
-            <img src={track.imageUrl} alt="" loading={index === 0 ? "eager" : "lazy"} decoding="async" />
+            <img
+              src={track.imageUrl}
+              alt=""
+              loading={index === 0 ? "eager" : "lazy"}
+              decoding="async"
+              ref={(img) => {
+                if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+              }}
+              onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+            />
           ) : null}
         </div>
       )}

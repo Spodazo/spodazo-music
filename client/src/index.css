@@ -265,7 +265,19 @@ a { color: inherit; }
   opacity: 0;
 }
 .album-card-art.is-ready img {
-  opacity: 1;
+  animation: cover-fade-in 1.2s ease forwards;
+}
+@keyframes cover-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .album-card-art.is-ready img,
+  .portrait-img.incoming.ready,
+  .m-cover-layer.incoming.ready,
+  .t-thumb img.is-ready {
+    animation-duration: 0.01ms;
+  }
 }
 .album-card-bg {
   position: absolute;
@@ -372,35 +384,30 @@ a { color: inherit; }
 .portrait-cover {
   position: relative;
   z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
   min-width: 0;
   min-height: 0;
 }
+.cover-sizer {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
 .portrait-img {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  max-height: 100%;
-  max-width: 100%;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   display: block;
 }
 .portrait-img.incoming {
-  position: absolute;
-  inset: 0;
   z-index: 2;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  object-fit: cover;
   opacity: 0;
-  transition: opacity 1.2s ease;
 }
 .portrait-img.incoming.ready {
-  opacity: 1;
+  animation: cover-fade-in 1.2s ease forwards;
 }
 .portrait-panel.has-bg .portrait-cover {
   width: min(70%, 70vh);
@@ -413,17 +420,15 @@ a { color: inherit; }
     drop-shadow(0 0 18px color-mix(in srgb, #f4ecd8 34%, transparent));
 }
 .portrait-panel.has-bg .portrait-img {
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  object-fit: cover;
   box-shadow:
     0 0 0 1px color-mix(in srgb, #f4ecd8 30%, transparent),
     0 0 36px color-mix(in srgb, var(--amber) 28%, transparent);
 }
-@media (prefers-reduced-motion: reduce) {
-  .portrait-img.incoming { transition: none; }
+.portrait-panel:not(.has-bg) .portrait-cover {
+  width: min(80%, 80vh);
+  aspect-ratio: 1;
+  height: auto;
+  max-height: 80%;
 }
 
 .track-panel {
@@ -639,6 +644,10 @@ a { color: inherit; }
   height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+}
+.t-thumb img.is-ready {
+  animation: cover-fade-in 1.2s ease forwards;
 }
 button.t-thumb,
 button.m-cover {
@@ -900,13 +909,30 @@ button.t-play-icon {
   pointer-events: none;
 }
 .m-cover {
+  position: relative;
   width: 100%;
   height: 100%;
   aspect-ratio: 1;
   border-radius: 14px;
   flex-shrink: 0;
-  background: #0c151e center / cover no-repeat;
+  overflow: hidden;
+  background: #0c151e;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border);
+}
+.m-cover-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.m-cover-layer.incoming {
+  z-index: 1;
+  opacity: 0;
+}
+.m-cover-layer.incoming.ready {
+  animation: cover-fade-in 1.2s ease forwards;
 }
 .m-art.has-bg .m-cover {
   position: relative;
