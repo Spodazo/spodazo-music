@@ -794,6 +794,15 @@ export default function AlbumPage() {
         <div className="modal open">
           <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
             <div className="modal-head">
+              <button
+                type="button"
+                className="albums-back songs-back"
+                onClick={closeModal}
+                aria-label="Back to songs"
+              >
+                <IconBack />
+                Songs
+              </button>
               <div className={`m-art${backgroundUrl ? " has-bg" : ""}`}>
                 {backgroundUrl ? (
                   <img className="m-art-bg" src={backgroundUrl} alt="" decoding="async" />
