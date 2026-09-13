@@ -920,6 +920,14 @@ button.t-play-icon {
 .m-art.has-bg {
   width: clamp(200px, 70%, 280px);
 }
+@media (min-width: 601px) {
+  .modal .m-art {
+    display: none;
+  }
+  .modal-head {
+    padding-top: 22px;
+  }
+}
 .m-art-bg {
   position: absolute;
   inset: 0;
