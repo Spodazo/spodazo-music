@@ -36,7 +36,7 @@ export const SITE_COPYRIGHT =
 export const DEFAULT_PLAYER_SETUP: PlayerSetup = {
   appName: "SPODAZO MUSIC",
   theme: "Crisis of faith answered through the Word of God",
-  credits: "Music, lyrics and graphics by Spodazo.  |  Vocals by Brody Vale & Eden Blue",
+  credits: "Music, lyrics and graphics by Spodazo.",
   copyright: SITE_COPYRIGHT,
   collectionCover: "",
   collectionCoverUrl: "",
@@ -97,6 +97,14 @@ export function normalizePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerS
   };
 }
 
+export function creditLine(artists?: string, credits?: string): string {
+  const names = (artists || "").trim();
+  let work = (credits || "").trim();
+  if (names) work = work.replace(/\s*\|\s*Vocals by[\s\S]*$/i, "").trim();
+  if (names && work) return `${names} | ${work}`;
+  return names || work;
+}
+
 export function copyrightLines(text: string): string[] {
   const marker = "Reserved.";
   const at = text.indexOf(marker);
@@ -113,7 +121,7 @@ export const ECHOES_ALBUM: Album = {
   slug: "echoes",
   title: "Echoes of Storms",
   tagline: "Crisis of faith answered through the Word of God",
-  credits: "Music, lyrics and graphics by Spodazo. | Vocals by Brody Vale & Eden Blue",
+  credits: "Music, lyrics and graphics by Spodazo.",
   artists: "Brody Vale with Eden Blue",
   copyright: SITE_COPYRIGHT,
   heroPortrait: "Echoes of Storms Web Portrait.webp",

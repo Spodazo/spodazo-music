@@ -16,7 +16,7 @@ import { fetchAlbum, fetchPlayerSetup } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
-import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
+import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import { applyPalette } from "../lib/palette";
 
@@ -33,6 +33,18 @@ function pad(n: number): string {
 
 function introductionBody(text: string): string {
   return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
+}
+
+function coverAnchorBox(): { top: number; left: number; width: number; height: number } | null {
+  const playerCover = document.querySelector(".modal.open .m-cover");
+  const albumCover = document.querySelector(".portrait-cover") || document.querySelector(".portrait-img") || document.querySelector(".portrait-stage");
+  const el = (playerCover instanceof HTMLElement && playerCover.getBoundingClientRect().width > 0
+    ? playerCover
+    : albumCover) as HTMLElement | null;
+  if (!el) return null;
+  const box = el.getBoundingClientRect();
+  if (box.width < 8 || box.height < 8) return null;
+  return { top: box.top, left: box.left, width: box.width, height: box.height };
 }
 
 function trackHasLyrics(track: { lyrics: string; instrumental?: boolean } | null): boolean {
@@ -125,6 +137,7 @@ export default function AlbumPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [lightbox, setLightbox] = useState(false);
+  const [coverBox, setCoverBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [enlargedCover, setEnlargedCover] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -255,6 +268,17 @@ export default function AlbumPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightbox]);
+
+  useEffect(() => {
+    if (!lightbox) {
+      setCoverBox(null);
+      return;
+    }
+    const place = () => setCoverBox(coverAnchorBox());
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [lightbox, coverUrl, modalOpen]);
 
   useEffect(() => {
     setPlaybackSession();
@@ -680,7 +704,9 @@ export default function AlbumPage() {
           <AlbumsBack />
           <h1 className="alb-name2">{album.title}</h1>
           <p className="alb-tag">{album.tagline}</p>
-          <p className="alb-credit">{album.credits}</p>
+          {creditLine(album.artists, album.credits) ? (
+            <p className="alb-credit">{creditLine(album.artists, album.credits)}</p>
+          ) : null}
         </div>
         <div className="album-hero">
           <div className="album-stats">
@@ -929,10 +955,15 @@ export default function AlbumPage() {
       {lightbox && album.artistUrl ? (
         <div className="lightbox" onClick={() => setLightbox(false)}>
           <div
-            className="lightbox-card"
+            className={`lightbox-card${coverBox ? " on-cover" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-label={album.artists || "Artist photo"}
+            style={
+              coverBox
+                ? { top: coverBox.top, left: coverBox.left, width: coverBox.width, height: coverBox.height }
+                : undefined
+            }
             onClick={(event) => event.stopPropagation()}
           >
             <button

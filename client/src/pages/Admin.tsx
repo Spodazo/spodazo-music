@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { PALETTES, paletteById } from "@shared/palettes";
 import { DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, publicCurator } from "@shared/seed-data";
 import type { AlbumListItem, Curator, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
@@ -581,11 +581,29 @@ function CoverField({
   currentUrl?: string;
   previewClass?: string;
 }) {
+  const [pickedUrl, setPickedUrl] = useState("");
+  const pickedUrlRef = useRef("");
+
+  useEffect(() => {
+    return () => {
+      if (pickedUrlRef.current.startsWith("blob:")) URL.revokeObjectURL(pickedUrlRef.current);
+    };
+  }, []);
+
+  function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    if (pickedUrlRef.current.startsWith("blob:")) URL.revokeObjectURL(pickedUrlRef.current);
+    const next = file ? URL.createObjectURL(file) : "";
+    pickedUrlRef.current = next;
+    setPickedUrl(next);
+  }
+
+  const preview = pickedUrl || currentUrl;
   return (
     <>
       <label>{label}</label>
-      {currentUrl ? <img className={previewClass} src={currentUrl} alt="" /> : null}
-      <input name={name} type="file" accept="image/*" />
+      {preview ? <img className={previewClass} src={preview} alt="" /> : null}
+      <input name={name} type="file" accept="image/*" onChange={onPick} />
     </>
   );
 }
@@ -1014,6 +1032,8 @@ function AlbumSetupForm({
       />
       <label>Album Name</label>
       <input name="title" defaultValue={album.title} required />
+      <label>Artists</label>
+      <input name="artists" defaultValue={album.artists} />
       <label>Theme</label>
       <input name="tagline" defaultValue={copied.theme} />
       <label>Credits</label>
@@ -1079,30 +1099,18 @@ function AlbumForm({
           <input name="artists" defaultValue={album?.artists} />
         </div>
       </div>
-      <div className="row-2">
-        <div>
-          <label>Album Background</label>
-          <input name="hero" type="file" accept="image/*" />
-        </div>
-        <div>
-          {album ? (
-            <>
-              <label>Artist photo (player thumbnail)</label>
-              <input name="artist" type="file" accept="image/*" />
-            </>
-          ) : (
-            <>
-              <label>Album cover</label>
-              <input name="thumb" type="file" accept="image/*" />
-            </>
-          )}
-        </div>
-      </div>
+      <CoverField label="Album Background" name="hero" currentUrl={album?.heroUrl} />
+      {album ? (
+        <CoverField
+          label="Artist Photo"
+          name="artist"
+          currentUrl={album.artistThumb ? album.artistUrl : undefined}
+        />
+      ) : (
+        <CoverField label="Album Cover" name="thumb" currentUrl={album?.thumbUrl} />
+      )}
       {album ? null : (
-        <>
-          <label>Artist photo (player thumbnail)</label>
-          <input name="artist" type="file" accept="image/*" />
-        </>
+        <CoverField label="Artist Photo" name="artist" />
       )}
       <label>
         <input name="hidden" type="checkbox" value="true" defaultChecked={album ? album.hidden : true} /> Hide from the
@@ -1526,8 +1534,11 @@ function TrackForm({
           {track?.file ? <p className="hint">Current file: {track.file}. Leave empty to keep it.</p> : null}
         </div>
         <div>
-          <label>{track ? "Replace artwork" : "Artwork"}</label>
-          <input name="artwork" type="file" accept="image/*" />
+          <CoverField
+            label={track ? "Replace artwork" : "Artwork"}
+            name="artwork"
+            currentUrl={track?.imageUrl}
+          />
         </div>
       </div>
       <label>Introduction</label>

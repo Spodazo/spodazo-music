@@ -323,6 +323,7 @@ a { color: inherit; }
 .album-card-body { padding: 18px 18px 22px; }
 .album-card h2 { margin: 0 0 6px; font-family: "Playfair Display", serif; font-size: 26px; }
 .album-card p { margin: 0; color: var(--muted); }
+.album-card-artists { margin: 0 0 6px; }
 
 /* ── ALBUM PLAYER ── */
 .layout {
@@ -1210,6 +1211,10 @@ button.t-play-icon {
   position: relative;
   cursor: default;
 }
+.lightbox-card.on-cover {
+  position: fixed;
+  margin: 0;
+}
 .lightbox-card img {
   display: block;
   width: 50vw;
@@ -1218,6 +1223,14 @@ button.t-play-icon {
   object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+.lightbox-card.on-cover img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+  border-radius: 0;
+  box-shadow: none;
 }
 .lightbox-close {
   position: absolute;
@@ -1264,12 +1277,23 @@ button.t-play-icon {
 .admin-top-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }
 .admin-top-actions a,
 .admin-top-actions button {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  min-height: 34px;
   margin: 0;
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
   text-decoration: none;
 }
 .player-setup-card,
@@ -1420,17 +1444,27 @@ button.t-play-icon {
 .admin textarea { min-height: 140px; }
 .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .admin button, .ghost {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: var(--amber);
   color: #111;
-  border: 0;
-  padding: 10px 16px;
-  font-size: 1.2em;
-  font-weight: 700;
+  border: 1px solid var(--amber);
+  padding: 0 12px;
+  min-height: 34px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   margin-right: 8px;
   margin-top: 12px;
 }
-.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.ghost { background: transparent; color: var(--text); border-color: var(--border); }
+.admin .admin-top-actions a,
+.admin .admin-top-actions button {
+  margin: 0;
+}
 .danger { background: #8b2e2e; color: #fff; }
 .error { color: #f0b4b4; }
 .admin .error { font-size: 1.2em; }
@@ -1532,11 +1566,12 @@ button.t-play-icon {
 }
 .admin .album-cover-edit {
   margin: 0;
-  padding: 6px 14px;
+  padding: 0 12px;
+  min-height: 30px;
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-  font-size: calc(13px * 1.2);
+  font-size: 13px;
   font-weight: 600;
 }
 .admin .album-cover-tile img,
@@ -1564,8 +1599,8 @@ button.t-play-icon {
   background: transparent;
   color: var(--text);
   border-style: dashed;
-  font-size: calc(16px * 1.2);
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   text-align: center;
   padding: 16px;
   line-height: 1.3;
@@ -1651,16 +1686,16 @@ button.t-play-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 38px;
-  min-height: 38px;
-  padding: 0 12px;
-  font-size: calc(13px * 1.2);
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
   line-height: 1;
   text-decoration: none;
 }
 .admin .track-admin-actions > .admin-track-play {
-  width: 38px;
-  min-width: 38px;
+  width: 32px;
+  min-width: 32px;
   padding: 0;
 }
 .admin-track-play.on {
@@ -1921,6 +1956,11 @@ button.t-play-icon {
     width: 80vw;
     max-height: 80vh;
   }
+  .lightbox-card.on-cover img {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+  }
   .layout.player-open { padding-right: 0; }
   .modal { width: 100%; left: 0; right: 0; }
   .modal-card { border-left: none; border-top: 1px solid var(--border); max-height: 96vh; border-radius: 18px 18px 0 0; }
@@ -2043,7 +2083,7 @@ button.t-play-icon {
     height: 38px;
     min-height: 38px;
     padding: 0 10px;
-    font-size: calc(13px * 1.2);
+    font-size: 13px;
   }
   .admin .track-admin-actions > .admin-track-play {
     flex: 0 0 38px;

@@ -4,7 +4,7 @@ import AdminLoginLink from "../components/AdminLoginLink";
 import SdgFooter from "../components/SdgFooter";
 import { fetchAlbums, fetchPlayerSetup } from "../lib/api";
 import { readCachedAlbums, writeCachedAlbums } from "../lib/homeCache";
-import { copyrightLines, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
+import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { applyPalette } from "../lib/palette";
 
@@ -93,7 +93,7 @@ function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolea
       </div>
       <div className="album-card-body">
         <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
-        <p>{album.artists || album.tagline}</p>
+        {album.artists ? <p className="album-card-artists">{album.artists}</p> : null}
         <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
       </div>
     </Link>
@@ -147,7 +147,12 @@ export default function HomePage() {
         </div>
       </div>
       <footer className="home-foot">
-        <p className="home-foot-credit">{setup.credits}</p>
+        {[...new Set(albums.map((album) => creditLine(album.artists, album.credits)).filter(Boolean))].map((line) => (
+          <p key={line} className="home-foot-credit">{line}</p>
+        ))}
+        {!albums.some((album) => creditLine(album.artists, album.credits)) && setup.credits ? (
+          <p className="home-foot-credit">{setup.credits}</p>
+        ) : null}
         <p className="home-foot-copy">
           {copyrightLines(setup.copyright).map((line, index) => (
             <span key={index}>

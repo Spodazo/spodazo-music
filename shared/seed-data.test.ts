@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_PALETTE_ID, normalizePaletteId } from "./palettes";
-import { albumSetupFromPlayer, copyrightLines, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
+import { albumSetupFromPlayer, copyrightLines, creditLine, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
 
 test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(ECHOES_ALBUM.slug, "echoes");
@@ -73,6 +73,16 @@ test("normalizeCurator trims fields and publicCurator hides the password hash", 
 test("normalizePaletteId keeps known palettes and falls back to ink", () => {
   assert.equal(normalizePaletteId("teal"), "teal");
   assert.equal(normalizePaletteId("NOPE"), DEFAULT_PALETTE_ID);
+});
+
+test("creditLine keeps artists and credits as separate parts", () => {
+  assert.equal(creditLine("Brody Vale with Eden Blue", "Music, lyrics and graphics by Spodazo."), "Brody Vale with Eden Blue | Music, lyrics and graphics by Spodazo.");
+  assert.equal(
+    creditLine("Brody Vale with Eden Blue", "Music, lyrics and graphics by Spodazo. | Vocals by Brody Vale & Eden Blue"),
+    "Brody Vale with Eden Blue | Music, lyrics and graphics by Spodazo.",
+  );
+  assert.equal(creditLine("", "Music, lyrics and graphics by Spodazo."), "Music, lyrics and graphics by Spodazo.");
+  assert.equal(creditLine("Brody Vale with Eden Blue", ""), "Brody Vale with Eden Blue");
 });
 
 test("copyrightLines splits the reserved notice onto two lines", () => {
