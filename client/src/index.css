@@ -975,16 +975,13 @@ button.t-play-icon {
 .m-title-row {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
-  align-items: start;
+  align-items: center;
   width: 100%;
   column-gap: 8px;
 }
-.m-meta {
+.m-title {
   grid-column: 2;
   min-width: 0;
-  text-align: center;
-}
-.m-title {
   font-family: "Playfair Display", serif;
   font-weight: 600;
   font-size: clamp(1.2rem, 2vw, 1.6rem);
@@ -1213,18 +1210,23 @@ button.t-play-icon {
 .btn-close {
   grid-column: 3;
   justify-self: end;
-  align-self: start;
-  margin-top: 2px;
+  align-self: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
   background: transparent;
   border: none;
   color: var(--text);
   cursor: pointer;
   opacity: 1;
-  padding: 6px;
   transition: opacity 0.2s;
 }
 .btn-close:hover { opacity: 0.75; }
-.btn-close svg { width: 22px; height: 22px; fill: currentColor; }
+.btn-close svg { width: 22px; height: 22px; fill: currentColor; display: block; }
 
 .lightbox {
   position: fixed;
@@ -2007,9 +2009,6 @@ button.t-play-icon {
   }
   .m-title-row {
     padding: 0 10px 0 18px;
-  }
-  .m-meta {
-    padding: 0;
   }
   .m-art,
   .m-art.has-bg {

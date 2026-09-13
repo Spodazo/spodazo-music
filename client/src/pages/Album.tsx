@@ -833,14 +833,12 @@ export default function AlbumPage() {
                 )}
               </div>
               <div className="m-title-row">
-                <div className="m-meta">
-                  <div className="m-title">{track.title}</div>
-                  {track.scripture ? <div className="m-subtitle">{track.scripture}</div> : null}
-                </div>
+                <div className="m-title">{track.title}</div>
                 <button className="btn-close" onClick={closeModal} title="Close" aria-label="Close">
                   <IconClose />
                 </button>
               </div>
+              {track.scripture ? <div className="m-subtitle">{track.scripture}</div> : null}
             </div>
             <div className="transport">
               <div className="progress-wrap">
