@@ -3,8 +3,8 @@
 export const HAVE_CURRENT_DATA = 2;
 /** First MPEG/Xing frames Safari otherwise plays as a scratch. */
 export const START_OFFSET = 0.05;
-/** Hold the opener silent this long — longer than one Xing frame plus encoder delay. */
-export const HEADER_HOLD = 0.12;
+/** One MPEG/Xing frame plus encoder delay — do not wait longer or the first note is lost. */
+export const HEADER_HOLD = 0.05;
 
 let playGen = 0;
 let gateOpen = true;
@@ -142,11 +142,11 @@ function waitForPlaying(audio: HTMLAudioElement, timeoutMs = 2000): Promise<void
 async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume: number, gen: number) {
   await waitForPlaying(audio, 2000);
   if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
-  await Promise.all([waitForAudible(audio, HEADER_HOLD, 800), waitMs(140)]);
+  await Promise.race([waitForAudible(audio, HEADER_HOLD, 70), waitMs(60)]);
   if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
   audio.muted = false;
   gateOpen = true;
-  fadeOutput(audio, targetVolume, 80, gen);
+  fadeOutput(audio, targetVolume, 40, gen);
 }
 
 export function playSong(
