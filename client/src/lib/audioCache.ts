@@ -60,6 +60,13 @@ export function setOutputLevel(audio: HTMLAudioElement | null, volume: number) {
   setOutput(audio, volume);
 }
 
+export function isMobilePlayback(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
+  return navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+}
+
 export function isResumeTime(time: number): boolean {
   return time > 0.15 && Number.isFinite(time);
 }
@@ -126,27 +133,12 @@ function waitMs(ms: number): Promise<void> {
   });
 }
 
-function waitForPlaying(audio: HTMLAudioElement, timeoutMs = 2000): Promise<void> {
-  if (!audio.paused && audio.currentTime > 0) return Promise.resolve();
-  return new Promise((resolve) => {
-    const finish = () => {
-      audio.removeEventListener("playing", finish);
-      window.clearTimeout(timer);
-      resolve();
-    };
-    const timer = window.setTimeout(finish, timeoutMs);
-    audio.addEventListener("playing", finish, { once: true });
-  });
-}
-
 async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume: number, gen: number) {
-  await waitForPlaying(audio, 2000);
-  if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
-  await Promise.race([waitForAudible(audio, HEADER_HOLD, 70), waitMs(60)]);
+  await waitMs(30);
   if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
   audio.muted = false;
   gateOpen = true;
-  fadeOutput(audio, targetVolume, 40, gen);
+  fadeOutput(audio, targetVolume, 20, gen);
 }
 
 export function playSong(
@@ -162,7 +154,7 @@ export function playSong(
   const dead = forceReload || !sameSong(audio, url);
   if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
 
-  if (resume) {
+  if (resume || !isMobilePlayback()) {
     gateOpen = true;
     audio.muted = false;
     setOutput(audio, targetVolume);
@@ -214,7 +206,7 @@ export function setPlaybackSession() {
 
 export function unlockAudio(audio?: HTMLAudioElement | null) {
   setPlaybackSession();
-  if (!audio) return;
+  if (!audio || !isMobilePlayback()) return;
   const graph = attachOutput(audio);
   if (graph && graph.ctx.state === "suspended") void graph.ctx.resume();
 }
