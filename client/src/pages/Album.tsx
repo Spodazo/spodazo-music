@@ -751,6 +751,10 @@ export default function AlbumPage() {
                 alt={album.artists}
                 fetchPriority="low"
                 decoding="async"
+                ref={(img) => {
+                  if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+                }}
+                onLoad={(event) => event.currentTarget.classList.add("is-ready")}
               />
             </button>
           ) : null}
@@ -974,7 +978,14 @@ export default function AlbumPage() {
             >
               <IconClose />
             </button>
-            <img src={album.artistUrl} alt={album.artists} />
+            <img
+              src={album.artistUrl}
+              alt={album.artists}
+              ref={(img) => {
+                if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+              }}
+              onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+            />
           </div>
         </div>
       ) : null}

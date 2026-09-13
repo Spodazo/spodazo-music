@@ -275,7 +275,9 @@ a { color: inherit; }
   .album-card-art.is-ready img,
   .portrait-img.incoming.ready,
   .m-cover-layer.incoming.ready,
-  .t-thumb img.is-ready {
+  .t-thumb img.is-ready,
+  .hero-thumb img.is-ready,
+  .lightbox-card img.is-ready {
     animation-duration: 0.01ms;
   }
 }
@@ -585,6 +587,10 @@ a { color: inherit; }
   height: 100%;
   object-fit: cover;
   display: block;
+  opacity: 0;
+}
+.hero-thumb img.is-ready {
+  animation: cover-fade-in 1.2s ease forwards;
 }
 .hero-thumb:hover { transform: scale(1.05); }
 
@@ -1223,6 +1229,10 @@ button.t-play-icon {
   object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+}
+.lightbox-card img.is-ready {
+  animation: cover-fade-in 1.2s ease forwards;
 }
 .lightbox-card.on-cover img {
   width: 100%;
