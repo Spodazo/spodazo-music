@@ -569,11 +569,21 @@ a { color: inherit; }
 .hero-thumb {
   width: 64px;
   height: 64px;
+  padding: 0;
+  border: none;
   border-radius: 10px;
-  object-fit: cover;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: none;
   cursor: pointer;
   box-shadow: 0 0 0 1px var(--border);
   transition: transform 0.15s;
+}
+.hero-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .hero-thumb:hover { transform: scale(1.05); }
 
@@ -1190,19 +1200,44 @@ button.t-play-icon {
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: rgba(0, 0, 0, 0.92);
+  background: rgba(8, 12, 18, 0.38);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
 }
-.lightbox img {
-  max-width: 90vw;
-  max-height: 90vh;
+.lightbox-card {
+  position: relative;
+  cursor: default;
+}
+.lightbox-card img {
+  display: block;
+  width: 50vw;
+  height: auto;
+  max-height: 50vh;
   object-fit: contain;
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
+.lightbox-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background: rgba(13, 17, 23, 0.72);
+  cursor: pointer;
+}
+.lightbox-close:hover { color: var(--amber); }
+.lightbox-close svg { width: 20px; height: 20px; fill: currentColor; }
 
 /* ── ADMIN ── */
 .admin {
@@ -1788,7 +1823,14 @@ button.t-play-icon {
 
 @media (max-width: 600px) {
   html, body { overflow-y: auto; overflow-x: hidden; }
-  .layout { flex-direction: column; height: auto; min-height: 100vh; overflow: visible; }
+  .layout {
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   .portrait-panel,
   .portrait-panel.has-bg {
     flex: 0 0 auto;
@@ -1798,7 +1840,9 @@ button.t-play-icon {
     width: 100%;
     max-width: 100%;
     height: auto;
-    overflow: visible;
+    overflow: hidden;
+    z-index: 4;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
   }
   .portrait-stage {
     display: block;
@@ -1844,7 +1888,14 @@ button.t-play-icon {
     max-height: none;
     object-fit: cover;
   }
-  .track-panel { flex: 1; overflow: visible; }
+  .track-panel {
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
   .tracks { flex: none; overflow: visible; padding-bottom: 20px; }
   .albums-back-on-art {
     display: inline-flex;
@@ -1866,6 +1917,10 @@ button.t-play-icon {
   .t-subtitle { font-size: 0.58rem; }
   .site-footer { padding: 10px 12px; }
   .hero-thumb { width: 76px; height: 76px; }
+  .lightbox-card img {
+    width: 80vw;
+    max-height: 80vh;
+  }
   .layout.player-open { padding-right: 0; }
   .modal { width: 100%; left: 0; right: 0; }
   .modal-card { border-left: none; border-top: 1px solid var(--border); max-height: 96vh; border-radius: 18px 18px 0 0; }

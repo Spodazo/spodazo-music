@@ -1002,6 +1002,7 @@ function AlbumSetupForm({
     >
       <CoverField label="Album Background" name="hero" currentUrl={album.heroUrl} />
       <CoverField label="Album Cover" name="thumb" currentUrl={album.thumbUrl} />
+      <CoverField label="Artist Photo" name="artist" currentUrl={album.artistThumb ? album.artistUrl : undefined} />
       <ColorField
         label="Album Color"
         name="color"

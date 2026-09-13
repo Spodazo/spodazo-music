@@ -248,6 +248,15 @@ export default function AlbumPage() {
   }, [album]);
 
   useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLightbox(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
+
+  useEffect(() => {
     setPlaybackSession();
     void dropLegacyAudioCaches();
     const onHide = () => rememberTime();
@@ -704,15 +713,20 @@ export default function AlbumPage() {
             </button>
           </div>
           {album.artistUrl ? (
-            <img
+            <button
+              type="button"
               className="hero-thumb"
-              src={album.artistUrl}
-              alt={album.artists}
               title={album.artists}
-              fetchPriority="low"
-              decoding="async"
+              aria-label={`Enlarge photo of ${album.artists || "the artists"}`}
               onClick={() => setLightbox(true)}
-            />
+            >
+              <img
+                src={album.artistUrl}
+                alt={album.artists}
+                fetchPriority="low"
+                decoding="async"
+              />
+            </button>
           ) : null}
         </div>
         <div className="tracks">
@@ -914,7 +928,23 @@ export default function AlbumPage() {
 
       {lightbox && album.artistUrl ? (
         <div className="lightbox" onClick={() => setLightbox(false)}>
-          <img src={album.artistUrl} alt={album.artists} />
+          <div
+            className="lightbox-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label={album.artists || "Artist photo"}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="lightbox-close"
+              aria-label="Close artist photo"
+              onClick={() => setLightbox(false)}
+            >
+              <IconClose />
+            </button>
+            <img src={album.artistUrl} alt={album.artists} />
+          </div>
         </div>
       ) : null}
 
