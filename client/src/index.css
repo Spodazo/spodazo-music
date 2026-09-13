@@ -997,16 +997,17 @@ button.t-play-icon {
   letter-spacing: 0.08em;
   color: var(--muted);
   margin-top: 6px;
+  text-align: center;
 }
 
 .transport {
-  padding: 4px 24px 12px;
+  padding: 2px 24px 4px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
 }
-.progress-wrap { display: flex; align-items: center; gap: 10px; }
+.progress-wrap { display: flex; align-items: center; gap: 8px; }
 .time {
   font-size: 0.65rem;
   color: var(--muted);
@@ -1034,7 +1035,7 @@ button.t-play-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
 }
 .ctrl {
   background: transparent;
@@ -1044,15 +1045,16 @@ button.t-play-icon {
   padding: 4px;
   display: flex;
   align-items: center;
+  justify-content: center;
   opacity: 0.6;
   transition: opacity 0.2s, color 0.2s;
 }
 .ctrl:hover { opacity: 1; color: var(--amber); }
 .ctrl.on { opacity: 1; color: var(--amber); }
-.ctrl svg { width: 32px; height: 32px; fill: currentColor; }
+.ctrl svg { width: 26px; height: 26px; fill: currentColor; }
 .btn-play-modal {
-  width: 58px;
-  height: 58px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: var(--amber);
   border: none;
@@ -1065,12 +1067,12 @@ button.t-play-icon {
   flex-shrink: 0;
 }
 .btn-play-modal:hover { background: var(--amber2); transform: scale(1.05); }
-.btn-play-modal svg { width: 30px; height: 30px; fill: currentColor; }
+.btn-play-modal svg { width: 24px; height: 24px; fill: currentColor; }
 .vol-wrap {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 24px 4px;
+  padding: 0 24px 2px;
 }
 .vol-wrap svg { width: 14px; height: 14px; fill: var(--muted); opacity: 0.5; flex-shrink: 0; }
 .vol-slider {
@@ -1175,13 +1177,13 @@ button.t-play-icon {
 .sing-along-btn {
   display: block;
   width: max-content;
-  margin: 2px auto 10px;
-  padding: 8px 22px;
+  margin: 4px auto 8px;
+  padding: 7px 18px;
   border: 0;
-  border-radius: 20px;
+  border-radius: 16px;
   background: var(--amber);
   color: var(--on-accent);
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.12em;
   cursor: pointer;
@@ -1987,6 +1989,11 @@ button.t-play-icon {
     display: block;
     padding: 0 18px;
   }
+  .m-subtitle {
+    padding: 0 18px;
+    text-align: center;
+  }
+  .album-head .albums-back { display: none; }
   .album-head { padding: 14px 12px 0; }
   .album-head .alb-name2 { font-size: 1.1rem; }
   .album-head .alb-tag { font-size: 0.65rem; }
@@ -2052,10 +2059,22 @@ button.t-play-icon {
     height: auto;
     border-radius: 0;
   }
-  .transport { padding: 4px 18px 10px; }
+  .transport { padding: 2px 18px 4px; }
+  .controls { gap: 8px; }
+  .ctrl {
+    min-width: 44px;
+    min-height: 44px;
+    box-sizing: border-box;
+  }
+  .progress-wrap {
+    min-height: 32px;
+  }
+  .vol-wrap {
+    min-height: 32px;
+    padding: 0 18px 4px;
+  }
   .lyrics-static { padding: 0 18px 20px; }
   .lyrics-scroll { padding: 0 16px 16px; }
-  .vol-wrap { padding: 0 18px 4px; }
   .row-2 { grid-template-columns: 1fr; }
 }
 
