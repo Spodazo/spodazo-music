@@ -264,15 +264,18 @@ a { color: inherit; }
 .album-card-art img {
   opacity: 0;
 }
-.album-card-art.is-ready img {
+.album-card-art img.is-ready {
   animation: cover-fade-in 1.2s ease forwards;
+}
+.album-card-art img.is-hot {
+  opacity: 1;
 }
 @keyframes cover-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .album-card-art.is-ready img,
+  .album-card-art img.is-ready,
   .portrait-img.incoming.ready,
   .m-cover-layer.incoming.ready,
   .t-thumb img.is-ready,

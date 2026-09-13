@@ -19,6 +19,31 @@
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
+    <link rel="preload" href="/api/albums" as="fetch" />
+    <link rel="preload" href="/api/player-setup" as="fetch" />
+    <script>
+      (function () {
+        function preload(href) {
+          if (!href) return;
+          var link = document.createElement("link");
+          link.rel = "preload";
+          link.as = "image";
+          link.href = href;
+          document.head.appendChild(link);
+        }
+        try {
+          var setup = JSON.parse(localStorage.getItem("spodazo-home-setup-v1") || "null");
+          if (setup && setup.logoUrl) preload(setup.logoUrl);
+          var albums = JSON.parse(localStorage.getItem("spodazo-home-albums-v3") || "[]");
+          if (!Array.isArray(albums)) return;
+          albums.slice(0, 2).forEach(function (album) {
+            if (!album) return;
+            preload(album.thumbUrl);
+            if (album.heroUrl && album.heroUrl !== album.thumbUrl) preload(album.heroUrl);
+          });
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

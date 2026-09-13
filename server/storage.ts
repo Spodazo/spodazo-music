@@ -109,8 +109,8 @@ function hydratePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerSetup {
   const setup = normalizePlayerSetup(raw);
   return {
     ...setup,
-    collectionCoverUrl: imageUrl(setup.collectionCover),
-    logoUrl: imageUrl(setup.logo),
+    collectionCoverUrl: imageUrl(setup.collectionCover, HOME_CARD_WIDTH),
+    logoUrl: imageUrl(setup.logo, HOME_CARD_WIDTH),
     footerImageUrl: imageUrl(setup.footerImage),
   };
 }

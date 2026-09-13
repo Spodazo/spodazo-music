@@ -3,7 +3,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
-import { convertStoredImages, stripStoredSongs } from "./media";
+import { convertStoredImages, stripStoredSongs, warmHomeCardImages } from "./media";
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore, remapImageFilenames } from "./storage";
@@ -34,6 +34,14 @@ async function start() {
   } catch (err) {
     console.error("[media] stored image conversion failed:", err);
   }
+  void getStore()
+    .then(async (store) => {
+      const [list, setup] = await Promise.all([store.listAlbums(), store.getPlayerSetup()]);
+      await warmHomeCardImages(list, [setup.logo, setup.collectionCover]);
+    })
+    .catch((err) => {
+      console.error("[media] home thumb warm failed:", err);
+    });
   const port = Number(process.env.PORT || 3000);
 
   if (process.env.NODE_ENV === "production") {

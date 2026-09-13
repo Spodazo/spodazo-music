@@ -2,8 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import SdgFooter from "../components/SdgFooter";
-import { fetchAlbums, fetchPlayerSetup } from "../lib/api";
-import { readCachedAlbums, writeCachedAlbums } from "../lib/homeCache";
+import {
+  isImageDecoded,
+  loadHomeAlbums,
+  loadHomeSetup,
+  markImageDecoded,
+  readCachedAlbums,
+  readCachedSetup,
+} from "../lib/homeCache";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { applyPalette } from "../lib/palette";
@@ -40,56 +46,53 @@ function useFitOneLine(text: string) {
   return ref;
 }
 
-function useDecodedImage(src: string, priority = false) {
-  const [ready, setReady] = useState(!src);
+function CardImage({
+  className,
+  src,
+  alt,
+  priority = false,
+}: {
+  className: string;
+  src: string;
+  alt: string;
+  priority?: boolean;
+}) {
+  const seen = isImageDecoded(src);
+  const reveal = (img: HTMLImageElement | null) => {
+    if (!img?.complete || !img.naturalWidth) return;
+    markImageDecoded(src);
+    if (!seen) img.classList.add("is-ready");
+  };
 
-  useEffect(() => {
-    if (!src) {
-      setReady(true);
-      return;
-    }
-    let settled = false;
-    const done = () => {
-      if (settled) return;
-      settled = true;
-      setReady(true);
-    };
-    setReady(false);
-    const image = new Image();
-    if (priority) image.fetchPriority = "high";
-    image.decoding = "async";
-    image.onload = done;
-    image.onerror = done;
-    image.src = src;
-    if (image.complete && image.naturalWidth) done();
-    return () => {
-      image.onload = null;
-      image.onerror = null;
-    };
-  }, [src, priority]);
-
-  return ready;
+  return (
+    <img
+      className={`${className}${seen ? " is-hot" : ""}`}
+      src={src}
+      alt={alt}
+      decoding="async"
+      fetchPriority={priority ? "high" : "low"}
+      ref={reveal}
+      onLoad={(event) => reveal(event.currentTarget)}
+    />
+  );
 }
 
 function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolean }) {
   const hasOwnBackground = Boolean(album.heroPortrait && album.heroPortrait !== album.thumb);
   const backgroundUrl = hasOwnBackground ? album.heroUrl : "";
   const coverUrl = album.thumbUrl || (!backgroundUrl ? album.heroUrl : "");
-  const bgReady = useDecodedImage(backgroundUrl, priority);
-  const coverReady = useDecodedImage(coverUrl, priority);
-  const ready = bgReady && coverReady;
 
   return (
     <Link href={`/${album.slug}`} className="album-card">
-      <div className={`album-card-art${backgroundUrl ? " has-bg" : ""}${ready ? " is-ready" : ""}`}>
-        {ready && backgroundUrl ? (
-          <img className="album-card-bg" src={backgroundUrl} alt="" decoding="async" />
+      <div className={`album-card-art${backgroundUrl ? " has-bg" : ""}`}>
+        {backgroundUrl ? (
+          <CardImage className="album-card-bg" src={backgroundUrl} alt="" priority={priority} />
         ) : null}
-        {ready && coverUrl ? (
-          <img className="album-card-cover" src={coverUrl} alt={album.title} decoding="async" />
-        ) : !coverUrl ? (
+        {coverUrl ? (
+          <CardImage className="album-card-cover" src={coverUrl} alt={album.title} priority={priority} />
+        ) : (
           <div className="album-card-empty" />
-        ) : null}
+        )}
       </div>
       <div className="album-card-body">
         <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
@@ -102,18 +105,23 @@ function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolea
 
 export default function HomePage() {
   const [albums, setAlbums] = useState<AlbumListItem[]>(() => readCachedAlbums());
-  const [setup, setSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
+  const [setup, setSetup] = useState<PlayerSetup>(() => {
+    const cached = readCachedSetup();
+    if (cached) {
+      applyPalette(cached.collectionColor);
+      document.title = cached.appName;
+      return cached;
+    }
+    return DEFAULT_PLAYER_SETUP;
+  });
   const [error, setError] = useState("");
   const themeRef = useFitOneLine(setup.theme);
 
   useEffect(() => {
-    fetchAlbums()
-      .then((next) => {
-        writeCachedAlbums(next);
-        setAlbums(next);
-      })
+    loadHomeAlbums()
+      .then(setAlbums)
       .catch((err: Error) => setError(err.message));
-    fetchPlayerSetup()
+    loadHomeSetup()
       .then((next) => {
         setSetup(next);
         applyPalette(next.collectionColor);

@@ -6,7 +6,7 @@ import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
-import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, parseImageWidth, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName } from "./media";
+import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, parseImageWidth, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
@@ -148,6 +148,7 @@ export function registerRoutes(app: Express): void {
     const store = await getStore();
     const list = await store.listAlbums();
     res.json(req.session?.admin ? list : list.filter((album) => !album.hidden));
+    void warmHomeCardImages(list);
   });
 
   app.get("/api/albums/:slug", async (req, res) => {

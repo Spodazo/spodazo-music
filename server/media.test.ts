@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import sharp from "sharp";
 import test from "node:test";
-import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -203,6 +204,21 @@ test("preparedImagePath writes a card-sized WebP once", async () => {
   assert.notEqual(first, full);
   const webp = fs.readFileSync(first);
   assert.equal(webp.subarray(0, 4).toString("ascii"), "RIFF");
+});
+
+test("warmHomeCardImages writes card thumbs without blocking missing files", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-warm-"));
+  process.env.MUSIC_DATA_DIR = dir;
+  const images = path.join(dir, "images");
+  fs.mkdirSync(images, { recursive: true });
+  const pixels = Buffer.alloc(320 * 320 * 3, 0x44);
+  for (let i = 0; i < pixels.length; i += 3) pixels[i] = i % 256;
+  await sharp(pixels, { raw: { width: 320, height: 320, channels: 3 } })
+    .webp({ quality: 80 })
+    .toFile(path.join(images, "Cover.webp"));
+  await warmHomeCardImages([{ thumb: "Cover.webp", heroPortrait: "missing.webp" }], ["also-missing.webp"]);
+  const thumbs = fs.readdirSync(path.join(dir, "image-thumbs"));
+  assert.equal(thumbs.some((file) => file.includes(`${HOME_CARD_WIDTH}-`) && file.endsWith(".webp")), true);
 });
 
 test("convertUploadedImage stores album art as WebP", async () => {

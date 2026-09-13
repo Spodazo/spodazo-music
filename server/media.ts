@@ -38,6 +38,31 @@ export function parseImageWidth(value: unknown): number | undefined {
   return IMAGE_WIDTHS.has(width) ? width : undefined;
 }
 
+export async function warmHomeCardImages(
+  albums: Array<{ thumb?: string; heroPortrait?: string }>,
+  extra: Array<string | undefined> = [],
+): Promise<void> {
+  const names = new Set<string>();
+  for (const album of albums) {
+    if (album.thumb) names.add(album.thumb);
+    if (album.heroPortrait) names.add(album.heroPortrait);
+  }
+  for (const name of extra) {
+    if (name) names.add(name);
+  }
+  await Promise.all(
+    [...names].map(async (name) => {
+      const full = localImagePath(name);
+      if (!full) return;
+      try {
+        await preparedImagePath(full, HOME_CARD_WIDTH);
+      } catch {
+        /* listing and boot must stay fast */
+      }
+    }),
+  );
+}
+
 export async function preparedImagePath(full: string, width?: number): Promise<string> {
   if (!width || !fs.existsSync(full)) return full;
   const thumbs = path.join(dataDir(), "image-thumbs");

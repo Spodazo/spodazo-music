@@ -3,10 +3,12 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { watchAppUpdates } from "./lib/appUpdate";
 import { dropLegacyAudioCaches } from "./lib/audioCache";
+import { prefetchHome } from "./lib/homeCache";
 import { restorePalette } from "./lib/palette";
 import "./index.css";
 
 restorePalette();
+prefetchHome();
 void dropLegacyAudioCaches();
 watchAppUpdates();
 
