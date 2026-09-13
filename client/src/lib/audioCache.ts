@@ -3,8 +3,62 @@
 export const HAVE_CURRENT_DATA = 2;
 /** First MPEG/Xing frames Safari otherwise plays as a scratch. */
 export const START_OFFSET = 0.05;
+/** Hold the opener silent this long — longer than one Xing frame plus encoder delay. */
+export const HEADER_HOLD = 0.12;
 
 let playGen = 0;
+let gateOpen = true;
+
+type OutputGraph = {
+  ctx: AudioContext;
+  gain: GainNode;
+};
+
+const graphs = new WeakMap<HTMLAudioElement, OutputGraph>();
+
+function audioContextCtor(): typeof AudioContext | undefined {
+  return (
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  );
+}
+
+export function attachOutput(audio: HTMLAudioElement): OutputGraph | null {
+  const existing = graphs.get(audio);
+  if (existing) return existing;
+  const Ctor = audioContextCtor();
+  if (!Ctor) return null;
+  try {
+    const ctx = new Ctor();
+    const source = ctx.createMediaElementSource(audio);
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    const graph = { ctx, gain };
+    graphs.set(audio, graph);
+    return graph;
+  } catch {
+    return graphs.get(audio) || null;
+  }
+}
+
+function setOutput(audio: HTMLAudioElement, value: number) {
+  const graph = graphs.get(audio);
+  if (graph) {
+    const now = graph.ctx.currentTime;
+    graph.gain.gain.cancelScheduledValues(now);
+    graph.gain.gain.setValueAtTime(Math.max(0, Math.min(1, value)), now);
+    audio.volume = 1;
+    return;
+  }
+  audio.volume = Math.max(0, Math.min(1, value));
+}
+
+export function setOutputLevel(audio: HTMLAudioElement | null, volume: number) {
+  if (!audio || !gateOpen) return;
+  setOutput(audio, volume);
+}
 
 export function isResumeTime(time: number): boolean {
   return time > 0.15 && Number.isFinite(time);
@@ -45,7 +99,16 @@ export function assignSrc(audio: HTMLAudioElement, url: string, time = 0, force 
   if (force) audio.load();
 }
 
-function fadeVolume(audio: HTMLAudioElement, target: number, ms: number, gen: number) {
+function fadeOutput(audio: HTMLAudioElement, target: number, ms: number, gen: number) {
+  const graph = graphs.get(audio);
+  if (graph) {
+    const now = graph.ctx.currentTime;
+    const from = graph.gain.gain.value;
+    graph.gain.gain.cancelScheduledValues(now);
+    graph.gain.gain.setValueAtTime(from, now);
+    graph.gain.gain.linearRampToValueAtTime(target, now + Math.max(0.02, ms / 1000));
+    return;
+  }
   const from = audio.volume;
   const started = performance.now();
   const step = (now: number) => {
@@ -57,11 +120,33 @@ function fadeVolume(audio: HTMLAudioElement, target: number, ms: number, gen: nu
   requestAnimationFrame(step);
 }
 
+function waitMs(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function waitForPlaying(audio: HTMLAudioElement, timeoutMs = 2000): Promise<void> {
+  if (!audio.paused && audio.currentTime > 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const finish = () => {
+      audio.removeEventListener("playing", finish);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(finish, timeoutMs);
+    audio.addEventListener("playing", finish, { once: true });
+  });
+}
+
 async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume: number, gen: number) {
-  await waitForAudible(audio, START_OFFSET, 2500);
+  await waitForPlaying(audio, 2000);
   if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
-  if (audio.currentTime < START_OFFSET) return;
-  fadeVolume(audio, targetVolume, 50, gen);
+  await Promise.all([waitForAudible(audio, HEADER_HOLD, 800), waitMs(140)]);
+  if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
+  audio.muted = false;
+  gateOpen = true;
+  fadeOutput(audio, targetVolume, 80, gen);
 }
 
 export function playSong(
@@ -72,12 +157,15 @@ export function playSong(
   targetVolume = 1,
 ): Promise<void> {
   const gen = ++playGen;
+  unlockAudio(audio);
   const resume = isResumeTime(time);
   const dead = forceReload || !sameSong(audio, url);
   if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
 
   if (resume) {
-    audio.volume = targetVolume;
+    gateOpen = true;
+    audio.muted = false;
+    setOutput(audio, targetVolume);
     if (dead) {
       const fix = () => {
         if (gen !== playGen || !sameSong(audio, url)) return;
@@ -94,8 +182,13 @@ export function playSong(
     return audio.play().then(() => undefined);
   }
 
-  audio.volume = 0;
-  return audio.play().then(() => {
+  gateOpen = false;
+  audio.muted = true;
+  setOutput(audio, 0);
+  return audio.play().catch(() => {
+    audio.muted = false;
+    return audio.play();
+  }).then(() => {
     void openStartGate(audio, url, targetVolume, gen);
   });
 }
@@ -119,8 +212,11 @@ export function setPlaybackSession() {
   }
 }
 
-export function unlockAudio() {
+export function unlockAudio(audio?: HTMLAudioElement | null) {
   setPlaybackSession();
+  if (!audio) return;
+  const graph = attachOutput(audio);
+  if (graph && graph.ctx.state === "suspended") void graph.ctx.resume();
 }
 
 export function waitForAudible(audio: HTMLAudioElement, minTime: number, timeoutMs = 1500): Promise<void> {

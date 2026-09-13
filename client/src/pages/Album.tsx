@@ -7,6 +7,7 @@ import {
   dropLegacyAudioCaches,
   pipelineIsDead,
   playSong,
+  setOutputLevel,
   setPlaybackSession,
   START_OFFSET,
   unlockAudio,
@@ -295,13 +296,13 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
-    unlockAudio();
+    unlockAudio(audio);
     const force = Boolean(audio.src) && pipelineIsDead(audio);
     return playSong(audio, url, 0, force, userVolRef.current);
   }
 
   function warm() {
-    unlockAudio();
+    unlockAudio(audioRef.current);
   }
 
   function load(index: number, autoplay: boolean) {
@@ -845,7 +846,7 @@ export default function AlbumPage() {
                 onChange={(event) => {
                   const volume = Number(event.target.value);
                   userVolRef.current = volume;
-                  if (audioRef.current) audioRef.current.volume = volume;
+                  setOutputLevel(audioRef.current, volume);
                 }}
               />
             </div>

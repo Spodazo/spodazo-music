@@ -52,8 +52,8 @@ function useAdminPlayer() {
   const current = queue?.tracks[queue.index] ?? null;
 
   function startTrack(track: PublicTrack) {
-    unlockAudio();
     const audio = audioRef.current;
+    unlockAudio(audio);
     if (!audio || !track.audioUrl) return;
     currentUrlRef.current = track.audioUrl;
     resumeTimeRef.current = 0;
@@ -66,8 +66,8 @@ function useAdminPlayer() {
   }
 
   function warmTrack(track: PublicTrack) {
-    unlockAudio();
     const audio = audioRef.current;
+    unlockAudio(audio);
     if (!audio || !track.audioUrl || !audio.paused) return;
     if (audio.dataset.trackId === track.id) return;
     audio.dataset.trackId = track.id;

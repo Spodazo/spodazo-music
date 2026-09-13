@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { HAVE_CURRENT_DATA, isResumeTime, mediaUrl, pipelineIsDead, waitForAudible } from "./audioCache";
+import { HAVE_CURRENT_DATA, HEADER_HOLD, isResumeTime, mediaUrl, pipelineIsDead, waitForAudible } from "./audioCache";
 
 test("mediaUrl only adds a start fragment when resuming mid-song", () => {
   assert.equal(mediaUrl("/media/songs/a.mp3?v=4"), "/media/songs/a.mp3?v=4");
@@ -12,6 +12,7 @@ test("mediaUrl only adds a start fragment when resuming mid-song", () => {
 test("a song start is not treated as a mid-song resume", () => {
   assert.equal(isResumeTime(0), false);
   assert.equal(isResumeTime(0.05), false);
+  assert.equal(isResumeTime(HEADER_HOLD), false);
   assert.equal(isResumeTime(12), true);
 });
 
