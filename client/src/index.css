@@ -1988,12 +1988,30 @@ button.t-play-icon {
   .layout.player-open { padding-right: 0; }
   .modal { width: 100%; left: 0; right: 0; }
   .modal-card { border-left: none; border-top: 1px solid var(--border); max-height: 96vh; border-radius: 18px 18px 0 0; }
-  .modal-head { padding: 14px 18px 12px; }
-  .m-art {
-    width: clamp(128px, 44%, 176px);
+  .modal-head {
+    align-items: stretch;
+    padding: 0 0 12px;
+    gap: 12px;
   }
+  .m-meta {
+    padding: 0 18px;
+  }
+  .m-art,
   .m-art.has-bg {
-    width: clamp(160px, 56%, 224px);
+    width: 100%;
+    max-width: none;
+    height: auto;
+    aspect-ratio: unset;
+    border-radius: 0;
+    padding: 8px 0;
+  }
+  .m-cover,
+  .m-art.has-bg .m-cover {
+    width: 56%;
+    height: auto;
+  }
+  .m-art:not(.has-bg) .m-cover {
+    width: 80%;
   }
   .transport { padding: 4px 18px 10px; }
   .lyrics-static { padding: 0 18px 20px; }

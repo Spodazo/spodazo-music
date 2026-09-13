@@ -805,6 +805,7 @@ export default function AlbumPage() {
                     aria-label={enlargedCover === `player:${track.id}` ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
                     onClick={() => setEnlargedCover((cur) => (cur === `player:${track.id}` ? null : `player:${track.id}`))}
                   >
+                    <span className="cover-sizer" aria-hidden="true" />
                     <CoverLayers
                       imgClass="m-cover-layer"
                       base={baseCover}
@@ -826,7 +827,9 @@ export default function AlbumPage() {
                     />
                   </button>
                 ) : (
-                  <div className="m-cover" />
+                  <div className="m-cover">
+                    <span className="cover-sizer" aria-hidden="true" />
+                  </div>
                 )}
               </div>
               <div className="m-meta">
