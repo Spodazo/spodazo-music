@@ -3,7 +3,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
-import { convertStoredImages, stripStoredSongs, warmHomeCardImages } from "./media";
+import { convertStoredImages, prepareFaviconSet, stripStoredSongs, warmHomeCardImages } from "./media";
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore, remapImageFilenames } from "./storage";
@@ -38,6 +38,13 @@ async function start() {
     .then(async (store) => {
       const [list, setup] = await Promise.all([store.listAlbums(), store.getPlayerSetup()]);
       await warmHomeCardImages(list, [setup.logo, setup.collectionCover]);
+      if (setup.favicon) {
+        try {
+          await prepareFaviconSet(setup.favicon);
+        } catch (err) {
+          console.error("[media] favicon prepare failed:", err);
+        }
+      }
     })
     .catch((err) => {
       console.error("[media] home thumb warm failed:", err);

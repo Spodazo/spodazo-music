@@ -111,6 +111,7 @@ function hydratePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerSetup {
     ...setup,
     collectionCoverUrl: imageUrl(setup.collectionCover, HOME_CARD_WIDTH),
     logoUrl: imageUrl(setup.logo, HOME_CARD_WIDTH),
+    faviconUrl: imageUrl(setup.favicon),
     footerImageUrl: imageUrl(setup.footerImage),
   };
 }
@@ -123,6 +124,7 @@ function playerSetupRecord(setup: PlayerSetup) {
     copyright: setup.copyright,
     collectionCover: setup.collectionCover,
     logo: setup.logo,
+    favicon: setup.favicon,
     footerImage: setup.footerImage,
     collectionColor: setup.collectionColor,
   };
@@ -543,6 +545,7 @@ export class PostgresMusicStore implements MusicStore {
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_cover TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS collection_color TEXT NOT NULL DEFAULT 'ink'`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS logo TEXT NOT NULL DEFAULT ''`);
+    await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS favicon TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`ALTER TABLE player_setup ADD COLUMN IF NOT EXISTS footer_image TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`
       CREATE TABLE IF NOT EXISTS curator (
@@ -894,11 +897,13 @@ export async function remapImageFilenames(renames: Map<string, string>): Promise
   const setup = await store.getPlayerSetup();
   const nextCover = setup.collectionCover ? renames.get(setup.collectionCover) : undefined;
   const nextLogo = setup.logo ? renames.get(setup.logo) : undefined;
+  const nextFavicon = setup.favicon ? renames.get(setup.favicon) : undefined;
   const nextFooter = setup.footerImage ? renames.get(setup.footerImage) : undefined;
-  if (nextCover || nextLogo || nextFooter) {
+  if (nextCover || nextLogo || nextFavicon || nextFooter) {
     await store.updatePlayerSetup({
       ...(nextCover ? { collectionCover: nextCover } : {}),
       ...(nextLogo ? { logo: nextLogo } : {}),
+      ...(nextFavicon ? { favicon: nextFavicon } : {}),
       ...(nextFooter ? { footerImage: nextFooter } : {}),
     });
     changed += 1;

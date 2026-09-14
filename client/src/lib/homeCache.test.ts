@@ -73,6 +73,8 @@ function setup(partial: Partial<PlayerSetup> = {}): PlayerSetup {
     collectionCoverUrl: "",
     logo: "Logo.webp",
     logoUrl: "/media/images/Logo.webp?v=old",
+    favicon: "",
+    faviconUrl: "",
     footerImage: "",
     footerImageUrl: "",
     collectionColor: "navy",

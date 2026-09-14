@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import { dataDir, imagesDir, songsDir, uniqueFileName } from "./paths";
+import { dataDir, faviconDir, imagesDir, songsDir, uniqueFileName } from "./paths";
 
 function usableFile(full: string): string | null {
   if (!fs.existsSync(full)) return null;
@@ -385,6 +385,72 @@ export async function convertUploadedImage(filename: string, dir = imagesDir()):
   }
   if (dest !== source) fs.unlinkSync(source);
   return destName;
+}
+
+export const FAVICON_PNGS = [
+  { name: "favicon-16x16.png", size: 16 },
+  { name: "favicon-32x32.png", size: 32 },
+  { name: "favicon-48x48.png", size: 48 },
+  { name: "favicon-96x96.png", size: 96 },
+  { name: "apple-touch-icon.png", size: 180 },
+  { name: "android-chrome-192x192.png", size: 192 },
+  { name: "android-chrome-512x512.png", size: 512 },
+] as const;
+
+export const FAVICON_PUBLIC_FILES = ["favicon.ico", ...FAVICON_PNGS.map((item) => item.name)] as const;
+
+const ICO_PNG_SIZES = new Set([16, 32, 48]);
+
+/** Pack PNG images into an ICO. Modern browsers and Windows accept PNG-encoded ICO entries. */
+export function encodeIco(pngs: Buffer[]): Buffer {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(0, 0);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(pngs.length, 4);
+  const entries = Buffer.alloc(16 * pngs.length);
+  let offset = 6 + entries.length;
+  const images: Buffer[] = [];
+  pngs.forEach((png, index) => {
+    const width = png.length >= 24 ? png.readUInt32BE(16) : 0;
+    const height = png.length >= 24 ? png.readUInt32BE(20) : 0;
+    const at = index * 16;
+    entries.writeUInt8(width >= 256 ? 0 : width, at);
+    entries.writeUInt8(height >= 256 ? 0 : height, at + 1);
+    entries.writeUInt16LE(1, at + 4);
+    entries.writeUInt16LE(32, at + 6);
+    entries.writeUInt32LE(png.length, at + 8);
+    entries.writeUInt32LE(offset, at + 12);
+    images.push(png);
+    offset += png.length;
+  });
+  return Buffer.concat([header, entries, ...images]);
+}
+
+export function faviconPublicPath(name: string): string | null {
+  if (!FAVICON_PUBLIC_FILES.includes(name as (typeof FAVICON_PUBLIC_FILES)[number])) return null;
+  const full = path.join(faviconDir(), name);
+  return fs.existsSync(full) ? full : null;
+}
+
+export async function prepareFaviconSet(filename: string): Promise<string[]> {
+  const source = filename ? path.join(imagesDir(), path.basename(filename)) : "";
+  if (!source || !fs.existsSync(source) || fs.statSync(source).size < 32) {
+    throw new Error("Favicon image not found");
+  }
+  const destDir = faviconDir();
+  fs.mkdirSync(destDir, { recursive: true });
+  const icoPngs: Buffer[] = [];
+  for (const item of FAVICON_PNGS) {
+    const png = await sharp(source)
+      .rotate()
+      .resize(item.size, item.size, { fit: "cover", position: "centre" })
+      .png({ compressionLevel: 9 })
+      .toBuffer();
+    writeAtomic(path.join(destDir, item.name), png);
+    if (ICO_PNG_SIZES.has(item.size)) icoPngs.push(png);
+  }
+  writeAtomic(path.join(destDir, "favicon.ico"), encodeIco(icoPngs));
+  return [...FAVICON_PUBLIC_FILES];
 }
 
 const RASTER_IMAGE = /\.(jpe?g|png|gif|tiff?|avif|bmp)$/i;

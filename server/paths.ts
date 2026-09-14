@@ -13,12 +13,16 @@ export function songsDir(): string {
   return path.join(dataDir(), "songs");
 }
 
+export function faviconDir(): string {
+  return path.join(dataDir(), "favicons");
+}
+
 export function catalogPath(): string {
   return path.join(dataDir(), "catalog.json");
 }
 
 export function ensureDataDirs(): void {
-  for (const dir of [dataDir(), imagesDir(), songsDir()]) {
+  for (const dir of [dataDir(), imagesDir(), songsDir(), faviconDir()]) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }

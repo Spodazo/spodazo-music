@@ -25,7 +25,9 @@ import {
   verifyCuratorPassword,
 } from "../lib/api";
 import { assignSrc, pipelineIsDead, playSong, unlockAudio } from "../lib/audioCache";
+import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
+import { applySiteIcons } from "../lib/siteIcons";
 
 type AdminQueue = {
   albumId: string;
@@ -271,6 +273,10 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    applySiteIcons(playerSetup);
+  }, [playerSetup]);
+
+  useEffect(() => {
     adminMe()
       .then(async (me) => {
         setAuthed(me.admin);
@@ -439,7 +445,7 @@ export default function AdminPage() {
       <section className="card player-setup-card">
         <div>
           <h2>Player Setup</h2>
-          <p className="hint">Collection cover, logo, app name, theme, credits, and copyright on the public player.</p>
+          <p className="hint">Collection cover, logo, favicon, app name, theme, credits, and copyright on the public player.</p>
         </div>
         <button type="button" onClick={() => setSetupOpen(true)}>
           Edit
@@ -451,6 +457,8 @@ export default function AdminPage() {
             setup={playerSetup}
             onSaved={(next) => {
               setPlayerSetup(next);
+              writeCachedSetup(next);
+              applySiteIcons(next);
               applyPalette(next.collectionColor);
               setSetupOpen(false);
             }}
@@ -575,11 +583,13 @@ function CoverField({
   name,
   currentUrl,
   previewClass = "setup-cover-preview",
+  hint,
 }: {
   label: string;
   name: string;
   currentUrl?: string;
   previewClass?: string;
+  hint?: string;
 }) {
   const [pickedUrl, setPickedUrl] = useState("");
   const pickedUrlRef = useRef("");
@@ -604,6 +614,7 @@ function CoverField({
       <label>{label}</label>
       {preview ? <img className={previewClass} src={preview} alt="" /> : null}
       <input name={name} type="file" accept="image/*" onChange={onPick} />
+      {hint ? <p className="hint">{hint}</p> : null}
     </>
   );
 }
@@ -946,6 +957,13 @@ function PlayerSetupForm({
     >
       <CoverField label="Collection Cover" name="cover" currentUrl={setup.collectionCoverUrl} />
       <CoverField label="Logo" name="logo" currentUrl={setup.logoUrl} previewClass="setup-logo-preview" />
+      <CoverField
+        label="Favicon"
+        name="favicon"
+        currentUrl={setup.faviconUrl}
+        previewClass="setup-favicon-preview"
+        hint="Any image. Cropped square and sized for browser tabs, bookmarks, and home screens."
+      />
       <CoverField label="Footer Image" name="footer" currentUrl={setup.footerImageUrl} previewClass="setup-footer-preview" />
       <ColorField
         label="Collection Color"

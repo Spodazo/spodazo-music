@@ -1444,6 +1444,16 @@ button.t-play-icon {
   border: 1px solid var(--border);
   background: var(--input);
 }
+.setup-favicon-preview {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  display: block;
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  background: var(--input);
+  border-radius: 8px;
+}
 .setup-footer-preview {
   width: 100%;
   max-height: 160px;

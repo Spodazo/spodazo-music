@@ -6,7 +6,7 @@ import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
-import { assetVersion, convertUploadedImage, localSongPath, mp3DataOffset, parseImageWidth, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
+import { assetVersion, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, mp3DataOffset, parseImageWidth, prepareFaviconSet, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 
@@ -127,6 +127,7 @@ export function registerRoutes(app: Express): void {
   app.patch("/api/admin/player-setup", requireAdmin, upload.fields([
     { name: "cover", maxCount: 1 },
     { name: "logo", maxCount: 1 },
+    { name: "favicon", maxCount: 1 },
     { name: "footer", maxCount: 1 },
   ]), async (req, res) => {
     const store = await getStore();
@@ -141,7 +142,69 @@ export function registerRoutes(app: Express): void {
     if (files?.cover?.[0]) fields.collectionCover = files.cover[0].filename;
     if (files?.logo?.[0]) fields.logo = files.logo[0].filename;
     if (files?.footer?.[0]) fields.footerImage = files.footer[0].filename;
+    if (files?.favicon?.[0]) {
+      fields.favicon = files.favicon[0].filename;
+      try {
+        await prepareFaviconSet(files.favicon[0].filename);
+      } catch (err) {
+        res.status(400).json({ error: err instanceof Error ? err.message : "Could not make a favicon from that image" });
+        return;
+      }
+    }
     res.json(await store.updatePlayerSetup(fields));
+  });
+
+  for (const name of FAVICON_PUBLIC_FILES) {
+    app.get(`/${name}`, (_req, res, next) => {
+      const full = faviconPublicPath(name);
+      if (!full) {
+        next();
+        return;
+      }
+      res.sendFile(path.resolve(full), {
+        headers: {
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    });
+  }
+
+  app.get("/site.webmanifest", async (_req, res, next) => {
+    const store = await getStore();
+    const setup = await store.getPlayerSetup();
+    if (!setup.favicon || !faviconPublicPath("android-chrome-192x192.png")) {
+      next();
+      return;
+    }
+    const version = encodeURIComponent(setup.favicon);
+    res.set({
+      "Content-Type": "application/manifest+json",
+      "Cache-Control": "no-store",
+    });
+    res.json({
+      name: setup.appName,
+      short_name: setup.appName,
+      description: setup.theme || setup.appName,
+      start_url: "/",
+      scope: "/",
+      display: "standalone",
+      background_color: "#0d1117",
+      theme_color: "#0d1117",
+      icons: [
+        {
+          src: `/android-chrome-192x192.png?v=${version}`,
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any",
+        },
+        {
+          src: `/android-chrome-512x512.png?v=${version}`,
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any",
+        },
+      ],
+    });
   });
 
   app.get("/api/albums", async (req, res) => {

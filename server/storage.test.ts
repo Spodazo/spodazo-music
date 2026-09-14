@@ -120,6 +120,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(saved.theme, DEFAULT_PLAYER_SETUP.theme);
   assert.equal(saved.collectionCover, "");
   assert.equal(saved.logo, "");
+  assert.equal(saved.favicon, "");
   assert.equal(saved.footerImage, "");
   assert.equal(saved.collectionColor, "ink");
   assert.equal((await store.getPlayerSetup()).appName, "New Player");
@@ -133,6 +134,10 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(withLogo.logo, "Mark.webp");
   assert.match(withLogo.logoUrl, /Mark\.webp/);
   assert.equal((await store.getPlayerSetup()).logo, "Mark.webp");
+  const withFavicon = await store.updatePlayerSetup({ favicon: "Mark.webp" });
+  assert.equal(withFavicon.favicon, "Mark.webp");
+  assert.match(withFavicon.faviconUrl, /Mark\.webp/);
+  assert.equal((await store.getPlayerSetup()).favicon, "Mark.webp");
   const withFooter = await store.updatePlayerSetup({ footerImage: "Footer.webp" });
   assert.equal(withFooter.footerImage, "Footer.webp");
   assert.match(withFooter.footerImageUrl, /Footer\.webp/);

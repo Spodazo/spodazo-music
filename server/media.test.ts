@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import sharp from "sharp";
 import test from "node:test";
-import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -251,4 +251,51 @@ test("convertStoredImages turns leftover PNG covers into WebP", async () => {
   assert.equal(fs.existsSync(path.join(dir, "Horsemens Praise.png")), false);
   assert.equal(fs.existsSync(path.join(dir, "Horsemens Praise.webp")), true);
   assert.equal(fs.existsSync(path.join(dir, "favicon-32.png")), true);
+});
+
+test("encodeIco writes an ICO header and PNG entries", async () => {
+  const png = await sharp({
+    create: { width: 16, height: 16, channels: 4, background: { r: 20, g: 80, b: 40, alpha: 1 } },
+  })
+    .png()
+    .toBuffer();
+  const ico = encodeIco([png]);
+  assert.equal(ico.readUInt16LE(0), 0);
+  assert.equal(ico.readUInt16LE(2), 1);
+  assert.equal(ico.readUInt16LE(4), 1);
+  assert.equal(ico.readUInt8(6), 16);
+  assert.equal(ico.readUInt8(7), 16);
+  assert.equal(ico[22], 0x89);
+  assert.equal(ico.subarray(23, 26).toString("ascii"), "PNG");
+});
+
+test("prepareFaviconSet writes every browser icon size from any source image", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-favicon-"));
+  process.env.MUSIC_DATA_DIR = dir;
+  const images = path.join(dir, "images");
+  fs.mkdirSync(images, { recursive: true });
+  const pixels = Buffer.alloc(240 * 180 * 3, 0x44);
+  for (let i = 0; i < pixels.length; i += 3) pixels[i] = i % 256;
+  await sharp(pixels, { raw: { width: 240, height: 180, channels: 3 } })
+    .jpeg({ quality: 80 })
+    .toFile(path.join(images, "Mark.jpg"));
+  const written = await prepareFaviconSet("Mark.jpg");
+  assert.deepEqual(written, [...FAVICON_PUBLIC_FILES]);
+  for (const name of FAVICON_PUBLIC_FILES) {
+    const full = faviconPublicPath(name);
+    assert.ok(full, name);
+    assert.ok(fs.statSync(full!).size > 32, name);
+  }
+  const png32 = await sharp(faviconPublicPath("favicon-32x32.png")!).metadata();
+  assert.equal(png32.width, 32);
+  assert.equal(png32.height, 32);
+  assert.equal(png32.format, "png");
+  const apple = await sharp(faviconPublicPath("apple-touch-icon.png")!).metadata();
+  assert.equal(apple.width, 180);
+  const chrome = await sharp(faviconPublicPath("android-chrome-512x512.png")!).metadata();
+  assert.equal(chrome.width, 512);
+  const ico = fs.readFileSync(faviconPublicPath("favicon.ico")!);
+  assert.equal(ico.readUInt16LE(2), 1);
+  assert.equal(ico.readUInt16LE(4), 3);
+  assert.equal(faviconPublicPath("nope.png"), null);
 });

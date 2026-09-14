@@ -1,5 +1,6 @@
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { fetchAlbums, fetchPlayerSetup } from "./api";
+import { applySiteIcons } from "./siteIcons";
 
 export const HOME_ALBUMS_KEY = "spodazo-home-albums-v3";
 export const HOME_SETUP_KEY = "spodazo-home-setup-v1";
@@ -95,7 +96,9 @@ export function cacheSetupFromNetwork(next: PlayerSetup): PlayerSetup {
         : next.collectionCoverUrl,
     footerImageUrl:
       prev.footerImage === next.footerImage && prev.footerImageUrl ? prev.footerImageUrl : next.footerImageUrl,
+    faviconUrl: prev.favicon === next.favicon && prev.faviconUrl ? prev.faviconUrl : next.faviconUrl,
   };
+  applySiteIcons(merged);
   writeCachedSetup(merged);
   return merged;
 }
