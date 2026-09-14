@@ -6,6 +6,7 @@ import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
+import { currentIconStamp } from "./htmlIcons";
 import { assetVersion, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, mp3DataOffset, parseImageWidth, prepareFaviconSet, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
@@ -177,7 +178,7 @@ export function registerRoutes(app: Express): void {
       next();
       return;
     }
-    const stamp = encodeURIComponent(setup.favicon);
+    const stamp = currentIconStamp(setup.favicon);
     res.set({
       "Content-Type": "application/manifest+json",
       ...faviconNoStore,
@@ -192,6 +193,12 @@ export function registerRoutes(app: Express): void {
       background_color: "#0d1117",
       theme_color: "#0d1117",
       icons: [
+        {
+          src: `/icon-${stamp}.png`,
+          sizes: "32x32",
+          type: "image/png",
+          purpose: "any",
+        },
         {
           src: `/site-icons/${stamp}/android-chrome-192x192.png`,
           sizes: "192x192",
@@ -208,8 +215,25 @@ export function registerRoutes(app: Express): void {
     });
   }
 
+  app.get("/icon-:stamp.png", (_req, res, next) => {
+    sendGeneratedFavicon("favicon-32x32.png", res, next);
+  });
+
+  app.get("/touch-:stamp.png", (_req, res, next) => {
+    sendGeneratedFavicon("apple-touch-icon.png", res, next);
+  });
+
   for (const name of FAVICON_PUBLIC_FILES) {
-    app.get(`/${name}`, (_req, res, next) => {
+    app.get(`/${name}`, async (_req, res, next) => {
+      if (name === "favicon.ico") {
+        const store = await getStore();
+        const setup = await store.getPlayerSetup();
+        if (setup.favicon && faviconPublicPath("favicon-32x32.png")) {
+          res.set(faviconNoStore);
+          res.redirect(302, `/icon-${currentIconStamp(setup.favicon)}.png`);
+          return;
+        }
+      }
       sendGeneratedFavicon(name, res, next);
     });
   }

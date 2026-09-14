@@ -34,7 +34,7 @@
         }
         try {
           var setup = JSON.parse(localStorage.getItem("spodazo-home-setup-v1") || "null");
-          if (setup && setup.favicon) {
+          if (setup && setup.favicon && !document.querySelector('link[rel="icon"][href*="/icon-"]')) {
             var stamp = encodeURIComponent(setup.favicon);
             function iconUrl(file) {
               return "/site-icons/" + stamp + "/" + String(file || "").replace(/^\//, "").split("?")[0];

@@ -79,7 +79,13 @@ async function start() {
       }),
     );
     app.get("*", async (req, res) => {
-      if (req.path.startsWith("/api") || req.path.startsWith("/media") || req.path.startsWith("/site-icons")) {
+      if (
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/media") ||
+        req.path.startsWith("/site-icons") ||
+        /^\/icon-[a-f0-9]+\.png$/.test(req.path) ||
+        /^\/touch-[a-f0-9]+\.png$/.test(req.path)
+      ) {
         res.status(404).json({ error: "Not found" });
         return;
       }
@@ -100,7 +106,13 @@ async function start() {
     });
     app.use(vite.middlewares);
     app.use(async (req, res, next) => {
-      if (req.path.startsWith("/api") || req.path.startsWith("/media") || req.path.startsWith("/site-icons")) {
+      if (
+        req.path.startsWith("/api") ||
+        req.path.startsWith("/media") ||
+        req.path.startsWith("/site-icons") ||
+        /^\/icon-[a-f0-9]+\.png$/.test(req.path) ||
+        /^\/touch-[a-f0-9]+\.png$/.test(req.path)
+      ) {
         next();
         return;
       }

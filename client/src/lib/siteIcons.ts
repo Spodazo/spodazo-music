@@ -38,6 +38,7 @@ function replaceLink(rel: string, href: string, extra?: { type?: string; sizes?:
 
 export function applySiteIcons(setup: Pick<PlayerSetup, "favicon">) {
   if (typeof document === "undefined" || !setup.favicon) return;
+  if (document.querySelector('link[rel="icon"][href*="/icon-"]')) return;
   for (const icon of SITE_ICON_LINKS) {
     replaceLink(icon.rel, siteIconHref(icon.href, setup.favicon), icon);
   }
