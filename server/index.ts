@@ -3,6 +3,7 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
+import { htmlWithSiteIcons } from "./htmlIcons";
 import { convertStoredImages, prepareFaviconSet, stripStoredSongs, warmHomeCardImages } from "./media";
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
@@ -34,22 +35,30 @@ async function start() {
   } catch (err) {
     console.error("[media] stored image conversion failed:", err);
   }
+  try {
+    const setup = await (await getStore()).getPlayerSetup();
+    if (setup.favicon) await prepareFaviconSet(setup.favicon);
+  } catch (err) {
+    console.error("[media] favicon prepare failed:", err);
+  }
   void getStore()
     .then(async (store) => {
       const [list, setup] = await Promise.all([store.listAlbums(), store.getPlayerSetup()]);
       await warmHomeCardImages(list, [setup.logo, setup.collectionCover]);
-      if (setup.favicon) {
-        try {
-          await prepareFaviconSet(setup.favicon);
-        } catch (err) {
-          console.error("[media] favicon prepare failed:", err);
-        }
-      }
     })
     .catch((err) => {
       console.error("[media] home thumb warm failed:", err);
     });
   const port = Number(process.env.PORT || 3000);
+
+  async function pageHtml(source: string): Promise<string> {
+    try {
+      const setup = await (await getStore()).getPlayerSetup();
+      return htmlWithSiteIcons(source, setup.favicon);
+    } catch {
+      return source;
+    }
+  }
 
   if (process.env.NODE_ENV === "production") {
     const publicDir = path.resolve(process.cwd(), "dist/public");
@@ -69,34 +78,36 @@ async function start() {
         },
       }),
     );
-    app.get("*", (req, res) => {
-      if (req.path.startsWith("/api") || req.path.startsWith("/media")) {
+    app.get("*", async (req, res) => {
+      if (req.path.startsWith("/api") || req.path.startsWith("/media") || req.path.startsWith("/site-icons")) {
         res.status(404).json({ error: "Not found" });
         return;
       }
       res.set({
+        "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store, no-cache, must-revalidate",
         Pragma: "no-cache",
         Expires: "0",
       });
-      res.sendFile(path.join(publicDir, "index.html"));
+      const html = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
+      res.send(await pageHtml(html));
     });
   } else {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "custom",
     });
     app.use(vite.middlewares);
     app.use(async (req, res, next) => {
-      if (req.path.startsWith("/api") || req.path.startsWith("/media")) {
+      if (req.path.startsWith("/api") || req.path.startsWith("/media") || req.path.startsWith("/site-icons")) {
         next();
         return;
       }
       try {
         const indexPath = path.resolve(process.cwd(), "client/index.html");
         const html = await vite.transformIndexHtml(req.originalUrl, fs.readFileSync(indexPath, "utf8"));
-        res.status(200).set({ "Content-Type": "text/html" }).end(html);
+        res.status(200).set({ "Content-Type": "text/html; charset=utf-8" }).end(await pageHtml(html));
       } catch (err) {
         next(err);
       }

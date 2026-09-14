@@ -156,6 +156,8 @@ export function registerRoutes(app: Express): void {
 
   const faviconNoStore = {
     "Cache-Control": "no-store, no-cache, must-revalidate",
+    "CDN-Cache-Control": "no-store",
+    "Cloudflare-CDN-Cache-Control": "no-store",
     Pragma: "no-cache",
   } as const;
 
