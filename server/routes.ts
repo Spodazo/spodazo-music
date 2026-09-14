@@ -1,4 +1,4 @@
-import type { Express, Request } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
@@ -154,32 +154,31 @@ export function registerRoutes(app: Express): void {
     res.json(await store.updatePlayerSetup(fields));
   });
 
-  for (const name of FAVICON_PUBLIC_FILES) {
-    app.get(`/${name}`, (_req, res, next) => {
-      const full = faviconPublicPath(name);
-      if (!full) {
-        next();
-        return;
-      }
-      res.sendFile(path.resolve(full), {
-        headers: {
-          "Cache-Control": "public, max-age=31536000, immutable",
-        },
-      });
-    });
+  const faviconNoStore = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    Pragma: "no-cache",
+  } as const;
+
+  function sendGeneratedFavicon(name: string, res: Response, next: NextFunction) {
+    const full = faviconPublicPath(name);
+    if (!full) {
+      next();
+      return;
+    }
+    res.sendFile(path.resolve(full), { headers: faviconNoStore });
   }
 
-  app.get("/site.webmanifest", async (_req, res, next) => {
+  async function sendGeneratedManifest(res: Response, next: NextFunction) {
     const store = await getStore();
     const setup = await store.getPlayerSetup();
     if (!setup.favicon || !faviconPublicPath("android-chrome-192x192.png")) {
       next();
       return;
     }
-    const version = encodeURIComponent(setup.favicon);
+    const stamp = encodeURIComponent(setup.favicon);
     res.set({
       "Content-Type": "application/manifest+json",
-      "Cache-Control": "no-store",
+      ...faviconNoStore,
     });
     res.json({
       name: setup.appName,
@@ -192,19 +191,38 @@ export function registerRoutes(app: Express): void {
       theme_color: "#0d1117",
       icons: [
         {
-          src: `/android-chrome-192x192.png?v=${version}`,
+          src: `/site-icons/${stamp}/android-chrome-192x192.png`,
           sizes: "192x192",
           type: "image/png",
           purpose: "any",
         },
         {
-          src: `/android-chrome-512x512.png?v=${version}`,
+          src: `/site-icons/${stamp}/android-chrome-512x512.png`,
           sizes: "512x512",
           type: "image/png",
           purpose: "any",
         },
       ],
     });
+  }
+
+  for (const name of FAVICON_PUBLIC_FILES) {
+    app.get(`/${name}`, (_req, res, next) => {
+      sendGeneratedFavicon(name, res, next);
+    });
+  }
+
+  app.get("/site.webmanifest", async (_req, res, next) => {
+    await sendGeneratedManifest(res, next);
+  });
+
+  app.get("/site-icons/:stamp/:file", async (req, res, next) => {
+    const file = path.basename(req.params.file || "");
+    if (file === "site.webmanifest") {
+      await sendGeneratedManifest(res, next);
+      return;
+    }
+    sendGeneratedFavicon(file, res, next);
   });
 
   app.get("/api/albums", async (req, res) => {

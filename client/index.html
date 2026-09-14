@@ -14,6 +14,7 @@
     <meta name="msapplication-TileColor" content="#0d1117" />
     <meta name="msapplication-TileImage" content="/android-chrome-192x192.png" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
@@ -35,13 +36,19 @@
           var setup = JSON.parse(localStorage.getItem("spodazo-home-setup-v1") || "null");
           if (setup && setup.favicon) {
             var stamp = encodeURIComponent(setup.favicon);
-            document.querySelectorAll('link[rel="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]').forEach(function (link) {
+            function iconUrl(file) {
+              return "/site-icons/" + stamp + "/" + String(file || "").replace(/^\//, "").split("?")[0];
+            }
+            document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"], link[rel="manifest"]').forEach(function (link) {
               var href = link.getAttribute("href") || "";
-              var path = href.split("?")[0];
-              if (path) link.setAttribute("href", path + "?v=" + stamp);
+              var file = href.split("?")[0].split("/").pop();
+              if (!file) return;
+              var next = link.cloneNode(false);
+              next.setAttribute("href", iconUrl(file));
+              link.parentNode.replaceChild(next, link);
             });
             var tile = document.querySelector('meta[name="msapplication-TileImage"]');
-            if (tile) tile.setAttribute("content", "/android-chrome-192x192.png?v=" + stamp);
+            if (tile) tile.setAttribute("content", iconUrl("android-chrome-192x192.png"));
           }
           if (setup && setup.logoUrl) preload(setup.logoUrl);
           var albums = JSON.parse(localStorage.getItem("spodazo-home-albums-v3") || "[]");
