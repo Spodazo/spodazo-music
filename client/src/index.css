@@ -927,7 +927,7 @@ button.t-play-icon {
     display: none;
   }
   .modal-head {
-    padding-top: 22px;
+    display: none;
   }
 }
 .m-art-bg {
@@ -974,15 +974,22 @@ button.t-play-icon {
     0 0 0 1px color-mix(in srgb, #f4ecd8 30%, transparent),
     0 12px 28px rgba(0, 0, 0, 0.55);
 }
+.m-meta {
+  flex-shrink: 0;
+  padding: 6px 24px 2px;
+}
 .m-title-row {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
-  align-items: center;
+  align-items: start;
   width: 100%;
   column-gap: 8px;
 }
-.m-title {
+.m-title-stack {
   grid-column: 2;
+  min-width: 0;
+}
+.m-title {
   min-width: 0;
   font-family: "Playfair Display", serif;
   font-weight: 600;
@@ -996,7 +1003,7 @@ button.t-play-icon {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
   color: var(--muted);
-  margin-top: 6px;
+  margin-top: 2px;
   text-align: center;
 }
 
@@ -1995,6 +2002,9 @@ button.t-play-icon {
   }
   .modal .btn-close { display: none; }
   .songs-back { margin-bottom: 0; }
+  .m-meta {
+    padding: 4px 0 2px;
+  }
   .m-title-row {
     display: block;
     padding: 0 18px;
