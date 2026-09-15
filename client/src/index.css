@@ -485,7 +485,7 @@ a { color: inherit; }
   width: 100%;
   max-width: 100%;
   margin-top: 4px;
-  padding: 10px 0 10px 14px;
+  padding: 10px 14px;
   border-radius: 12px;
   background: var(--card);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--amber) 22%, transparent);
@@ -545,7 +545,7 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 32px;
+  padding: 14px 46px 14px 32px;
   border-bottom: 1px solid var(--border);
 }
 .album-stats {
@@ -2108,12 +2108,12 @@ button.t-play-icon {
   }
   .album-head .albums-back { display: none; }
   .album-head { padding: 14px 12px 0; }
-  .album-title-box { gap: 10px; padding: 8px 0 8px 10px; }
+  .album-title-box { gap: 10px; padding: 8px 10px; }
   .album-cover-thumb { width: 76px; height: 76px; }
   .album-head .alb-name2 { font-size: 1.1rem; }
   .album-head .alb-tag { font-size: 0.65rem; }
   .album-head .alb-credit { font-size: 0.58rem; }
-  .album-hero { padding: 10px 12px; flex-wrap: wrap; row-gap: 10px; }
+  .album-hero { padding: 10px 22px 10px 12px; flex-wrap: wrap; row-gap: 10px; }
   .album-stats { flex: 1 0 100%; }
   .track-row { padding: 9px 12px; gap: 10px; }
   .t-thumb { width: 36px; height: 36px; }
