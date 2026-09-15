@@ -24,7 +24,8 @@ export function assetVersion(): string {
 }
 
 export const HOME_CARD_WIDTH = 720;
-const IMAGE_WIDTHS = new Set([360, HOME_CARD_WIDTH, 1200]);
+export const COLLECTION_COVER_WIDTH = 1200;
+const IMAGE_WIDTHS = new Set([360, HOME_CARD_WIDTH, COLLECTION_COVER_WIDTH]);
 
 export function imageUrl(filename: string, width?: number): string {
   if (!filename) return "";

@@ -198,9 +198,10 @@ a { color: inherit; }
   color: #f4ecd8;
 }
 .collection-cover {
-  width: min(320px, 100%);
-  aspect-ratio: 1;
-  object-fit: cover;
+  width: 50vw;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
   display: block;
   margin: 0 auto 28px;
   border: 1px solid var(--border);
@@ -2159,6 +2160,15 @@ button.t-play-icon {
   }
   .home-main {
     justify-content: flex-start;
+  }
+  .collection-cover {
+    box-sizing: border-box;
+    width: calc(100% + 32px);
+    max-width: none;
+    margin-left: -16px;
+    margin-right: -16px;
+    border-left: 0;
+    border-right: 0;
   }
   .admin {
     padding: 20px 16px 48px;

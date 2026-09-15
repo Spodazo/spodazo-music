@@ -6,7 +6,7 @@ import { albums, curator, playerSetup, tracks } from "../shared/schema";
 import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, seedLyricsForTrack } from "../shared/seed-data";
 import { normalizePaletteId } from "../shared/palettes";
 import type { Album, AlbumListItem, Curator, CuratorRecord, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
-import { audioUrl, durationLabelForFile, HOME_CARD_WIDTH, imageUrl } from "./media";
+import { audioUrl, COLLECTION_COVER_WIDTH, durationLabelForFile, HOME_CARD_WIDTH, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
 
 export type AlbumInput = {
@@ -109,7 +109,7 @@ function hydratePlayerSetup(raw?: Partial<PlayerSetup> | null): PlayerSetup {
   const setup = normalizePlayerSetup(raw);
   return {
     ...setup,
-    collectionCoverUrl: imageUrl(setup.collectionCover, HOME_CARD_WIDTH),
+    collectionCoverUrl: imageUrl(setup.collectionCover, COLLECTION_COVER_WIDTH),
     logoUrl: imageUrl(setup.logo, HOME_CARD_WIDTH),
     faviconUrl: imageUrl(setup.favicon),
     footerImageUrl: imageUrl(setup.footerImage),
