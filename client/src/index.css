@@ -944,6 +944,12 @@ button.t-play-icon {
   .layout.player-open .portrait-panel.has-bg .portrait-stage {
     background-position: left center;
   }
+  .layout.player-open .site-footer .copyright {
+    display: none;
+  }
+  .layout.player-open .site-footer .sdg {
+    margin-top: 0;
+  }
 }
 .m-art-bg {
   position: absolute;
