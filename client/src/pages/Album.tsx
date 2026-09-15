@@ -668,7 +668,6 @@ export default function AlbumPage() {
     <div className={`layout${modalOpen ? " player-open" : ""}`}>
       <AdminLoginLink />
       <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
-        <AlbumsBack className="albums-back-on-art" />
         <div
           className="portrait-stage"
           style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
@@ -701,6 +700,7 @@ export default function AlbumPage() {
             </div>
           ) : null}
         </div>
+        <AlbumsBack className="albums-back-on-art" />
       </aside>
       <section className="track-panel">
         <div className="album-head">
@@ -819,15 +819,6 @@ export default function AlbumPage() {
         <div className="modal open">
           <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
             <div className="modal-head">
-              <button
-                type="button"
-                className="albums-back songs-back"
-                onClick={closeModal}
-                aria-label="Back to songs"
-              >
-                <IconBack />
-                Songs
-              </button>
               <div className={`m-art${backgroundUrl ? " has-bg" : ""}`}>
                 {backgroundUrl ? (
                   <img className="m-art-bg" src={backgroundUrl} alt="" decoding="async" />
@@ -866,6 +857,15 @@ export default function AlbumPage() {
                   </div>
                 )}
               </div>
+              <button
+                type="button"
+                className="albums-back songs-back"
+                onClick={closeModal}
+                aria-label="Back to songs"
+              >
+                <IconBack />
+                Songs
+              </button>
             </div>
             <div className="transport">
               <div className="progress-wrap">

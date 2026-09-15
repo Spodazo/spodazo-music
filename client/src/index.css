@@ -2033,7 +2033,7 @@ button.t-play-icon {
     min-height: 0;
     aspect-ratio: unset;
     overflow: hidden;
-    padding: 8px 0;
+    padding: 0 0 8px;
   }
   .portrait-bg {
     position: absolute;
@@ -2088,7 +2088,7 @@ button.t-play-icon {
   .songs-back {
     display: inline-flex;
     position: static;
-    margin: max(12px, env(safe-area-inset-top)) 16px 10px max(16px, env(safe-area-inset-left));
+    margin: 10px 16px 10px max(16px, env(safe-area-inset-left));
     padding: 0;
     border: 0;
     background: none;
@@ -2145,7 +2145,7 @@ button.t-play-icon {
     height: auto;
     aspect-ratio: unset;
     border-radius: 0;
-    padding: 8px 0;
+    padding: 0 0 8px;
   }
   .m-cover,
   .m-art.has-bg .m-cover {
