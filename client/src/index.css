@@ -1484,6 +1484,12 @@ button.t-play-icon {
   margin: 0 0 8px;
   border: 1px solid var(--border);
 }
+.admin .cover-remove {
+  margin-top: 0;
+  margin-bottom: 8px;
+  min-height: 30px;
+  font-size: 13px;
+}
 .setup-logo-preview {
   width: 200px;
   max-height: 80px;

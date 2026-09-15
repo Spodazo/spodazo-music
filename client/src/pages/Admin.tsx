@@ -462,6 +462,10 @@ export default function AdminPage() {
               applyPalette(next.collectionColor);
               setSetupOpen(false);
             }}
+            onCleared={(next) => {
+              setPlayerSetup(next);
+              writeCachedSetup(next);
+            }}
             onCancel={() => setSetupOpen(false)}
           />
         </AdminDialog>
@@ -584,15 +588,21 @@ function CoverField({
   currentUrl,
   previewClass = "setup-cover-preview",
   hint,
+  clearable,
+  onClear,
 }: {
   label: string;
   name: string;
   currentUrl?: string;
   previewClass?: string;
   hint?: string;
+  clearable?: boolean;
+  onClear?: () => Promise<void>;
 }) {
   const [pickedUrl, setPickedUrl] = useState("");
+  const [busy, setBusy] = useState(false);
   const pickedUrlRef = useRef("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     return () => {
@@ -608,12 +618,31 @@ function CoverField({
     setPickedUrl(next);
   }
 
+  async function removeCover() {
+    if (pickedUrlRef.current.startsWith("blob:")) URL.revokeObjectURL(pickedUrlRef.current);
+    pickedUrlRef.current = "";
+    setPickedUrl("");
+    if (inputRef.current) inputRef.current.value = "";
+    if (!currentUrl || !onClear) return;
+    setBusy(true);
+    try {
+      await onClear();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const preview = pickedUrl || currentUrl;
   return (
     <>
       <label>{label}</label>
       {preview ? <img className={previewClass} src={preview} alt="" /> : null}
-      <input name={name} type="file" accept="image/*" onChange={onPick} />
+      {clearable && preview ? (
+        <button type="button" className="ghost cover-remove" onClick={() => void removeCover()} disabled={busy}>
+          {busy ? "Removing…" : "Remove"}
+        </button>
+      ) : null}
+      <input ref={inputRef} name={name} type="file" accept="image/*" onChange={onPick} />
       {hint ? <p className="hint">{hint}</p> : null}
     </>
   );
@@ -934,10 +963,12 @@ function CuratorEditor({
 function PlayerSetupForm({
   setup,
   onSaved,
+  onCleared,
   onCancel,
 }: {
   setup: PlayerSetup;
   onSaved: (setup: PlayerSetup) => void;
+  onCleared: (setup: PlayerSetup) => void;
   onCancel: () => void;
 }) {
   const [error, setError] = useState("");
@@ -955,7 +986,17 @@ function PlayerSetupForm({
         }
       }}
     >
-      <CoverField label="Collection Cover" name="cover" currentUrl={setup.collectionCoverUrl} />
+      <CoverField
+        label="Collection Cover"
+        name="cover"
+        currentUrl={setup.collectionCoverUrl}
+        clearable
+        onClear={async () => {
+          const form = new FormData();
+          form.set("clearCover", "1");
+          onCleared(await updatePlayerSetup(form));
+        }}
+      />
       <CoverField label="Logo" name="logo" currentUrl={setup.logoUrl} previewClass="setup-logo-preview" />
       <CoverField
         label="Favicon"

@@ -130,6 +130,9 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(withCover.collectionCover, "Collection.webp");
   assert.match(withCover.collectionCoverUrl, /Collection\.webp/);
   assert.equal((await store.getPlayerSetup()).collectionCover, "Collection.webp");
+  const clearedCover = await store.updatePlayerSetup({ collectionCover: "" });
+  assert.equal(clearedCover.collectionCover, "");
+  assert.equal(clearedCover.collectionCoverUrl, "");
   const withLogo = await store.updatePlayerSetup({ logo: "Mark.webp" });
   assert.equal(withLogo.logo, "Mark.webp");
   assert.match(withLogo.logoUrl, /Mark\.webp/);

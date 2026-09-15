@@ -141,6 +141,7 @@ export function registerRoutes(app: Express): void {
     if (body.copyright !== undefined) fields.copyright = String(body.copyright);
     if (body.collectionColor !== undefined) fields.collectionColor = String(body.collectionColor);
     if (files?.cover?.[0]) fields.collectionCover = files.cover[0].filename;
+    else if (body.clearCover === "1" || body.clearCover === "true") fields.collectionCover = "";
     if (files?.logo?.[0]) fields.logo = files.logo[0].filename;
     if (files?.footer?.[0]) fields.footerImage = files.footer[0].filename;
     if (files?.favicon?.[0]) {
