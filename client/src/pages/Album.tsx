@@ -658,14 +658,7 @@ export default function AlbumPage() {
                   ? `Shrink ${showingAlbumCover ? album.title : track?.title || album.title} cover`
                   : `Enlarge ${showingAlbumCover ? album.title : track?.title || album.title} cover`
               }
-              onClick={() => {
-                if (showingArtistPhoto) {
-                  setShowArtistPhoto(false);
-                  setEnlargedCover(null);
-                  return;
-                }
-                setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"));
-              }}
+              onClick={() => setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"))}
             >
               <span className="cover-sizer" aria-hidden="true" />
               <CoverLayers
@@ -690,9 +683,9 @@ export default function AlbumPage() {
             </button>
           ) : null}
         </div>
-        <AlbumsBack className="albums-back-on-art" />
       </aside>
       <section className="track-panel">
+        <AlbumsBack className="albums-back-on-art" />
         <div className="album-head">
           <AlbumsBack />
           <div className="album-title-box">
@@ -764,8 +757,8 @@ export default function AlbumPage() {
               title={album.artists}
               aria-label={
                 showingArtistPhoto
-                  ? `Shrink photo of ${album.artists || "the artists"}`
-                  : `Enlarge photo of ${album.artists || "the artists"}`
+                  ? `Hide photo of ${album.artists || "the artists"}`
+                  : `Show photo of ${album.artists || "the artists"}`
               }
               aria-pressed={showingArtistPhoto}
               onClick={() => {
@@ -776,7 +769,7 @@ export default function AlbumPage() {
                 }
                 setShowAlbumCover(false);
                 setShowArtistPhoto(true);
-                setEnlargedCover("portrait");
+                setEnlargedCover(null);
               }}
             >
               <img

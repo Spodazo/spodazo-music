@@ -2018,17 +2018,21 @@ button.t-play-icon {
 }
 
 @media (max-width: 600px) {
-  html, body { overflow-y: auto; overflow-x: hidden; }
+  html, body { overflow: hidden; height: 100%; }
   .layout {
     flex-direction: column;
     height: 100vh;
     height: 100dvh;
     min-height: 0;
-    overflow: hidden;
-    overscroll-behavior: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
   }
   .portrait-panel,
   .portrait-panel.has-bg {
+    position: sticky;
+    top: 0;
     flex: 0 0 auto;
     flex-direction: column;
     align-items: stretch;
@@ -2037,7 +2041,7 @@ button.t-play-icon {
     max-width: 100%;
     height: auto;
     overflow: hidden;
-    z-index: 4;
+    z-index: 5;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
     padding-top: max(28px, calc(env(safe-area-inset-top) + 16px));
   }
@@ -2097,16 +2101,14 @@ button.t-play-icon {
     object-fit: cover;
   }
   .track-panel {
-    flex: 1;
+    flex: 0 0 auto;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
   }
   .tracks {
-    flex: 1 1 auto;
+    flex: none;
     min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
+    overflow: visible;
     padding-bottom: 20px;
   }
   .albums-back-on-art,
