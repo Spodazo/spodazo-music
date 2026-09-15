@@ -35,18 +35,6 @@ function introductionBody(text: string): string {
   return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
 }
 
-function coverAnchorBox(): { top: number; left: number; width: number; height: number } | null {
-  const playerCover = document.querySelector(".modal.open .m-cover");
-  const albumCover = document.querySelector(".portrait-cover") || document.querySelector(".portrait-img") || document.querySelector(".portrait-stage");
-  const el = (playerCover instanceof HTMLElement && playerCover.getBoundingClientRect().width > 0
-    ? playerCover
-    : albumCover) as HTMLElement | null;
-  if (!el) return null;
-  const box = el.getBoundingClientRect();
-  if (box.width < 8 || box.height < 8) return null;
-  return { top: box.top, left: box.left, width: box.width, height: box.height };
-}
-
 function trackHasLyrics(track: { lyrics: string; instrumental?: boolean } | null): boolean {
   if (!track || track.instrumental) return false;
   const lyrics = track.lyrics.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
@@ -136,8 +124,6 @@ export default function AlbumPage() {
   const [active, setActive] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [lightbox, setLightbox] = useState(false);
-  const [coverBox, setCoverBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const [enlargedCover, setEnlargedCover] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -147,6 +133,7 @@ export default function AlbumPage() {
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [portraitFailed, setPortraitFailed] = useState("");
   const [showAlbumCover, setShowAlbumCover] = useState(false);
+  const [showArtistPhoto, setShowArtistPhoto] = useState(false);
   const [baseCover, setBaseCover] = useState({ url: "", alt: "" });
   const [nextCover, setNextCover] = useState<{ url: string; alt: string } | null>(null);
   const [nextReady, setNextReady] = useState(false);
@@ -205,11 +192,17 @@ export default function AlbumPage() {
   const hasOwnBackground = Boolean(album?.heroPortrait && album.heroPortrait !== album.thumb);
   const backgroundUrl = hasOwnBackground && album ? album.heroUrl : "";
   const albumCoverUrl = album?.thumbUrl || (!backgroundUrl ? album?.heroUrl || "" : "");
+  const artistUrl = album?.artistUrl && portraitFailed !== album.artistUrl ? album.artistUrl : "";
   const songCoverUrl = track?.imageUrl && portraitFailed !== track.imageUrl ? track.imageUrl : "";
-  const coverUrl = (showAlbumCover ? albumCoverUrl : songCoverUrl) || albumCoverUrl;
-  const showingAlbumCover = Boolean(coverUrl && coverUrl === albumCoverUrl);
-  const coverAlt =
-    !showingAlbumCover && songCoverUrl && track
+  const coverUrl =
+    (showArtistPhoto && artistUrl) ||
+    (showAlbumCover ? albumCoverUrl : songCoverUrl) ||
+    albumCoverUrl;
+  const showingArtistPhoto = Boolean(artistUrl && coverUrl === artistUrl);
+  const showingAlbumCover = Boolean(coverUrl && coverUrl === albumCoverUrl && !showingArtistPhoto);
+  const coverAlt = showingArtistPhoto
+    ? album?.artists || "Artist photo"
+    : !showingAlbumCover && songCoverUrl && track
       ? `${track.title}${track.scripture ? ` — ${track.scripture}` : ""}`
       : album
         ? `${album.title} — ${album.artists}`
@@ -261,26 +254,6 @@ export default function AlbumPage() {
   useEffect(() => {
     albumRef.current = album;
   }, [album]);
-
-  useEffect(() => {
-    if (!lightbox) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setLightbox(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [lightbox]);
-
-  useEffect(() => {
-    if (!lightbox) {
-      setCoverBox(null);
-      return;
-    }
-    const place = () => setCoverBox(coverAnchorBox());
-    place();
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [lightbox, coverUrl, modalOpen]);
 
   useEffect(() => {
     setPlaybackSession();
@@ -363,6 +336,7 @@ export default function AlbumPage() {
 
   function playAt(index: number, autoplay: boolean) {
     setShowAlbumCover(false);
+    setShowArtistPhoto(false);
     load(index, autoplay);
     setActive(index);
   }
@@ -684,7 +658,14 @@ export default function AlbumPage() {
                   ? `Shrink ${showingAlbumCover ? album.title : track?.title || album.title} cover`
                   : `Enlarge ${showingAlbumCover ? album.title : track?.title || album.title} cover`
               }
-              onClick={() => setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"))}
+              onClick={() => {
+                if (showingArtistPhoto) {
+                  setShowArtistPhoto(false);
+                  setEnlargedCover(null);
+                  return;
+                }
+                setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"));
+              }}
             >
               <span className="cover-sizer" aria-hidden="true" />
               <CoverLayers
@@ -723,7 +704,11 @@ export default function AlbumPage() {
                 title="Show album cover"
                 aria-label="Show album cover"
                 aria-pressed={showingAlbumCover}
-                onClick={() => setShowAlbumCover(true)}
+                onClick={() => {
+                  setShowArtistPhoto(false);
+                  setShowAlbumCover(true);
+                  setEnlargedCover(null);
+                }}
               >
                 <img
                   src={albumCoverUrl}
@@ -772,13 +757,27 @@ export default function AlbumPage() {
               All
             </button>
           </div>
-          {album.artistUrl ? (
+          {artistUrl ? (
             <button
               type="button"
-              className="hero-thumb"
+              className={`hero-thumb${showingArtistPhoto ? " on" : ""}`}
               title={album.artists}
-              aria-label={`Enlarge photo of ${album.artists || "the artists"}`}
-              onClick={() => setLightbox(true)}
+              aria-label={
+                showingArtistPhoto
+                  ? `Shrink photo of ${album.artists || "the artists"}`
+                  : `Enlarge photo of ${album.artists || "the artists"}`
+              }
+              aria-pressed={showingArtistPhoto}
+              onClick={() => {
+                if (showingArtistPhoto) {
+                  setShowArtistPhoto(false);
+                  setEnlargedCover(null);
+                  return;
+                }
+                setShowAlbumCover(false);
+                setShowArtistPhoto(true);
+                setEnlargedCover("portrait");
+              }}
             >
               <img
                 src={album.artistUrl}
@@ -1002,40 +1001,6 @@ export default function AlbumPage() {
               <CopyrightLines text={album.copyright || DEFAULT_PLAYER_SETUP.copyright} />
               <SdgFooter imageUrl={setup.footerImageUrl} />
             </footer>
-          </div>
-        </div>
-      ) : null}
-
-      {lightbox && album.artistUrl ? (
-        <div className="lightbox" onClick={() => setLightbox(false)}>
-          <div
-            className={`lightbox-card${coverBox ? " on-cover" : ""}`}
-            role="dialog"
-            aria-modal="true"
-            aria-label={album.artists || "Artist photo"}
-            style={
-              coverBox
-                ? { top: coverBox.top, left: coverBox.left, width: coverBox.width, height: coverBox.height }
-                : undefined
-            }
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="lightbox-close"
-              aria-label="Close artist photo"
-              onClick={() => setLightbox(false)}
-            >
-              <IconClose />
-            </button>
-            <img
-              src={album.artistUrl}
-              alt={album.artists}
-              ref={(img) => {
-                if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
-              }}
-              onLoad={(event) => event.currentTarget.classList.add("is-ready")}
-            />
           </div>
         </div>
       ) : null}

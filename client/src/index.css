@@ -636,7 +636,7 @@ button.portrait-cover.enlarged {
   overflow: hidden;
   flex-shrink: 0;
   background: none;
-  cursor: pointer;
+  cursor: zoom-in;
   box-shadow: 0 0 0 1px var(--border);
   transition: transform 0.15s;
 }
@@ -651,6 +651,10 @@ button.portrait-cover.enlarged {
   animation: cover-fade-in 1.2s ease forwards;
 }
 .hero-thumb:hover { transform: scale(1.05); }
+.hero-thumb.on {
+  box-shadow: 0 0 0 2px var(--amber);
+  cursor: zoom-out;
+}
 
 .tracks {
   flex: 1 1 auto;
