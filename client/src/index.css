@@ -2023,6 +2023,7 @@ button.t-play-icon {
     overflow: hidden;
     z-index: 4;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+    padding-top: max(12px, env(safe-area-inset-top));
   }
   .portrait-stage {
     display: flex;
@@ -2135,7 +2136,7 @@ button.t-play-icon {
   .modal-card { border-left: none; border-top: 1px solid var(--border); max-height: 96vh; border-radius: 18px 18px 0 0; }
   .modal-head {
     align-items: stretch;
-    padding: 0 0 12px;
+    padding: max(12px, env(safe-area-inset-top)) 0 12px;
     gap: 12px;
   }
   .m-art,
