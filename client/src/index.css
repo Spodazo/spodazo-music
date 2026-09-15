@@ -976,7 +976,7 @@ button.t-play-icon {
 }
 .m-meta {
   flex-shrink: 0;
-  padding: 6px 24px 2px;
+  padding: 6px 24px 10px;
 }
 .m-title-row {
   display: grid;
@@ -2003,7 +2003,7 @@ button.t-play-icon {
   .modal .btn-close { display: none; }
   .songs-back { margin-bottom: 0; }
   .m-meta {
-    padding: 4px 0 2px;
+    padding: 4px 0 10px;
   }
   .m-title-row {
     display: block;
