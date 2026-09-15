@@ -146,6 +146,7 @@ export default function AlbumPage() {
   const [repeatOne, setRepeatOne] = useState(false);
   const [lyricsOpen, setLyricsOpen] = useState(false);
   const [portraitFailed, setPortraitFailed] = useState("");
+  const [showAlbumCover, setShowAlbumCover] = useState(false);
   const [baseCover, setBaseCover] = useState({ url: "", alt: "" });
   const [nextCover, setNextCover] = useState<{ url: string; alt: string } | null>(null);
   const [nextReady, setNextReady] = useState(false);
@@ -205,9 +206,10 @@ export default function AlbumPage() {
   const backgroundUrl = hasOwnBackground && album ? album.heroUrl : "";
   const albumCoverUrl = album?.thumbUrl || (!backgroundUrl ? album?.heroUrl || "" : "");
   const songCoverUrl = track?.imageUrl && portraitFailed !== track.imageUrl ? track.imageUrl : "";
-  const coverUrl = songCoverUrl || albumCoverUrl;
+  const coverUrl = (showAlbumCover ? albumCoverUrl : songCoverUrl) || albumCoverUrl;
+  const showingAlbumCover = Boolean(coverUrl && coverUrl === albumCoverUrl);
   const coverAlt =
-    songCoverUrl && track
+    !showingAlbumCover && songCoverUrl && track
       ? `${track.title}${track.scripture ? ` — ${track.scripture}` : ""}`
       : album
         ? `${album.title} — ${album.artists}`
@@ -360,6 +362,7 @@ export default function AlbumPage() {
   }
 
   function playAt(index: number, autoplay: boolean) {
+    setShowAlbumCover(false);
     load(index, autoplay);
     setActive(index);
   }
@@ -702,7 +705,29 @@ export default function AlbumPage() {
       <section className="track-panel">
         <div className="album-head">
           <AlbumsBack />
-          <h1 className="alb-name2">{album.title}</h1>
+          <div className="album-title-box">
+            <h1 className="alb-name2">{album.title}</h1>
+            {albumCoverUrl ? (
+              <button
+                type="button"
+                className={`album-cover-thumb${showingAlbumCover ? " on" : ""}`}
+                title="Show album cover"
+                aria-label="Show album cover"
+                aria-pressed={showingAlbumCover}
+                onClick={() => setShowAlbumCover(true)}
+              >
+                <img
+                  src={albumCoverUrl}
+                  alt=""
+                  decoding="async"
+                  ref={(img) => {
+                    if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+                  }}
+                  onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                />
+              </button>
+            ) : null}
+          </div>
           <p className="alb-tag">{album.tagline}</p>
           {creditLine(album.artists, album.credits) ? (
             <p className="alb-credit">{creditLine(album.artists, album.credits)}</p>
