@@ -929,6 +929,12 @@ button.t-play-icon {
   .modal-head {
     display: none;
   }
+  .portrait-panel.has-bg.shift-bg-left .portrait-bg {
+    object-position: 18% 50%;
+  }
+  .portrait-panel.has-bg.shift-bg-left .portrait-stage {
+    background-position: 18% 50%;
+  }
 }
 .m-art-bg {
   position: absolute;
