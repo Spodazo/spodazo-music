@@ -442,8 +442,7 @@ a { color: inherit; }
   min-width: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
   background: linear-gradient(160deg, var(--card) 0%, var(--panel) 60%, var(--bg) 100%);
   border-left: 1px solid var(--border);
 }
@@ -599,7 +598,13 @@ a { color: inherit; }
 }
 .hero-thumb:hover { transform: scale(1.05); }
 
-.tracks { flex: none; overflow: visible; padding: 0 0 8px; }
+.tracks {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0 0 8px;
+}
 .track-row {
   display: flex;
   align-items: center;
@@ -845,6 +850,10 @@ button.t-play-icon {
   text-align: center;
   border-top: 1px solid var(--border);
   margin-top: auto;
+}
+.player-footer {
+  margin-top: 0;
+  padding: 12px 24px max(14px, env(safe-area-inset-bottom));
 }
 .site-footer .copyright {
   font-size: 0.6rem;
@@ -2011,12 +2020,16 @@ button.t-play-icon {
   .track-panel {
     flex: 1;
     min-height: 0;
-    overflow-x: hidden;
+    overflow: hidden;
+  }
+  .tracks {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    padding-bottom: 20px;
   }
-  .tracks { flex: none; overflow: visible; padding-bottom: 20px; }
   .albums-back-on-art,
   .songs-back {
     display: inline-flex;

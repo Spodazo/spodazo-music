@@ -926,10 +926,6 @@ export default function AlbumPage() {
                     </div>
                   </>
                 ) : null}
-                <footer className="site-footer" style={{ borderTop: "1px solid var(--border)", padding: "12px 0 0", marginTop: 16 }}>
-                  <CopyrightLines text={album.copyright || DEFAULT_PLAYER_SETUP.copyright} />
-                  <SdgFooter imageUrl={setup.footerImageUrl} />
-                </footer>
               </div>
               {lyricsOpen && trackHasLyrics(track) ? (
                 <div className="lyrics-sheet" ref={lyricsSheetRef}>
@@ -968,6 +964,10 @@ export default function AlbumPage() {
                 </div>
               ) : null}
             </div>
+            <footer className="site-footer player-footer">
+              <CopyrightLines text={album.copyright || DEFAULT_PLAYER_SETUP.copyright} />
+              <SdgFooter imageUrl={setup.footerImageUrl} />
+            </footer>
           </div>
         </div>
       ) : null}
