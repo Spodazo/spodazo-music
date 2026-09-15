@@ -2023,7 +2023,7 @@ button.t-play-icon {
     overflow: hidden;
     z-index: 4;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
-    padding-top: max(12px, env(safe-area-inset-top));
+    padding-top: max(28px, calc(env(safe-area-inset-top) + 16px));
   }
   .portrait-stage {
     display: flex;
@@ -2034,7 +2034,7 @@ button.t-play-icon {
     min-height: 0;
     aspect-ratio: unset;
     overflow: hidden;
-    padding: 0 0 8px;
+    padding: 8px 0;
   }
   .portrait-bg {
     position: absolute;
@@ -2136,7 +2136,7 @@ button.t-play-icon {
   .modal-card { border-left: none; border-top: 1px solid var(--border); max-height: 96vh; border-radius: 18px 18px 0 0; }
   .modal-head {
     align-items: stretch;
-    padding: max(12px, env(safe-area-inset-top)) 0 12px;
+    padding: max(28px, calc(env(safe-area-inset-top) + 16px)) 0 12px;
     gap: 12px;
   }
   .m-art,
@@ -2146,7 +2146,7 @@ button.t-play-icon {
     height: auto;
     aspect-ratio: unset;
     border-radius: 0;
-    padding: 0 0 8px;
+    padding: 8px 0;
   }
   .m-cover,
   .m-art.has-bg .m-cover {
@@ -2195,6 +2195,10 @@ button.t-play-icon {
 }
 
 @media (max-width: 720px) {
+  .admin-login {
+    top: max(18px, calc(env(safe-area-inset-top) + 10px));
+    right: max(16px, calc(env(safe-area-inset-right) + 8px));
+  }
   .home {
     padding-top: env(safe-area-inset-top);
     padding-left: 16px;
