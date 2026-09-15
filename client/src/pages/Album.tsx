@@ -664,7 +664,7 @@ export default function AlbumPage() {
       ) : (
     <div className={`layout${modalOpen ? " player-open" : ""}`}>
       <AdminLoginLink />
-      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}${album.slug === "echoes-of-storms" ? " shift-bg-left" : ""}`}>
+      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
         <AlbumsBack className="albums-back-on-art" />
         <div
           className="portrait-stage"

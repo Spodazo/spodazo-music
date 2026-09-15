@@ -929,11 +929,11 @@ button.t-play-icon {
   .modal-head {
     display: none;
   }
-  .portrait-panel.has-bg.shift-bg-left .portrait-bg {
-    object-position: 18% 50%;
+  .layout.player-open .portrait-panel.has-bg .portrait-bg {
+    object-position: left center;
   }
-  .portrait-panel.has-bg.shift-bg-left .portrait-stage {
-    background-position: 18% 50%;
+  .layout.player-open .portrait-panel.has-bg .portrait-stage {
+    background-position: left center;
   }
 }
 .m-art-bg {
