@@ -944,10 +944,10 @@ button.t-play-icon {
   .layout.player-open .portrait-panel.has-bg .portrait-stage {
     background-position: left center;
   }
-  .layout.player-open .site-footer .copyright {
+  .layout.player-open .player-footer .copyright {
     display: none;
   }
-  .layout.player-open .site-footer .sdg {
+  .layout.player-open .player-footer .sdg {
     margin-top: 0;
   }
 }
