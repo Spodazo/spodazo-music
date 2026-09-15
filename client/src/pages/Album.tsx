@@ -667,7 +667,7 @@ export default function AlbumPage() {
       ) : (
     <div className={`layout${modalOpen ? " player-open" : ""}`}>
       <AdminLoginLink />
-      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
+      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}${enlargedCover === "portrait" ? " cover-enlarged" : ""}`}>
         <div
           className="portrait-stage"
           style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
@@ -676,7 +676,16 @@ export default function AlbumPage() {
             <img className="portrait-bg" src={backgroundUrl} alt="" decoding="async" />
           ) : null}
           {baseCover.url ? (
-            <div className="portrait-cover">
+            <button
+              type="button"
+              className={`portrait-cover${enlargedCover === "portrait" ? " enlarged" : ""}`}
+              aria-label={
+                enlargedCover === "portrait"
+                  ? `Shrink ${showingAlbumCover ? album.title : track?.title || album.title} cover`
+                  : `Enlarge ${showingAlbumCover ? album.title : track?.title || album.title} cover`
+              }
+              onClick={() => setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"))}
+            >
               <span className="cover-sizer" aria-hidden="true" />
               <CoverLayers
                 imgClass="portrait-img"
@@ -697,7 +706,7 @@ export default function AlbumPage() {
                   if (baseCover.url) setPortraitFailed(baseCover.url);
                 }}
               />
-            </div>
+            </button>
           ) : null}
         </div>
         <AlbumsBack className="albums-back-on-art" />

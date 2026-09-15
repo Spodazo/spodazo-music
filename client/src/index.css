@@ -395,6 +395,18 @@ a { color: inherit; }
   min-width: 0;
   min-height: 0;
 }
+button.portrait-cover {
+  display: block;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+}
+button.portrait-cover.enlarged {
+  cursor: zoom-out;
+}
 .cover-sizer {
   display: block;
   width: 100%;
@@ -2063,6 +2075,14 @@ button.t-play-icon {
     left: auto;
     top: auto;
     transform: none;
+  }
+  .portrait-panel.cover-enlarged .portrait-stage {
+    padding: 0;
+  }
+  .portrait-panel.cover-enlarged .portrait-cover,
+  .portrait-panel.has-bg.cover-enlarged .portrait-cover,
+  .portrait-panel:not(.has-bg).cover-enlarged .portrait-cover {
+    width: 100%;
   }
   .portrait-img,
   .portrait-panel.has-bg .portrait-img {
