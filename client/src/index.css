@@ -2018,7 +2018,12 @@ button.t-play-icon {
 }
 
 @media (max-width: 600px) {
-  html, body { overflow: hidden; height: 100%; }
+  /* Album pages only — Admin and Home need the document to scroll. */
+  html:has(.layout),
+  html:has(.layout) body {
+    overflow: hidden;
+    height: 100%;
+  }
   .layout {
     flex-direction: column;
     height: 100vh;
