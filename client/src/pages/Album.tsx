@@ -683,9 +683,9 @@ export default function AlbumPage() {
             </button>
           ) : null}
         </div>
+        <AlbumsBack className="albums-back-on-art" />
       </aside>
       <section className="track-panel">
-        <AlbumsBack className="albums-back-on-art" />
         <div className="album-head">
           <AlbumsBack />
           <div className="album-title-box">

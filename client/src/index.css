@@ -2069,6 +2069,7 @@ button.t-play-icon {
     z-index: 5;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
     padding-top: max(28px, calc(env(safe-area-inset-top) + 16px));
+    background: var(--portrait);
   }
   .portrait-stage {
     display: flex;
@@ -2143,7 +2144,7 @@ button.t-play-icon {
   .songs-back {
     display: inline-flex;
     position: static;
-    margin: 10px 16px 10px max(16px, env(safe-area-inset-left));
+    margin: 4px 16px 12px max(16px, env(safe-area-inset-left));
     padding: 0;
     border: 0;
     background: none;
@@ -2189,9 +2190,13 @@ button.t-play-icon {
   .modal { width: 100%; left: 0; right: 0; }
   .modal-card { border-left: none; border-top: 1px solid var(--border); max-height: 96vh; border-radius: 18px 18px 0 0; }
   .modal-head {
+    position: sticky;
+    top: 0;
+    z-index: 6;
     align-items: stretch;
     padding: max(28px, calc(env(safe-area-inset-top) + 16px)) 0 12px;
     gap: 12px;
+    background: linear-gradient(170deg, #14202e 0%, #0e161f 100%);
   }
   .m-art,
   .m-art.has-bg {
