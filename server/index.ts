@@ -68,6 +68,8 @@ async function start() {
         setHeaders(res, filePath) {
           if (filePath.endsWith(".html")) {
             res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+            res.setHeader("CDN-Cache-Control", "no-store");
+            res.setHeader("Cloudflare-CDN-Cache-Control", "no-store");
             res.setHeader("Pragma", "no-cache");
             res.setHeader("Expires", "0");
             return;
@@ -92,6 +94,8 @@ async function start() {
       res.set({
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store, no-cache, must-revalidate",
+        "CDN-Cache-Control": "no-store",
+        "Cloudflare-CDN-Cache-Control": "no-store",
         Pragma: "no-cache",
         Expires: "0",
       });

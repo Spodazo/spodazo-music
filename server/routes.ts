@@ -109,7 +109,12 @@ function trackFields(body: Request["body"], albumId?: string) {
 
 export function registerRoutes(app: Express): void {
   app.get("/api/version", (_req, res) => {
-    res.set("Cache-Control", "no-store");
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "CDN-Cache-Control": "no-store",
+      "Cloudflare-CDN-Cache-Control": "no-store",
+      Pragma: "no-cache",
+    });
     res.json({
       app: "spodazo-music",
       ok: true,
