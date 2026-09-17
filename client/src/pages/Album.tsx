@@ -334,9 +334,14 @@ export default function AlbumPage() {
     }, 250);
   }
 
-  function playAt(index: number, autoplay: boolean) {
+  function showPlayingCover() {
     setShowAlbumCover(false);
     setShowArtistPhoto(false);
+    setEnlargedCover(null);
+  }
+
+  function playAt(index: number, autoplay: boolean) {
+    showPlayingCover();
     load(index, autoplay);
     setActive(index);
   }
@@ -344,6 +349,7 @@ export default function AlbumPage() {
   function openAt(index: number, autoplay: boolean) {
     const sameSong = active === index && Boolean(currentUrlRef.current);
     if (!sameSong) playAt(index, autoplay);
+    else showPlayingCover();
     setModalOpen(true);
     if (sameSong) {
       const next = albumRef.current?.tracks[index];
@@ -804,8 +810,10 @@ export default function AlbumPage() {
               onWarm={() => warm()}
               onOpen={() => openAt(index, true)}
               onPlayPause={() => {
-                if (active === index && currentUrlRef.current) togglePlay();
-                else playAt(index, true);
+                if (active === index && currentUrlRef.current) {
+                  showPlayingCover();
+                  togglePlay();
+                } else playAt(index, true);
               }}
             />
           ))}
