@@ -700,10 +700,15 @@ export default function AlbumPage() {
               <button
                 type="button"
                 className={`album-cover-thumb${showingAlbumCover ? " on" : ""}`}
-                title="Show album cover"
-                aria-label="Show album cover"
+                title={showingAlbumCover ? "Show song cover" : "Show album cover"}
+                aria-label={showingAlbumCover ? "Show song cover" : "Show album cover"}
                 aria-pressed={showingAlbumCover}
                 onClick={() => {
+                  if (showingAlbumCover) {
+                    setShowAlbumCover(false);
+                    setEnlargedCover(null);
+                    return;
+                  }
                   setShowArtistPhoto(false);
                   setShowAlbumCover(true);
                   setEnlargedCover(null);
