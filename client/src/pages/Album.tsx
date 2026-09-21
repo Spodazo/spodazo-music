@@ -5,12 +5,16 @@ import SdgFooter from "../components/SdgFooter";
 import {
   assignSrc,
   dropLegacyAudioCaches,
+  outputGraphIsStale,
   pipelineIsDead,
   playSong,
+  releaseOutput,
+  restoreMobileOutput,
   setOutputLevel,
   setPlaybackSession,
   START_OFFSET,
   unlockAudio,
+  watchPlaybackRoute,
 } from "../lib/audioCache";
 import { fetchAlbum, fetchPlayerSetup } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
@@ -143,6 +147,9 @@ export default function AlbumPage() {
   const currentUrlRef = useRef("");
   const resumeTimeRef = useRef(0);
   const userVolRef = useRef(0.85);
+  const wantPlayingRef = useRef(false);
+  const rerouteRef = useRef<{ time: number; playing: boolean } | null>(null);
+  const [audioGen, setAudioGen] = useState(0);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
   const lyricsTrackRef = useRef<HTMLDivElement | null>(null);
@@ -255,6 +262,17 @@ export default function AlbumPage() {
     albumRef.current = album;
   }, [album]);
 
+  function rebuildAudio(time: number, playing: boolean) {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
+      resumeTimeRef.current = audio.currentTime;
+    }
+    rerouteRef.current = { time, playing };
+    releaseOutput(audio);
+    audio?.pause();
+    setAudioGen((value) => value + 1);
+  }
+
   useEffect(() => {
     setPlaybackSession();
     void dropLegacyAudioCaches();
@@ -265,12 +283,42 @@ export default function AlbumPage() {
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onHide);
     window.addEventListener("freeze", onHide);
+    const stopRoute = watchPlaybackRoute(
+      () => audioRef.current,
+      (snapshot) => {
+        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current);
+      },
+    );
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onHide);
       window.removeEventListener("freeze", onHide);
+      stopRoute();
     };
   }, []);
+
+  useEffect(() => {
+    const pending = rerouteRef.current;
+    const audio = audioRef.current;
+    const url = currentUrlRef.current;
+    if (!pending || !audio || !url) return;
+    rerouteRef.current = null;
+    audio.loop = repeatOne;
+    if (!pending.playing) {
+      assignSrc(audio, url, pending.time);
+      return;
+    }
+    wantPlayingRef.current = true;
+    void playSong(audio, url, pending.time, true, userVolRef.current)
+      .then(() => {
+        setPlaying(true);
+        acquireWake();
+      })
+      .catch(() => {
+        wantPlayingRef.current = false;
+        setPlaying(false);
+      });
+  }, [audioGen]);
 
   useEffect(() => {
     if (!album) return;
@@ -305,6 +353,7 @@ export default function AlbumPage() {
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
     unlockAudio(audio);
+    wantPlayingRef.current = true;
     const force = Boolean(audio.src) && pipelineIsDead(audio);
     return playSong(audio, url, 0, force, userVolRef.current);
   }
@@ -570,17 +619,24 @@ export default function AlbumPage() {
     if (!audio || !url) return;
     if (audio.paused) {
       const resumeTime = audio.currentTime > 0.15 ? audio.currentTime : resumeTimeRef.current;
+      if (outputGraphIsStale(audio)) {
+        rebuildAudio(resumeTime, true);
+        return;
+      }
+      restoreMobileOutput(audio, userVolRef.current);
       const fromStart = resumeTime < 0.2;
+      wantPlayingRef.current = true;
       const play = fromStart
         ? startPlay()
         : pipelineIsDead(audio)
-          ? playSong(audio, url, resumeTime, true)
+          ? playSong(audio, url, resumeTime, true, userVolRef.current)
           : audio.play().then(() => undefined);
       void play.then(() => {
         setPlaying(true);
         acquireWake();
       }).catch(() => undefined);
     } else {
+      wantPlayingRef.current = false;
       rememberTime();
       audio.pause();
       setPlaying(false);
@@ -603,6 +659,7 @@ export default function AlbumPage() {
       playAt(0, true);
       return;
     }
+    wantPlayingRef.current = false;
     setPlaying(false);
     releaseWake();
   }
@@ -616,6 +673,7 @@ export default function AlbumPage() {
 
   const player = (
     <audio
+      key={audioGen}
       ref={audioRef}
       preload="none"
       playsInline
@@ -632,7 +690,10 @@ export default function AlbumPage() {
         }
       }}
       onEnded={onEnded}
-      onPlay={() => setPlaying(true)}
+      onPlay={() => {
+        wantPlayingRef.current = true;
+        setPlaying(true);
+      }}
       onPause={() => setPlaying(false)}
     />
   );

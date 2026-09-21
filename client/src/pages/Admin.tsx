@@ -24,7 +24,7 @@ import {
   updateTrack,
   verifyCuratorPassword,
 } from "../lib/api";
-import { assignSrc, pipelineIsDead, playSong, unlockAudio } from "../lib/audioCache";
+import { assignSrc, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
 import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
 import { applySiteIcons } from "../lib/siteIcons";
@@ -47,11 +47,53 @@ function useAdminPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const currentUrlRef = useRef("");
   const resumeTimeRef = useRef(0);
+  const wantPlayingRef = useRef(false);
+  const rerouteRef = useRef<{ time: number; playing: boolean } | null>(null);
+  const [audioGen, setAudioGen] = useState(0);
   const [queue, setQueue] = useState<AdminQueue | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const current = queue?.tracks[queue.index] ?? null;
+
+  function rebuildAudio(time: number, playingNext: boolean) {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
+      resumeTimeRef.current = audio.currentTime;
+    }
+    rerouteRef.current = { time, playing: playingNext };
+    releaseOutput(audio);
+    audio?.pause();
+    setAudioGen((value) => value + 1);
+  }
+
+  useEffect(() => {
+    return watchPlaybackRoute(
+      () => audioRef.current,
+      (snapshot) => {
+        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current);
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    const pending = rerouteRef.current;
+    const audio = audioRef.current;
+    const url = currentUrlRef.current;
+    if (!pending || !audio || !url) return;
+    rerouteRef.current = null;
+    if (!pending.playing) {
+      assignSrc(audio, url, pending.time);
+      return;
+    }
+    wantPlayingRef.current = true;
+    void playSong(audio, url, pending.time, true)
+      .then(() => setPlaying(true))
+      .catch(() => {
+        wantPlayingRef.current = false;
+        setPlaying(false);
+      });
+  }, [audioGen]);
 
   function startTrack(track: PublicTrack) {
     const audio = audioRef.current;
@@ -64,7 +106,11 @@ function useAdminPlayer() {
       setCurrentTime(0);
       setDuration(0);
     }
-    void playSong(audio, track.audioUrl, 0, false).then(() => setPlaying(true)).catch(() => setPlaying(false));
+    wantPlayingRef.current = true;
+    void playSong(audio, track.audioUrl, 0, false).then(() => setPlaying(true)).catch(() => {
+      wantPlayingRef.current = false;
+      setPlaying(false);
+    });
   }
 
   function warmTrack(track: PublicTrack) {
@@ -98,11 +144,18 @@ function useAdminPlayer() {
     if (!audio || !current || !url) return;
     if (audio.paused) {
       const resumeTime = audio.currentTime > 0.15 ? audio.currentTime : resumeTimeRef.current;
+      if (outputGraphIsStale(audio)) {
+        rebuildAudio(resumeTime, true);
+        return;
+      }
+      restoreMobileOutput(audio, 1);
+      wantPlayingRef.current = true;
       const play = pipelineIsDead(audio)
         ? playSong(audio, url, resumeTime, true)
         : audio.play().then(() => undefined);
       void play.then(() => setPlaying(true)).catch(() => undefined);
     } else {
+      wantPlayingRef.current = false;
       if (audio.currentTime > 0.15) resumeTimeRef.current = audio.currentTime;
       audio.pause();
       setPlaying(false);
@@ -188,6 +241,7 @@ function useAdminPlayer() {
       startTrack(queue.tracks[next]);
       return;
     }
+    wantPlayingRef.current = false;
     setPlaying(false);
   }
 
@@ -214,6 +268,7 @@ function useAdminPlayer() {
       audio.load();
     }
     currentUrlRef.current = "";
+    wantPlayingRef.current = false;
     setQueue(null);
     setPlaying(false);
     setCurrentTime(0);
@@ -222,6 +277,7 @@ function useAdminPlayer() {
 
   return {
     audioRef,
+    audioGen,
     queue,
     current,
     playing,
@@ -563,6 +619,7 @@ export default function AdminPage() {
 
       <AdminPlayer
         audioRef={player.audioRef}
+        audioGen={player.audioGen}
         current={player.current}
         albumTitle={player.queue?.albumTitle || ""}
         playing={player.playing}
@@ -1669,6 +1726,7 @@ function AdminDialog({
 
 function AdminPlayer({
   audioRef,
+  audioGen,
   current,
   albumTitle,
   playing,
@@ -1685,6 +1743,7 @@ function AdminPlayer({
   onPlayingChange,
 }: {
   audioRef: RefObject<HTMLAudioElement>;
+  audioGen: number;
   current: PublicTrack | null;
   albumTitle: string;
   playing: boolean;
@@ -1746,6 +1805,7 @@ function AdminPlayer({
         </div>
       ) : null}
       <audio
+        key={audioGen}
         ref={audioRef}
         preload="auto"
         playsInline

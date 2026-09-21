@@ -1,6 +1,7 @@
 /**
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
+ * After a call or Bluetooth route change, rebuild the live element — the old GainNode stays silent.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
  */
 
@@ -19,15 +20,179 @@ let gateOpen = true;
 type OutputGraph = {
   ctx: AudioContext;
   gain: GainNode;
+  onState?: () => void;
+};
+
+export type PlaybackSnapshot = {
+  url: string;
+  time: number;
+  playing: boolean;
 };
 
 const graphs = new WeakMap<HTMLAudioElement, OutputGraph>();
+const routeWatchers = new Set<{
+  getAudio: () => HTMLAudioElement | null;
+  onReroute: (snapshot: PlaybackSnapshot) => void;
+}>();
+
+let routeTimer = 0;
+let sessionInterrupted = false;
+let resumeAfterInterrupt = false;
 
 function audioContextCtor(): typeof AudioContext | undefined {
   return (
     window.AudioContext ||
     (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
   );
+}
+
+type AudioSessionLike = {
+  type?: string;
+  addEventListener?(type: string, listener: () => void): void;
+  removeEventListener?(type: string, listener: () => void): void;
+};
+
+function audioSession(): AudioSessionLike | undefined {
+  return (navigator as Navigator & { audioSession?: AudioSessionLike }).audioSession;
+}
+
+function notePlayingBeforeInterrupt() {
+  for (const watch of routeWatchers) {
+    const audio = watch.getAudio();
+    if (audio && !audio.paused) {
+      resumeAfterInterrupt = true;
+      return;
+    }
+  }
+}
+
+function flushPlaybackReroute() {
+  if (!isMobilePlayback()) return;
+  const snapshots: Array<{ onReroute: (snapshot: PlaybackSnapshot) => void; snapshot: PlaybackSnapshot }> = [];
+  for (const watch of routeWatchers) {
+    const snapshot = playbackSnapshot(watch.getAudio());
+    if (!snapshot) continue;
+    snapshots.push({
+      onReroute: watch.onReroute,
+      snapshot: {
+        ...snapshot,
+        playing: snapshot.playing || resumeAfterInterrupt,
+      },
+    });
+  }
+  sessionInterrupted = false;
+  resumeAfterInterrupt = false;
+  for (const item of snapshots) item.onReroute(item.snapshot);
+}
+
+function requestPlaybackReroute() {
+  if (!isMobilePlayback()) return;
+  if (typeof document !== "undefined" && document.hidden) return;
+  window.clearTimeout(routeTimer);
+  routeTimer = window.setTimeout(() => {
+    if (typeof document !== "undefined" && document.hidden) return;
+    flushPlaybackReroute();
+  }, 50);
+}
+
+export function playbackSnapshot(audio: HTMLAudioElement | null): PlaybackSnapshot | null {
+  if (!audio) return null;
+  const url = (audio.currentSrc || audio.src || "").split("#")[0];
+  if (!url) return null;
+  return {
+    url,
+    time: Number.isFinite(audio.currentTime) ? audio.currentTime : 0,
+    playing: !audio.paused,
+  };
+}
+
+export function outputGraphIsStale(audio: HTMLAudioElement | null): boolean {
+  if (!audio) return false;
+  const graph = graphs.get(audio);
+  if (!graph) return false;
+  const state = graph.ctx.state as string;
+  return state === "interrupted" || state === "closed";
+}
+
+export function restoreMobileOutput(audio: HTMLAudioElement | null, volume: number) {
+  if (!audio) return;
+  gateOpen = true;
+  audio.muted = false;
+  const graph = graphs.get(audio);
+  if (graph) {
+    const state = graph.ctx.state as string;
+    if (state === "suspended" || state === "interrupted") {
+      void graph.ctx.resume();
+    }
+  }
+  setOutput(audio, volume);
+}
+
+export function releaseOutput(audio: HTMLAudioElement | null) {
+  if (!audio) return;
+  const graph = graphs.get(audio);
+  if (!graph) return;
+  graphs.delete(audio);
+  if (graph.onState) {
+    try {
+      graph.ctx.removeEventListener("statechange", graph.onState);
+    } catch {
+      /* older WebKit */
+    }
+    graph.ctx.onstatechange = null;
+  }
+  try {
+    graph.gain.disconnect();
+  } catch {
+    /* already disconnected */
+  }
+  try {
+    void graph.ctx.close();
+  } catch {
+    /* already closed */
+  }
+}
+
+export function watchPlaybackRoute(
+  getAudio: () => HTMLAudioElement | null,
+  onReroute: (snapshot: PlaybackSnapshot) => void,
+): () => void {
+  const watch = { getAudio, onReroute };
+  routeWatchers.add(watch);
+
+  const onInterruptBegin = () => {
+    sessionInterrupted = true;
+    notePlayingBeforeInterrupt();
+  };
+  const onInterruptEnd = () => {
+    sessionInterrupted = true;
+    requestPlaybackReroute();
+  };
+  const onDeviceChange = () => {
+    requestPlaybackReroute();
+  };
+  const onVisibility = () => {
+    if (!document.hidden && sessionInterrupted) requestPlaybackReroute();
+  };
+
+  const session = audioSession();
+  session?.addEventListener?.("interruptionbegin", onInterruptBegin);
+  session?.addEventListener?.("interruptionend", onInterruptEnd);
+  navigator.mediaDevices?.addEventListener?.("devicechange", onDeviceChange);
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", onVisibility);
+  }
+
+  return () => {
+    routeWatchers.delete(watch);
+    session?.removeEventListener?.("interruptionbegin", onInterruptBegin);
+    session?.removeEventListener?.("interruptionend", onInterruptEnd);
+    navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", onVisibility);
+    }
+    if (routeWatchers.size === 0) window.clearTimeout(routeTimer);
+  };
 }
 
 export function attachOutput(audio: HTMLAudioElement): OutputGraph | null {
@@ -42,7 +207,14 @@ export function attachOutput(audio: HTMLAudioElement): OutputGraph | null {
     gain.gain.value = 0;
     source.connect(gain);
     gain.connect(ctx.destination);
-    const graph = { ctx, gain };
+    const onState = () => {
+      if ((ctx.state as string) !== "interrupted") return;
+      sessionInterrupted = true;
+      notePlayingBeforeInterrupt();
+    };
+    ctx.addEventListener("statechange", onState);
+    ctx.onstatechange = onState;
+    const graph = { ctx, gain, onState };
     graphs.set(audio, graph);
     return graph;
   } catch {

@@ -11,7 +11,11 @@ import {
   mediaUrl,
   pipelineIsDead,
   playSong,
+  restoreMobileOutput,
+  setOutputLevel,
   waitForAudible,
+  watchPlaybackRoute,
+  type PlaybackSnapshot,
 } from "./audioCache";
 
 if (typeof globalThis.window === "undefined") {
@@ -151,4 +155,166 @@ test("playback helpers never prefetch, blob-play, or wait on the playhead", () =
   assert.doesNotMatch(src, /caches\.open/);
   assert.match(src, /resume \|\| !isMobilePlayback\(\)/);
   assert.match(src, /MOBILE_HEADER_HOLD_MS/);
+  assert.match(src, /interruptionend/);
+  assert.match(src, /devicechange/);
+});
+
+function stubAudioSession() {
+  const listeners = new Map<string, Set<(event?: Event) => void>>();
+  const session = {
+    type: "playback",
+    addEventListener(type: string, fn: (event?: Event) => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener(type: string, fn: (event?: Event) => void) {
+      listeners.get(type)?.delete(fn);
+    },
+    dispatch(type: string) {
+      for (const fn of listeners.get(type) || []) fn();
+    },
+  };
+  const devices = {
+    addEventListener(type: string, fn: (event?: Event) => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener(type: string, fn: (event?: Event) => void) {
+      listeners.get(type)?.delete(fn);
+    },
+    dispatch(type: string) {
+      for (const fn of listeners.get(type) || []) fn();
+    },
+  };
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)",
+      platform: "iPhone",
+      maxTouchPoints: 5,
+      audioSession: session,
+      mediaDevices: devices,
+    },
+  });
+  return {
+    session,
+    devices,
+    restore() {
+      if (previous) Object.defineProperty(globalThis, "navigator", previous);
+      else delete (globalThis as { navigator?: Navigator }).navigator;
+    },
+  };
+}
+
+test("restoreMobileOutput unmutes after the opener gate has closed", async () => {
+  const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const audio = fakeAudio();
+  try {
+    const started = playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
+    await started;
+    assert.equal(audio.muted, true);
+    restoreMobileOutput(audio as unknown as HTMLAudioElement, 0.85);
+    assert.equal(audio.muted, false);
+    setOutputLevel(audio as unknown as HTMLAudioElement, 0.7);
+    assert.equal(audio.volume, 0.7);
+  } finally {
+    restore();
+  }
+});
+
+test("a phone-call interruption asks the player to rebuild the live audio element", async () => {
+  const stub = stubAudioSession();
+  const audio = fakeAudio();
+  audio.src = "/media/songs/a.mp3";
+    audio.currentTime = 42;
+    audio.paused = false;
+    let snapshot: PlaybackSnapshot | undefined;
+    const stop = watchPlaybackRoute(
+      () => audio as unknown as HTMLAudioElement,
+      (next) => {
+        snapshot = next;
+      },
+    );
+    try {
+      stub.session.dispatch("interruptionbegin");
+      audio.paused = true;
+      stub.session.dispatch("interruptionend");
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      assert.ok(snapshot);
+      assert.equal(snapshot.time, 42);
+      assert.equal(snapshot.playing, true);
+  } finally {
+    stop();
+    stub.restore();
+  }
+});
+
+test("switching Bluetooth devices asks the player to rebuild the live audio element", async () => {
+  const stub = stubAudioSession();
+  const audio = fakeAudio();
+  audio.src = "/media/songs/a.mp3";
+  audio.currentTime = 18;
+  audio.paused = false;
+    let snapshot: PlaybackSnapshot | undefined;
+    const stop = watchPlaybackRoute(
+      () => audio as unknown as HTMLAudioElement,
+      (next) => {
+        snapshot = next;
+      },
+    );
+    try {
+      stub.devices.dispatch("devicechange");
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      assert.ok(snapshot);
+      assert.equal(snapshot.time, 18);
+      assert.equal(snapshot.playing, true);
+  } finally {
+    stop();
+    stub.restore();
+  }
+});
+
+test("desktop playback does not rebuild on Bluetooth or call events", async () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const listeners = new Map<string, Set<(event?: Event) => void>>();
+  const session = {
+    addEventListener(type: string, fn: (event?: Event) => void) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+    },
+    removeEventListener(type: string, fn: (event?: Event) => void) {
+      listeners.get(type)?.delete(fn);
+    },
+    dispatch(type: string) {
+      for (const fn of listeners.get(type) || []) fn();
+    },
+  };
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+      platform: "MacIntel",
+      maxTouchPoints: 0,
+      audioSession: session,
+    },
+  });
+  const audio = fakeAudio();
+  audio.src = "/media/songs/a.mp3";
+  let called = false;
+  const stop = watchPlaybackRoute(
+    () => audio as unknown as HTMLAudioElement,
+    () => {
+      called = true;
+    },
+  );
+  try {
+    session.dispatch("interruptionend");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.equal(called, false);
+  } finally {
+    stop();
+    if (previous) Object.defineProperty(globalThis, "navigator", previous);
+    else delete (globalThis as { navigator?: Navigator }).navigator;
+  }
 });
