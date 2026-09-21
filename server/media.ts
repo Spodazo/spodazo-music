@@ -103,7 +103,41 @@ function id3v2Size(head: Buffer): number {
     ((head[7] & 0x7f) << 14) |
     ((head[8] & 0x7f) << 7) |
     (head[9] & 0x7f);
-  return 10 + size;
+  const footer = (head[5] & 0x10) !== 0 ? 10 : 0;
+  return 10 + size + footer;
+}
+
+function leadingTagSize(data: Buffer): number {
+  let offset = 0;
+  for (let i = 0; i < 4 && offset + 10 <= data.length; i += 1) {
+    const size = id3v2Size(data.subarray(offset, offset + 10));
+    if (!size || offset + size >= data.length - 128) break;
+    offset += size;
+  }
+  return offset;
+}
+
+function apeTagSize(data: Buffer, end: number): number {
+  if (end < 32) return 0;
+  const foot = end - 32;
+  if (data.subarray(foot, foot + 8).toString("ascii") !== "APETAGEX") return 0;
+  const size = data.readUInt32LE(foot + 12);
+  const flags = data.readUInt32LE(foot + 20);
+  const hasHeader = (flags & 0x80000000) === 0 && (flags & 0x20000000) !== 0;
+  const total = size + (hasHeader ? 32 : 0);
+  return total > 32 && total < end ? total : 0;
+}
+
+function trailingTagSize(data: Buffer): number {
+  let end = data.length;
+  for (let i = 0; i < 4; i += 1) {
+    const id3 = end >= 128 && data.subarray(end - 128, end - 125).toString("ascii") === "TAG" ? 128 : 0;
+    const ape = apeTagSize(data, end);
+    const extra = id3 || ape;
+    if (!extra) break;
+    end -= extra;
+  }
+  return data.length - end;
 }
 
 const BITRATE_MPEG1_L3 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
@@ -136,10 +170,6 @@ export function xingFrameLength(data: Buffer, start: number): number {
   if (!length || start + length > data.length) return 0;
   const frame = data.subarray(start, start + length);
   return frame.includes(Buffer.from("Xing")) || frame.includes(Buffer.from("Info")) ? length : 0;
-}
-
-function id3v1Size(data: Buffer): number {
-  return data.length >= 128 && data.subarray(data.length - 128, data.length - 125).toString("ascii") === "TAG" ? 128 : 0;
 }
 
 function mpegBitrate(data: Buffer, i: number): number {
@@ -308,24 +338,30 @@ function buildXingFrame(audio: Buffer): Buffer {
 export function mp3DataOffset(full: string): number {
   const fd = fs.openSync(full, "r");
   try {
-    const head = Buffer.alloc(10);
-    if (fs.readSync(fd, head, 0, 10, 0) < 10) return 0;
-    const offset = id3v2Size(head);
     const fileSize = fs.fstatSync(fd).size;
-    return offset > 0 && offset < fileSize - 128 ? offset : 0;
+    let offset = 0;
+    for (let i = 0; i < 4; i += 1) {
+      const head = Buffer.alloc(10);
+      if (fs.readSync(fd, head, 0, 10, offset) < 10) break;
+      const size = id3v2Size(head);
+      if (!size || offset + size >= fileSize - 128) break;
+      offset += size;
+    }
+    return offset;
   } finally {
     fs.closeSync(fd);
   }
 }
 
 /**
- * Strip ID3. Restore Xing on VBR (Safari cannot decode Echoes-style files without it).
+ * Strip ID3, APE, comment, and “where from” URL tags.
+ * Restore Xing on VBR (Safari cannot decode Echoes-style files without it).
  * Remove Xing/Info from CBR — Safari plays those header frames as a scratch.
  */
 export function prepareMp3(full: string): boolean {
   const data = fs.readFileSync(full);
-  const id3 = id3v2Size(data.subarray(0, Math.min(10, data.length)));
-  const tail = id3v1Size(data);
+  const id3 = leadingTagSize(data);
+  const tail = trailingTagSize(data);
   const end = data.length - tail;
   if (!isMpegFrame(data, id3) || end - id3 < 1024) return false;
   const xingLen = xingFrameLength(data, id3);

@@ -114,6 +114,49 @@ test("VBR songs like Echoes get a Xing map back so Safari can decode them", () =
   assert.equal(prepareMp3(file), false);
 });
 
+test("Suno comment and where-from URL tags are stripped from uploads", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
+  const file = path.join(dir, "heavens.mp3");
+  const audio = Buffer.concat([mpegFrame(CBR192, 576), mpegFrame(CBR192, 576)]);
+  const payload = Buffer.from("COMM made with suno; id=ee22cdec\0WOAF blob:https://suno.com/b89ed6ae");
+  const size = Buffer.from([
+    (payload.length >> 21) & 0x7f,
+    (payload.length >> 14) & 0x7f,
+    (payload.length >> 7) & 0x7f,
+    payload.length & 0x7f,
+  ]);
+  const commentTail = Buffer.concat([Buffer.from("TAG"), Buffer.alloc(125, 0x20)]);
+  fs.writeFileSync(file, Buffer.concat([Buffer.from("ID3\u0003\u0000\u0000"), size, payload, audio, commentTail]));
+  assert.equal(prepareMp3(file), true);
+  const cleaned = fs.readFileSync(file);
+  assert.equal(cleaned.includes(Buffer.from("suno")), false);
+  assert.equal(cleaned.includes(Buffer.from("COMM")), false);
+  assert.equal(cleaned.includes(Buffer.from("WOAF")), false);
+  assert.equal(cleaned.includes(Buffer.from("TAG")), false);
+  assert.deepEqual(cleaned.subarray(0, 4), Buffer.from(CBR192));
+});
+
+test("ID3v2 footers do not leave Suno comments on the file", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
+  const file = path.join(dir, "footer.mp3");
+  const audio = Buffer.concat([mpegFrame(CBR192, 576), mpegFrame(CBR192, 576)]);
+  const payload = Buffer.from("made with suno; created=2026-09-18");
+  const size = [
+    (payload.length >> 21) & 0x7f,
+    (payload.length >> 14) & 0x7f,
+    (payload.length >> 7) & 0x7f,
+    payload.length & 0x7f,
+  ];
+  const head = Buffer.from([0x49, 0x44, 0x33, 0x04, 0x00, 0x10, ...size]);
+  const foot = Buffer.from([0x33, 0x44, 0x49, 0x04, 0x00, 0x10, ...size]);
+  fs.writeFileSync(file, Buffer.concat([head, payload, foot, audio]));
+  assert.equal(mp3DataOffset(file), head.length + payload.length + foot.length);
+  assert.equal(prepareMp3(file), true);
+  const cleaned = fs.readFileSync(file);
+  assert.equal(cleaned.includes(Buffer.from("suno")), false);
+  assert.deepEqual(cleaned.subarray(0, 4), Buffer.from(CBR192));
+});
+
 test("VBR uploads keep an existing Xing header and only lose ID3", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-mp3-"));
   const file = path.join(dir, "upload.mp3");
