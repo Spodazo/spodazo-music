@@ -1029,6 +1029,12 @@ button.t-play-icon {
   width: clamp(200px, 70%, 280px);
 }
 @media (min-width: 601px) {
+  button.portrait-cover,
+  button.m-cover,
+  button.t-thumb {
+    pointer-events: none;
+    cursor: default;
+  }
   .modal .m-art {
     display: none;
   }
@@ -1477,6 +1483,13 @@ button.t-play-icon {
 .cover-eye:hover {
   color: var(--text);
   background: rgba(8, 12, 18, 0.88);
+}
+@media (min-width: 601px) {
+  .cover-eye,
+  .cover-with-eye .cover-eye,
+  .t-thumb-wrap .cover-eye {
+    display: none;
+  }
 }
 .t-thumb-wrap {
   width: 44px;
@@ -2329,9 +2342,18 @@ button.enlarged ~ .cover-eye {
   .site-footer { padding: 10px 12px; }
   .hero-play .cover-with-eye,
   .hero-thumb { width: 76px; height: 76px; }
+  .lightbox {
+    align-items: flex-start;
+    padding-top: env(safe-area-inset-top);
+  }
+  .lightbox-card {
+    width: 100%;
+  }
   .lightbox-card img {
-    width: 88vw;
-    max-height: 78vh;
+    width: 100vw;
+    max-width: 100%;
+    max-height: none;
+    border-radius: 0;
   }
   .lightbox-card.on-cover img {
     width: 100%;
