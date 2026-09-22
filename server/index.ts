@@ -44,7 +44,13 @@ async function start() {
   void getStore()
     .then(async (store) => {
       const [list, setup] = await Promise.all([store.listAlbums(), store.getPlayerSetup()]);
-      await warmHomeCardImages(list, [setup.logo, setup.collectionCover]);
+      const extras = [setup.logo, setup.collectionCover];
+      for (const item of list) {
+        const album = await store.getAlbumById(item.id);
+        if (!album) continue;
+        extras.push(album.artistThumb, ...album.tracks.map((track) => track.img));
+      }
+      await warmHomeCardImages(list, extras);
     })
     .catch((err) => {
       console.error("[media] home thumb warm failed:", err);

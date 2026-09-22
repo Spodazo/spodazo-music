@@ -278,13 +278,23 @@ a { color: inherit; }
   justify-content: center;
   box-shadow: inset 0 0 0 1px var(--gold);
 }
-.album-card-art img {
+.album-card-art img,
+.album-cover-thumb img,
+.hero-thumb img,
+.t-thumb img,
+.lightbox-card img {
   opacity: 0;
 }
-.album-card-art img.is-ready {
-  animation: cover-fade-in 1.2s ease forwards;
-}
-.album-card-art img.is-hot {
+.album-card-art img.is-ready,
+.album-card-art img.is-hot,
+.album-cover-thumb img.is-ready,
+.album-cover-thumb img.is-hot,
+.hero-thumb img.is-ready,
+.hero-thumb img.is-hot,
+.t-thumb img.is-ready,
+.t-thumb img.is-hot,
+.lightbox-card img.is-ready,
+.lightbox-card img.is-hot {
   opacity: 1;
 }
 @keyframes cover-fade-in {
@@ -292,12 +302,8 @@ a { color: inherit; }
   to { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .album-card-art img.is-ready,
   .portrait-img.incoming.ready,
-  .m-cover-layer.incoming.ready,
-  .t-thumb img.is-ready,
-  .hero-thumb img.is-ready,
-  .lightbox-card img.is-ready {
+  .m-cover-layer.incoming.ready {
     animation-duration: 0.01ms;
   }
 }
@@ -457,7 +463,7 @@ button.portrait-cover.enlarged {
   opacity: 0;
 }
 .portrait-img.incoming.ready {
-  animation: cover-fade-in 1.2s ease forwards;
+  animation: cover-fade-in 0.25s ease forwards;
 }
 .portrait-panel.has-bg .portrait-cover {
   width: min(70%, 70vh);
@@ -574,10 +580,6 @@ button.portrait-cover.enlarged {
   height: 100%;
   object-fit: cover;
   display: block;
-  opacity: 0;
-}
-.album-cover-thumb img.is-ready {
-  animation: cover-fade-in 1.2s ease forwards;
 }
 .album-cover-thumb:hover { transform: scale(1.05); }
 .album-cover-thumb.on {
@@ -690,10 +692,6 @@ button.portrait-cover.enlarged {
   height: 100%;
   object-fit: cover;
   display: block;
-  opacity: 0;
-}
-.hero-thumb img.is-ready {
-  animation: cover-fade-in 1.2s ease forwards;
 }
 .hero-thumb:hover { transform: scale(1.05); }
 .hero-thumb.on {
@@ -774,10 +772,6 @@ button.portrait-cover.enlarged {
   height: 100%;
   object-fit: cover;
   display: block;
-  opacity: 0;
-}
-.t-thumb img.is-ready {
-  animation: cover-fade-in 1.2s ease forwards;
 }
 button.t-thumb,
 button.m-cover {
@@ -1086,7 +1080,7 @@ button.t-play-icon {
   opacity: 0;
 }
 .m-cover-layer.incoming.ready {
-  animation: cover-fade-in 1.2s ease forwards;
+  animation: cover-fade-in 0.25s ease forwards;
 }
 .m-art.has-bg .m-cover-wrap {
   width: 70%;
@@ -1422,10 +1416,6 @@ button.t-play-icon {
   object-fit: contain;
   border-radius: 12px;
   box-shadow: 0 0 0 1px var(--gold), 0 16px 48px rgba(0, 0, 0, 0.45);
-  opacity: 0;
-}
-.lightbox-card img.is-ready {
-  animation: cover-fade-in 1.2s ease forwards;
 }
 .lightbox-card.on-cover img {
   width: 100%;

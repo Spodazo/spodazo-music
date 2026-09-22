@@ -1,4 +1,5 @@
 import { useEffect, type MouseEvent } from "react";
+import { imageIsHot, revealLoadedImage } from "../lib/images";
 
 export function IconEye() {
   return (
@@ -58,13 +59,12 @@ export function ImageLightbox({
           </svg>
         </button>
         <img
+          className={imageIsHot(src) ? "is-hot" : undefined}
           src={src}
           alt={alt}
           decoding="async"
-          ref={(img) => {
-            if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
-          }}
-          onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+          ref={(img) => revealLoadedImage(img, src)}
+          onLoad={(event) => revealLoadedImage(event.currentTarget, src)}
         />
       </div>
     </div>

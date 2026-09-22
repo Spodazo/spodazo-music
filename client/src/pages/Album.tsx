@@ -24,6 +24,7 @@ import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
+import { imageIsHot, LIST_THUMB_WIDTH, revealLoadedImage, withImageWidth } from "../lib/images";
 import { applyPalette } from "../lib/palette";
 
 function formatTime(seconds: number): string {
@@ -83,8 +84,8 @@ function CoverLayers({
         className={imgClass}
         src={base.url}
         alt={base.alt}
-        fetchPriority="low"
-        decoding="async"
+        fetchPriority="high"
+        decoding="sync"
         onError={onBaseError}
       />
       {next ? (
@@ -202,7 +203,9 @@ export default function AlbumPage() {
   const hasOwnBackground = Boolean(album?.heroPortrait && album.heroPortrait !== album.thumb);
   const backgroundUrl = hasOwnBackground && album ? album.heroUrl : "";
   const albumCoverUrl = album?.thumbUrl || (!backgroundUrl ? album?.heroUrl || "" : "");
+  const albumCoverThumb = albumCoverUrl ? withImageWidth(albumCoverUrl, LIST_THUMB_WIDTH) : "";
   const artistUrl = album?.artistUrl && portraitFailed !== album.artistUrl ? album.artistUrl : "";
+  const artistThumb = artistUrl ? withImageWidth(artistUrl, LIST_THUMB_WIDTH) : "";
   const songCoverUrl = track?.imageUrl && portraitFailed !== track.imageUrl ? track.imageUrl : "";
   const coverUrl =
     (showArtistPhoto && artistUrl) ||
@@ -226,8 +229,13 @@ export default function AlbumPage() {
     if (!album) return;
     for (const item of album.tracks) {
       if (!item.imageUrl) continue;
-      const preload = new Image();
-      preload.src = item.imageUrl;
+      const thumb = new Image();
+      thumb.src = withImageWidth(item.imageUrl, LIST_THUMB_WIDTH);
+    }
+    const first = album.tracks[0]?.imageUrl || album.thumbUrl || album.heroUrl;
+    if (first) {
+      const cover = new Image();
+      cover.src = first;
     }
   }, [album]);
 
@@ -739,7 +747,7 @@ export default function AlbumPage() {
           style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
         >
           {backgroundUrl ? (
-            <img className="portrait-bg" src={backgroundUrl} alt="" decoding="async" />
+            <img className="portrait-bg" src={backgroundUrl} alt="" decoding="sync" fetchPriority="high" />
           ) : null}
           {baseCover.url ? (
             <div className="cover-with-eye portrait-cover-wrap">
@@ -808,13 +816,13 @@ export default function AlbumPage() {
                   }}
                 >
                   <img
-                    src={albumCoverUrl}
+                    className={imageIsHot(albumCoverThumb) ? "is-hot" : undefined}
+                    src={albumCoverThumb}
                     alt=""
                     decoding="async"
-                    ref={(img) => {
-                      if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
-                    }}
-                    onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                    fetchPriority="high"
+                    ref={(img) => revealLoadedImage(img, albumCoverThumb)}
+                    onLoad={(event) => revealLoadedImage(event.currentTarget, albumCoverThumb)}
                   />
                 </button>
                 <CoverEye
@@ -883,14 +891,13 @@ export default function AlbumPage() {
                 }}
               >
                 <img
-                  src={album.artistUrl}
+                  className={imageIsHot(artistThumb) ? "is-hot" : undefined}
+                  src={artistThumb}
                   alt={album.artists}
-                  fetchPriority="low"
+                  fetchPriority="high"
                   decoding="async"
-                  ref={(img) => {
-                    if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
-                  }}
-                  onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                  ref={(img) => revealLoadedImage(img, artistThumb)}
+                  onLoad={(event) => revealLoadedImage(event.currentTarget, artistThumb)}
                 />
               </button>
               <CoverEye
@@ -944,7 +951,7 @@ export default function AlbumPage() {
             <div className="modal-head">
               <div className={`m-art${backgroundUrl ? " has-bg" : ""}`}>
                 {backgroundUrl ? (
-                  <img className="m-art-bg" src={backgroundUrl} alt="" decoding="async" />
+                  <img className="m-art-bg" src={backgroundUrl} alt="" decoding="sync" fetchPriority="high" />
                 ) : null}
                 {baseCover.url ? (
                   <div className="cover-with-eye m-cover-wrap">
@@ -1161,6 +1168,7 @@ function TrackRow({
   onPlayPause: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const thumbSrc = track.imageUrl ? withImageWidth(track.imageUrl, LIST_THUMB_WIDTH) : "";
 
   async function copyLink(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
@@ -1199,27 +1207,27 @@ function TrackRow({
               }}
             >
               <img
-                src={track.imageUrl}
+                className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
+                src={thumbSrc}
                 alt=""
-                loading={index === 0 ? "eager" : "lazy"}
+                loading={index < 8 ? "eager" : "lazy"}
                 decoding="async"
-                ref={(img) => {
-                  if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
-                }}
-                onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                fetchPriority={index < 4 ? "high" : "auto"}
+                ref={(img) => revealLoadedImage(img, thumbSrc)}
+                onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
               />
             </button>
           ) : (
             <div className="t-thumb">
               <img
-                src={track.imageUrl}
+                className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
+                src={thumbSrc}
                 alt=""
-                loading={index === 0 ? "eager" : "lazy"}
+                loading={index < 8 ? "eager" : "lazy"}
                 decoding="async"
-                ref={(img) => {
-                  if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
-                }}
-                onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                fetchPriority={index < 4 ? "high" : "auto"}
+                ref={(img) => revealLoadedImage(img, thumbSrc)}
+                onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
               />
             </div>
           )}

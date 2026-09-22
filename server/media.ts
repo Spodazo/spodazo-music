@@ -23,9 +23,10 @@ export function assetVersion(): string {
   return process.env.BUILD_ID || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || "dev";
 }
 
+export const LIST_THUMB_WIDTH = 360;
 export const HOME_CARD_WIDTH = 720;
 export const COLLECTION_COVER_WIDTH = 1200;
-const IMAGE_WIDTHS = new Set([360, HOME_CARD_WIDTH, COLLECTION_COVER_WIDTH]);
+const IMAGE_WIDTHS = new Set([LIST_THUMB_WIDTH, HOME_CARD_WIDTH, COLLECTION_COVER_WIDTH]);
 
 export function imageUrl(filename: string, width?: number): string {
   if (!filename) return "";
@@ -52,15 +53,17 @@ export async function warmHomeCardImages(
     if (name) names.add(name);
   }
   await Promise.all(
-    [...names].map(async (name) => {
-      const full = localImagePath(name);
-      if (!full) return;
-      try {
-        await preparedImagePath(full, HOME_CARD_WIDTH);
-      } catch {
-        /* listing and boot must stay fast */
-      }
-    }),
+    [...names].flatMap((name) =>
+      [LIST_THUMB_WIDTH, HOME_CARD_WIDTH].map(async (width) => {
+        const full = localImagePath(name);
+        if (!full) return;
+        try {
+          await preparedImagePath(full, width);
+        } catch {
+          /* listing and boot must stay fast */
+        }
+      }),
+    ),
   );
 }
 

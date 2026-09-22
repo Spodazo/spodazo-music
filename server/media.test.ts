@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import sharp from "sharp";
 import test from "node:test";
-import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
+import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -34,6 +34,7 @@ test("media urls stay on this app", () => {
   assert.equal(imageUrl(""), "");
   assert.equal(audioUrl(""), "");
   assert.equal(parseImageWidth("720"), 720);
+  assert.equal(parseImageWidth("360"), LIST_THUMB_WIDTH);
   assert.equal(parseImageWidth("99"), undefined);
 });
 
@@ -262,6 +263,7 @@ test("warmHomeCardImages writes card thumbs without blocking missing files", asy
   await warmHomeCardImages([{ thumb: "Cover.webp", heroPortrait: "missing.webp" }], ["also-missing.webp"]);
   const thumbs = fs.readdirSync(path.join(dir, "image-thumbs"));
   assert.equal(thumbs.some((file) => file.includes(`${HOME_CARD_WIDTH}-`) && file.endsWith(".webp")), true);
+  assert.equal(thumbs.some((file) => file.includes(`${LIST_THUMB_WIDTH}-`) && file.endsWith(".webp")), true);
 });
 
 test("convertUploadedImage stores album art as WebP", async () => {

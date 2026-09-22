@@ -3,11 +3,10 @@ import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import { CoverEye, ImageLightbox } from "../components/ImageLightbox";
 import SdgFooter from "../components/SdgFooter";
+import { imageIsHot, revealLoadedImage } from "../lib/images";
 import {
-  isImageDecoded,
   loadHomeAlbums,
   loadHomeSetup,
-  markImageDecoded,
   readCachedAlbums,
   readCachedSetup,
 } from "../lib/homeCache";
@@ -58,22 +57,15 @@ function CardImage({
   alt: string;
   priority?: boolean;
 }) {
-  const seen = isImageDecoded(src);
-  const reveal = (img: HTMLImageElement | null) => {
-    if (!img?.complete || !img.naturalWidth) return;
-    markImageDecoded(src);
-    if (!seen) img.classList.add("is-ready");
-  };
-
   return (
     <img
-      className={`${className}${seen ? " is-hot" : ""}`}
+      className={`${className}${imageIsHot(src) ? " is-hot" : ""}`}
       src={src}
       alt={alt}
-      decoding="async"
-      fetchPriority={priority ? "high" : "low"}
-      ref={reveal}
-      onLoad={(event) => reveal(event.currentTarget)}
+      decoding="auto"
+      fetchPriority={priority ? "high" : "auto"}
+      ref={(img) => revealLoadedImage(img, src)}
+      onLoad={(event) => revealLoadedImage(event.currentTarget, src)}
     />
   );
 }
@@ -148,7 +140,7 @@ export default function HomePage() {
       <AdminLoginLink />
       <div className="home-brand">
         {setup.logoUrl ? (
-          <img className="home-logo" src={setup.logoUrl} alt={setup.appName} decoding="async" fetchPriority="high" />
+          <img className="home-logo" src={setup.logoUrl} alt={setup.appName} decoding="sync" fetchPriority="high" />
         ) : (
           <div className="home-logo home-logo-placeholder" aria-label={setup.appName}>
             Logo
@@ -160,7 +152,7 @@ export default function HomePage() {
         {error ? <p className="error">{error}</p> : null}
         {setup.collectionCoverUrl ? (
           <div className="cover-with-eye collection-cover-wrap">
-            <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} decoding="async" />
+            <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} decoding="sync" fetchPriority="high" />
             <CoverEye
               label={`View ${setup.appName} cover`}
               onClick={() => setPeek({ src: setup.collectionCoverUrl, alt: setup.appName })}
