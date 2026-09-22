@@ -1,4 +1,5 @@
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
+import { prefetchAlbums } from "./albumCache";
 import { fetchAlbums, fetchPlayerSetup } from "./api";
 import { applySiteIcons } from "./siteIcons";
 
@@ -128,6 +129,10 @@ export function loadHomeSetup(): Promise<PlayerSetup> {
 }
 
 export function prefetchHome() {
-  void loadHomeAlbums();
+  void loadHomeAlbums()
+    .then((albums) => {
+      prefetchAlbums(albums.map((album) => album.slug));
+    })
+    .catch(() => undefined);
   void loadHomeSetup();
 }

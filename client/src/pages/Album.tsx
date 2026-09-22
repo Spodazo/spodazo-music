@@ -18,7 +18,8 @@ import {
   unlockAudio,
   watchPlaybackRoute,
 } from "../lib/audioCache";
-import { fetchAlbum, fetchPlayerSetup } from "../lib/api";
+import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum } from "../lib/albumCache";
+import { fetchPlayerSetup } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
@@ -125,7 +126,14 @@ function CopyrightLines({ text }: { text: string }) {
 export default function AlbumPage() {
   const [, params] = useRoute("/:slug");
   const slug = params?.slug || "";
-  const [album, setAlbum] = useState<PublicAlbum | null>(null);
+  const [album, setAlbum] = useState<PublicAlbum | null>(() => {
+    const cached = readCachedAlbum(slug);
+    if (cached) {
+      applyPalette(cached.color);
+      document.title = `${cached.title} — ${cached.artists}`;
+    }
+    return cached;
+  });
   const [setup, setSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
   const [error, setError] = useState("");
   const [active, setActive] = useState<number | null>(null);
@@ -175,7 +183,14 @@ export default function AlbumPage() {
   }
 
   useEffect(() => {
-    fetchAlbum(slug)
+    const cached = readCachedAlbum(slug);
+    if (cached) {
+      setAlbum(cached);
+      applyPalette(cached.color);
+      document.title = `${cached.title} — ${cached.artists}`;
+      prefetchAlbumImages(cached);
+    }
+    prefetchAlbum(slug)
       .then((data) => {
         setAlbum(data);
         applyPalette(data.color);
@@ -225,17 +240,7 @@ export default function AlbumPage() {
   }, [track?.id, playing]);
 
   useEffect(() => {
-    if (!album) return;
-    for (const item of album.tracks) {
-      if (!item.imageUrl) continue;
-      const thumb = new Image();
-      thumb.src = withImageWidth(item.imageUrl, LIST_THUMB_WIDTH);
-    }
-    const first = album.tracks[0]?.imageUrl || album.thumbUrl || album.heroUrl;
-    if (first) {
-      const cover = new Image();
-      cover.src = first;
-    }
+    if (album) prefetchAlbumImages(album);
   }, [album]);
 
   function promoteCover(cover: { url: string; alt: string }) {
@@ -812,7 +817,7 @@ export default function AlbumPage() {
                   className={imageIsHot(albumCoverThumb) ? "is-hot" : undefined}
                   src={albumCoverThumb}
                   alt=""
-                  decoding="async"
+                  decoding="sync"
                   fetchPriority="high"
                   ref={(img) => revealLoadedImage(img, albumCoverThumb)}
                   onLoad={(event) => revealLoadedImage(event.currentTarget, albumCoverThumb)}
@@ -882,7 +887,7 @@ export default function AlbumPage() {
                 src={artistThumb}
                 alt={album.artists}
                 fetchPriority="high"
-                decoding="async"
+                decoding="sync"
                 ref={(img) => revealLoadedImage(img, artistThumb)}
                 onLoad={(event) => revealLoadedImage(event.currentTarget, artistThumb)}
               />
@@ -1176,9 +1181,9 @@ function TrackRow({
             className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
             src={thumbSrc}
             alt=""
-            loading={index < 8 ? "eager" : "lazy"}
-            decoding="async"
-            fetchPriority={index < 4 ? "high" : "auto"}
+            loading="eager"
+            decoding="sync"
+            fetchPriority={index < 8 ? "high" : "auto"}
             ref={(img) => revealLoadedImage(img, thumbSrc)}
             onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
           />
@@ -1190,9 +1195,9 @@ function TrackRow({
               className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
               src={thumbSrc}
               alt=""
-              loading={index < 8 ? "eager" : "lazy"}
-              decoding="async"
-              fetchPriority={index < 4 ? "high" : "auto"}
+              loading="eager"
+              decoding="sync"
+              fetchPriority={index < 8 ? "high" : "auto"}
               ref={(img) => revealLoadedImage(img, thumbSrc)}
               onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
             />

@@ -269,20 +269,11 @@ a { color: inherit; }
   box-shadow: inset 0 0 0 1px var(--gold);
 }
 .album-card-art img,
-.album-cover-thumb img,
-.hero-thumb img,
-.t-thumb img,
 .lightbox-card img {
   opacity: 0;
 }
 .album-card-art img.is-ready,
 .album-card-art img.is-hot,
-.album-cover-thumb img.is-ready,
-.album-cover-thumb img.is-hot,
-.hero-thumb img.is-ready,
-.hero-thumb img.is-hot,
-.t-thumb img.is-ready,
-.t-thumb img.is-hot,
 .lightbox-card img.is-ready,
 .lightbox-card img.is-hot {
   opacity: 1;

@@ -272,6 +272,10 @@ export function registerRoutes(app: Express): void {
       return;
     }
     res.json(album);
+    void warmHomeCardImages(
+      [{ thumb: album.thumb, heroPortrait: album.heroPortrait }],
+      [album.artistThumb, ...album.tracks.map((track) => track.img)],
+    );
   });
 
   app.get("/api/admin/me", (req, res) => {

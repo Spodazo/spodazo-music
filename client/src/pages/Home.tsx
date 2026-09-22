@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
 import SdgFooter from "../components/SdgFooter";
+import { prefetchAlbum } from "../lib/albumCache";
 import { imageIsHot, revealLoadedImage } from "../lib/images";
 import {
   loadHomeAlbums,
@@ -75,7 +76,7 @@ function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolea
   const coverUrl = album.thumbUrl || (!backgroundUrl ? album.heroUrl : "");
 
   return (
-    <Link href={`/${album.slug}`} className="album-card">
+    <Link href={`/${album.slug}`} className="album-card" onPointerDown={() => prefetchAlbum(album.slug)}>
       <div className={`album-card-art${backgroundUrl ? " has-bg" : ""}`}>
         {backgroundUrl ? (
           <CardImage className="album-card-bg" src={backgroundUrl} alt="" priority={priority} />
