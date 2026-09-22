@@ -98,13 +98,13 @@ function AlbumCard({
           <CardImage className="album-card-bg" src={backgroundUrl} alt="" priority={priority} />
         ) : null}
         {coverUrl ? (
-          <CardImage className="album-card-cover" src={coverUrl} alt={album.title} priority={priority} />
+          <div className="cover-with-eye album-card-cover-wrap">
+            <CardImage className="album-card-cover" src={coverUrl} alt={album.title} priority={priority} />
+            <CoverEye label={`View ${album.title} cover`} onClick={() => onPeek(coverUrl, album.title)} />
+          </div>
         ) : (
           <div className="album-card-empty" />
         )}
-        {coverUrl ? (
-          <CoverEye label={`View ${album.title} cover`} onClick={() => onPeek(coverUrl, album.title)} />
-        ) : null}
       </div>
       <div className="album-card-body">
         <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
