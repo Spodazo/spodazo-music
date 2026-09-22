@@ -209,16 +209,6 @@ a { color: inherit; }
   border-radius: 8px;
   box-shadow: var(--cover-shadow);
 }
-.collection-cover-wrap {
-  display: block;
-  width: 50vw;
-  max-width: 100%;
-  margin: 0 auto 28px;
-}
-.collection-cover-wrap .collection-cover {
-  width: 100%;
-  margin: 0;
-}
 .album-grid {
   display: flex;
   flex-wrap: wrap;
@@ -323,12 +313,6 @@ a { color: inherit; }
   pointer-events: none;
   background: radial-gradient(circle at center, transparent 32%, rgba(0, 0, 0, 0.28) 100%);
 }
-.album-card-cover-wrap {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-}
 .album-card-cover {
   position: relative;
   z-index: 1;
@@ -340,14 +324,9 @@ a { color: inherit; }
 .album-card-art.has-bg {
   box-shadow: none;
 }
-.album-card-art.has-bg .album-card-cover-wrap {
+.album-card-art.has-bg .album-card-cover {
   width: 70%;
   height: 70%;
-  aspect-ratio: 1;
-}
-.album-card-art.has-bg .album-card-cover {
-  width: 100%;
-  height: 100%;
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 8px;
@@ -482,13 +461,6 @@ button.portrait-cover.enlarged {
   height: auto;
   max-height: 80%;
 }
-.portrait-panel.has-bg .portrait-cover-wrap .portrait-cover,
-.portrait-panel:not(.has-bg) .portrait-cover-wrap .portrait-cover {
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-}
 
 .track-panel {
   flex: 1;
@@ -550,17 +522,6 @@ button.portrait-cover.enlarged {
   color: var(--text);
   line-height: 1.1;
   margin: 0;
-}
-.album-title-box .cover-with-eye,
-.hero-play .cover-with-eye {
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
-}
-.album-title-box .cover-with-eye .album-cover-thumb,
-.hero-play .cover-with-eye .hero-thumb {
-  width: 100%;
-  height: 100%;
 }
 .album-cover-thumb {
   width: 64px;
@@ -1029,12 +990,6 @@ button.t-play-icon {
   width: clamp(200px, 70%, 280px);
 }
 @media (min-width: 601px) {
-  button.portrait-cover,
-  button.m-cover,
-  button.t-thumb {
-    pointer-events: none;
-    cursor: default;
-  }
   .modal .m-art {
     display: none;
   }
@@ -1088,15 +1043,11 @@ button.t-play-icon {
 .m-cover-layer.incoming.ready {
   animation: cover-fade-in 0.25s ease forwards;
 }
-.m-art.has-bg .m-cover-wrap {
-  width: 70%;
-  height: 70%;
-}
 .m-art.has-bg .m-cover {
   position: relative;
   z-index: 1;
-  width: 100%;
-  height: 100%;
+  width: 70%;
+  height: 70%;
   border-radius: 8px;
   box-shadow:
     0 0 0 1px var(--gold),
@@ -1416,12 +1367,12 @@ button.t-play-icon {
 }
 .lightbox-card img {
   display: block;
-  width: min(88vw, 720px);
+  width: 50vw;
   height: auto;
-  max-height: 82vh;
+  max-height: 50vh;
   object-fit: contain;
   border-radius: 12px;
-  box-shadow: 0 0 0 1px var(--gold), 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 .lightbox-card.on-cover img {
   width: 100%;
@@ -1450,104 +1401,6 @@ button.t-play-icon {
 }
 .lightbox-close:hover { color: var(--amber); }
 .lightbox-close svg { width: 20px; height: 20px; fill: currentColor; }
-
-.cover-with-eye {
-  position: relative;
-  display: block;
-  line-height: 0;
-}
-.cover-eye {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  z-index: 4;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--amber);
-  background: rgba(8, 12, 18, 0.68);
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
-  cursor: pointer;
-  pointer-events: auto;
-}
-.cover-eye svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-}
-.cover-eye:hover {
-  color: var(--text);
-  background: rgba(8, 12, 18, 0.88);
-}
-@media (min-width: 601px) {
-  .cover-eye,
-  .cover-with-eye .cover-eye,
-  .t-thumb-wrap .cover-eye {
-    display: none;
-  }
-}
-.t-thumb-wrap {
-  width: 44px;
-  height: 44px;
-}
-.t-thumb-wrap .t-thumb,
-.t-thumb-wrap .cover-eye + .t-thumb {
-  width: 100%;
-  height: 100%;
-}
-.t-thumb-wrap .cover-eye {
-  width: 18px;
-  height: 18px;
-  top: 2px;
-  right: 2px;
-}
-.t-thumb-wrap .cover-eye svg {
-  width: 11px;
-  height: 11px;
-}
-.portrait-cover-wrap {
-  position: relative;
-  z-index: 1;
-  min-width: 0;
-  min-height: 0;
-}
-.portrait-panel.has-bg .portrait-cover-wrap {
-  width: min(70%, 70vh);
-  max-height: 70%;
-  aspect-ratio: 1;
-}
-.portrait-panel:not(.has-bg) .portrait-cover-wrap {
-  width: min(80%, 80vh);
-  max-height: 80%;
-  aspect-ratio: 1;
-}
-.portrait-cover-wrap .portrait-cover {
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-}
-.m-cover-wrap {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  height: 100%;
-  flex-shrink: 0;
-}
-.m-cover-wrap .m-cover {
-  width: 100%;
-  height: 100%;
-}
-.cover-enlarged .cover-eye,
-.enlarged + .cover-eye,
-button.enlarged ~ .cover-eye {
-  display: none;
-}
 
 /* ── ADMIN ── */
 .admin {
@@ -2237,8 +2090,8 @@ button.enlarged ~ .cover-eye {
     aspect-ratio: unset;
     object-fit: cover;
   }
-  .portrait-cover-wrap,
-  .portrait-panel.has-bg .portrait-cover-wrap {
+  .portrait-cover,
+  .portrait-panel.has-bg .portrait-cover {
     position: relative;
     left: auto;
     top: auto;
@@ -2249,23 +2102,11 @@ button.enlarged ~ .cover-eye {
     aspect-ratio: 1;
     transform: none;
   }
-  .portrait-panel:not(.has-bg) .portrait-cover-wrap {
+  .portrait-panel:not(.has-bg) .portrait-cover {
     width: 80%;
     height: auto;
     left: auto;
     top: auto;
-    transform: none;
-  }
-  .portrait-cover-wrap .portrait-cover,
-  .portrait-panel.has-bg .portrait-cover-wrap .portrait-cover,
-  .portrait-panel:not(.has-bg) .portrait-cover-wrap .portrait-cover {
-    position: relative;
-    left: auto;
-    top: auto;
-    width: 100%;
-    height: 100%;
-    max-width: none;
-    max-height: none;
     transform: none;
   }
   .portrait-panel.cover-enlarged .portrait-stage {
@@ -2273,10 +2114,7 @@ button.enlarged ~ .cover-eye {
   }
   .portrait-panel.cover-enlarged .portrait-cover,
   .portrait-panel.has-bg.cover-enlarged .portrait-cover,
-  .portrait-panel:not(.has-bg).cover-enlarged .portrait-cover,
-  .portrait-panel.cover-enlarged .portrait-cover-wrap,
-  .portrait-panel.has-bg.cover-enlarged .portrait-cover-wrap,
-  .portrait-panel:not(.has-bg).cover-enlarged .portrait-cover-wrap {
+  .portrait-panel:not(.has-bg).cover-enlarged .portrait-cover {
     width: 100%;
     border-radius: 0;
     box-shadow: none;
@@ -2326,8 +2164,6 @@ button.enlarged ~ .cover-eye {
   .album-head .albums-back { display: none; }
   .album-head { padding: 14px 12px 0; }
   .album-title-box { gap: 10px; padding: 8px 10px; }
-  .album-title-box .cover-with-eye,
-  .hero-play .cover-with-eye,
   .album-cover-thumb { width: 76px; height: 76px; }
   .album-head .alb-name2 { font-size: 1.1rem; }
   .album-head .alb-tag { font-size: 0.65rem; }
@@ -2335,25 +2171,14 @@ button.enlarged ~ .cover-eye {
   .album-hero { padding: 10px 22px 10px 12px; flex-wrap: wrap; row-gap: 10px; }
   .album-stats { flex: 1 0 100%; }
   .track-row { padding: 9px 12px; gap: 10px; }
-  .t-thumb,
-  .t-thumb-wrap { width: 36px; height: 36px; }
+  .t-thumb { width: 36px; height: 36px; }
   .t-title { font-size: 0.78rem; white-space: normal; }
   .t-subtitle { font-size: 0.58rem; }
   .site-footer { padding: 10px 12px; }
-  .hero-play .cover-with-eye,
   .hero-thumb { width: 76px; height: 76px; }
-  .lightbox {
-    align-items: flex-start;
-    padding-top: env(safe-area-inset-top);
-  }
-  .lightbox-card {
-    width: 100%;
-  }
   .lightbox-card img {
-    width: 100vw;
-    max-width: 100%;
-    max-height: none;
-    border-radius: 0;
+    width: 80vw;
+    max-height: 80vh;
   }
   .lightbox-card.on-cover img {
     width: 100%;
@@ -2398,21 +2223,13 @@ button.enlarged ~ .cover-eye {
     border-radius: 0;
     padding: 8px 0;
   }
-  .m-cover-wrap,
-  .m-art.has-bg .m-cover-wrap {
+  .m-cover,
+  .m-art.has-bg .m-cover {
     width: 56%;
     height: auto;
-    aspect-ratio: 1;
   }
-  .m-art:not(.has-bg) .m-cover-wrap {
+  .m-art:not(.has-bg) .m-cover {
     width: 80%;
-  }
-  .m-cover,
-  .m-art.has-bg .m-cover,
-  .m-cover-wrap .m-cover,
-  .m-art.has-bg .m-cover-wrap .m-cover {
-    width: 100%;
-    height: 100%;
   }
   .modal-card.cover-enlarged {
     overflow: hidden;
@@ -2474,8 +2291,7 @@ button.enlarged ~ .cover-eye {
   .home-main {
     justify-content: flex-start;
   }
-  .collection-cover,
-  .collection-cover-wrap {
+  .collection-cover {
     box-sizing: border-box;
     width: calc(100% + 32px);
     max-width: none;
@@ -2483,10 +2299,6 @@ button.enlarged ~ .cover-eye {
     margin-right: -16px;
     border-left: 0;
     border-right: 0;
-  }
-  .collection-cover-wrap .collection-cover {
-    width: 100%;
-    margin: 0;
   }
   .admin {
     padding: 20px 16px 48px;

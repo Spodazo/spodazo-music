@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { Link, useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
-import { CoverEye, ImageLightbox } from "../components/ImageLightbox";
 import SdgFooter from "../components/SdgFooter";
 import {
   assignSrc,
@@ -132,7 +131,7 @@ export default function AlbumPage() {
   const [active, setActive] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [peek, setPeek] = useState<{ src: string; alt: string } | null>(null);
+  const [enlargedCover, setEnlargedCover] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [durations, setDurations] = useState<Record<string, string>>({});
@@ -385,6 +384,7 @@ export default function AlbumPage() {
     if (!next || !audio) return;
     currentUrlRef.current = next.audioUrl;
     resumeTimeRef.current = 0;
+    setEnlargedCover(null);
     if (autoplay) {
       void startPlay().then(() => {
         setPlaying(true);
@@ -401,6 +401,7 @@ export default function AlbumPage() {
   function showPlayingCover() {
     setShowAlbumCover(false);
     setShowArtistPhoto(false);
+    setEnlargedCover(null);
   }
 
   function playAt(index: number, autoplay: boolean) {
@@ -425,6 +426,7 @@ export default function AlbumPage() {
   }
 
   function closeModal() {
+    setEnlargedCover(null);
     setLyricsOpen(false);
     setModalOpen(false);
     history.replaceState(null, "", location.pathname + location.search);
@@ -739,7 +741,7 @@ export default function AlbumPage() {
       ) : (
     <div className={`layout${modalOpen ? " player-open" : ""}`}>
       <AdminLoginLink />
-      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
+      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}${enlargedCover === "portrait" ? " cover-enlarged" : ""}`}>
         <div
           className="portrait-stage"
           style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
@@ -748,39 +750,37 @@ export default function AlbumPage() {
             <img className="portrait-bg" src={backgroundUrl} alt="" decoding="sync" fetchPriority="high" />
           ) : null}
           {baseCover.url ? (
-            <div className="cover-with-eye portrait-cover-wrap">
-              <button
-                type="button"
-                className="portrait-cover"
-                aria-label={`View ${showingAlbumCover ? album.title : track?.title || album.title} cover`}
-                onClick={() => setPeek({ src: baseCover.url, alt: coverAlt })}
-              >
-                <span className="cover-sizer" aria-hidden="true" />
-                <CoverLayers
-                  imgClass="portrait-img"
-                  base={baseCover}
-                  next={nextCover}
-                  nextReady={nextReady}
-                  onIncomingLoad={() => setNextReady(true)}
-                  onIncomingError={() => {
-                    if (!nextCover) return;
-                    setPortraitFailed(nextCover.url);
-                    setNextCover(null);
-                    setNextReady(false);
-                  }}
-                  onIncomingFaded={() => {
-                    if (nextCover) promoteCover(nextCover);
-                  }}
-                  onBaseError={() => {
-                    if (baseCover.url) setPortraitFailed(baseCover.url);
-                  }}
-                />
-              </button>
-              <CoverEye
-                label={`View ${showingAlbumCover ? album.title : track?.title || album.title} cover`}
-                onClick={() => setPeek({ src: baseCover.url, alt: coverAlt })}
+            <button
+              type="button"
+              className={`portrait-cover${enlargedCover === "portrait" ? " enlarged" : ""}`}
+              aria-label={
+                enlargedCover === "portrait"
+                  ? `Shrink ${showingAlbumCover ? album.title : track?.title || album.title} cover`
+                  : `Enlarge ${showingAlbumCover ? album.title : track?.title || album.title} cover`
+              }
+              onClick={() => setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"))}
+            >
+              <span className="cover-sizer" aria-hidden="true" />
+              <CoverLayers
+                imgClass="portrait-img"
+                base={baseCover}
+                next={nextCover}
+                nextReady={nextReady}
+                onIncomingLoad={() => setNextReady(true)}
+                onIncomingError={() => {
+                  if (!nextCover) return;
+                  setPortraitFailed(nextCover.url);
+                  setNextCover(null);
+                  setNextReady(false);
+                }}
+                onIncomingFaded={() => {
+                  if (nextCover) promoteCover(nextCover);
+                }}
+                onBaseError={() => {
+                  if (baseCover.url) setPortraitFailed(baseCover.url);
+                }}
               />
-            </div>
+            </button>
           ) : null}
         </div>
         <AlbumsBack className="albums-back-on-art" />
@@ -791,37 +791,33 @@ export default function AlbumPage() {
           <div className="album-title-box">
             <h1 className="alb-name2">{album.title}</h1>
             {albumCoverUrl ? (
-              <div className="cover-with-eye">
-                <button
-                  type="button"
-                  className={`album-cover-thumb${showingAlbumCover ? " on" : ""}`}
-                  title={showingAlbumCover ? "Show song cover" : "Show album cover"}
-                  aria-label={showingAlbumCover ? "Show song cover" : "Show album cover"}
-                  aria-pressed={showingAlbumCover}
-                  onClick={() => {
-                    if (showingAlbumCover) {
-                      setShowAlbumCover(false);
-                      return;
-                    }
-                    setShowArtistPhoto(false);
-                    setShowAlbumCover(true);
-                  }}
-                >
-                  <img
-                    className={imageIsHot(albumCoverThumb) ? "is-hot" : undefined}
-                    src={albumCoverThumb}
-                    alt=""
-                    decoding="async"
-                    fetchPriority="high"
-                    ref={(img) => revealLoadedImage(img, albumCoverThumb)}
-                    onLoad={(event) => revealLoadedImage(event.currentTarget, albumCoverThumb)}
-                  />
-                </button>
-                <CoverEye
-                  label={`View ${album.title} cover`}
-                  onClick={() => setPeek({ src: albumCoverUrl, alt: `${album.title} — ${album.artists}` })}
+              <button
+                type="button"
+                className={`album-cover-thumb${showingAlbumCover ? " on" : ""}`}
+                title={showingAlbumCover ? "Show song cover" : "Show album cover"}
+                aria-label={showingAlbumCover ? "Show song cover" : "Show album cover"}
+                aria-pressed={showingAlbumCover}
+                onClick={() => {
+                  if (showingAlbumCover) {
+                    setShowAlbumCover(false);
+                    setEnlargedCover(null);
+                    return;
+                  }
+                  setShowArtistPhoto(false);
+                  setShowAlbumCover(true);
+                  setEnlargedCover(null);
+                }}
+              >
+                <img
+                  className={imageIsHot(albumCoverThumb) ? "is-hot" : undefined}
+                  src={albumCoverThumb}
+                  alt=""
+                  decoding="async"
+                  fetchPriority="high"
+                  ref={(img) => revealLoadedImage(img, albumCoverThumb)}
+                  onLoad={(event) => revealLoadedImage(event.currentTarget, albumCoverThumb)}
                 />
-              </div>
+              </button>
             ) : null}
           </div>
           <p className="alb-tag">{album.tagline}</p>
@@ -860,41 +856,37 @@ export default function AlbumPage() {
             </button>
           </div>
           {artistUrl ? (
-            <div className="cover-with-eye">
-              <button
-                type="button"
-                className={`hero-thumb${showingArtistPhoto ? " on" : ""}`}
-                title={album.artists}
-                aria-label={
-                  showingArtistPhoto
-                    ? `Hide photo of ${album.artists || "the artists"}`
-                    : `Show photo of ${album.artists || "the artists"}`
+            <button
+              type="button"
+              className={`hero-thumb${showingArtistPhoto ? " on" : ""}`}
+              title={album.artists}
+              aria-label={
+                showingArtistPhoto
+                  ? `Hide photo of ${album.artists || "the artists"}`
+                  : `Show photo of ${album.artists || "the artists"}`
+              }
+              aria-pressed={showingArtistPhoto}
+              onClick={() => {
+                if (showingArtistPhoto) {
+                  setShowArtistPhoto(false);
+                  setEnlargedCover(null);
+                  return;
                 }
-                aria-pressed={showingArtistPhoto}
-                onClick={() => {
-                  if (showingArtistPhoto) {
-                    setShowArtistPhoto(false);
-                    return;
-                  }
-                  setShowAlbumCover(false);
-                  setShowArtistPhoto(true);
-                }}
-              >
-                <img
-                  className={imageIsHot(artistThumb) ? "is-hot" : undefined}
-                  src={artistThumb}
-                  alt={album.artists}
-                  fetchPriority="high"
-                  decoding="async"
-                  ref={(img) => revealLoadedImage(img, artistThumb)}
-                  onLoad={(event) => revealLoadedImage(event.currentTarget, artistThumb)}
-                />
-              </button>
-              <CoverEye
-                label={`View photo of ${album.artists || "the artists"}`}
-                onClick={() => setPeek({ src: artistUrl, alt: album.artists || "Artist photo" })}
+                setShowAlbumCover(false);
+                setShowArtistPhoto(true);
+                setEnlargedCover(null);
+              }}
+            >
+              <img
+                className={imageIsHot(artistThumb) ? "is-hot" : undefined}
+                src={artistThumb}
+                alt={album.artists}
+                fetchPriority="high"
+                decoding="async"
+                ref={(img) => revealLoadedImage(img, artistThumb)}
+                onLoad={(event) => revealLoadedImage(event.currentTarget, artistThumb)}
               />
-            </div>
+            </button>
           ) : null}
         </div>
         <div className="tracks">
@@ -907,9 +899,10 @@ export default function AlbumPage() {
               durationLabel={durations[item.id] || item.durationLabel}
               active={active === index}
               isPlaying={active === index && playing}
-              onPeek={
+              enlarged={enlargedCover === `list:${item.id}`}
+              onZoom={
                 item.imageUrl
-                  ? () => setPeek({ src: item.imageUrl, alt: `${item.title} cover` })
+                  ? () => setEnlargedCover((cur) => (cur === `list:${item.id}` ? null : `list:${item.id}`))
                   : undefined
               }
               onWarm={() => warm()}
@@ -931,19 +924,18 @@ export default function AlbumPage() {
 
       {track && modalOpen ? (
         <div className="modal open">
-          <div className="modal-card">
+          <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
             <div className="modal-head">
               <div className={`m-art${backgroundUrl ? " has-bg" : ""}`}>
                 {backgroundUrl ? (
                   <img className="m-art-bg" src={backgroundUrl} alt="" decoding="sync" fetchPriority="high" />
                 ) : null}
                 {baseCover.url ? (
-                  <div className="cover-with-eye m-cover-wrap">
                   <button
                     type="button"
-                    className="m-cover"
-                    aria-label={`View ${track.title} cover`}
-                    onClick={() => setPeek({ src: baseCover.url, alt: coverAlt || `${track.title} cover` })}
+                    className={`m-cover${enlargedCover === `player:${track.id}` ? " enlarged" : ""}`}
+                    aria-label={enlargedCover === `player:${track.id}` ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
+                    onClick={() => setEnlargedCover((cur) => (cur === `player:${track.id}` ? null : `player:${track.id}`))}
                   >
                     <span className="cover-sizer" aria-hidden="true" />
                     <CoverLayers
@@ -966,11 +958,6 @@ export default function AlbumPage() {
                       }}
                     />
                   </button>
-                  <CoverEye
-                    label={`View ${track.title} cover`}
-                    onClick={() => setPeek({ src: baseCover.url, alt: coverAlt || `${track.title} cover` })}
-                  />
-                  </div>
                 ) : (
                   <div className="m-cover">
                     <span className="cover-sizer" aria-hidden="true" />
@@ -1119,7 +1106,6 @@ export default function AlbumPage() {
 
     </div>
       )}
-      {peek ? <ImageLightbox src={peek.src} alt={peek.alt} onClose={() => setPeek(null)} /> : null}
     </>
   );
 }
@@ -1131,7 +1117,8 @@ function TrackRow({
   durationLabel,
   active,
   isPlaying,
-  onPeek,
+  enlarged,
+  onZoom,
   onWarm,
   onOpen,
   onPlayPause,
@@ -1142,7 +1129,8 @@ function TrackRow({
   durationLabel?: string;
   active: boolean;
   isPlaying: boolean;
-  onPeek?: () => void;
+  enlarged?: boolean;
+  onZoom?: () => void;
   onWarm: () => void;
   onOpen: () => void;
   onPlayPause: () => void;
@@ -1161,7 +1149,7 @@ function TrackRow({
 
   return (
     <div
-      className={`track-row${active ? " active" : ""}${isPlaying ? " playing" : ""}`}
+      className={`track-row${active ? " active" : ""}${isPlaying ? " playing" : ""}${enlarged ? " cover-enlarged" : ""}`}
       data-i={index}
       aria-current={isPlaying ? "true" : undefined}
       onPointerDown={onWarm}
@@ -1174,49 +1162,42 @@ function TrackRow({
       ) : (
         <span className="t-num">{pad(track.n)}</span>
       )}
-      {track.imageUrl ? (
-        <div className="cover-with-eye t-thumb-wrap">
-          {onPeek ? (
-            <button
-              type="button"
-              className="t-thumb"
-              aria-label={`View ${track.title} cover`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onPeek();
-              }}
-            >
-              <img
-                className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
-                src={thumbSrc}
-                alt=""
-                loading={index < 8 ? "eager" : "lazy"}
-                decoding="async"
-                fetchPriority={index < 4 ? "high" : "auto"}
-                ref={(img) => revealLoadedImage(img, thumbSrc)}
-                onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
-              />
-            </button>
-          ) : (
-            <div className="t-thumb">
-              <img
-                className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
-                src={thumbSrc}
-                alt=""
-                loading={index < 8 ? "eager" : "lazy"}
-                decoding="async"
-                fetchPriority={index < 4 ? "high" : "auto"}
-                ref={(img) => revealLoadedImage(img, thumbSrc)}
-                onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
-              />
-            </div>
-          )}
-          {onPeek ? (
-            <CoverEye label={`View ${track.title} cover`} onClick={onPeek} />
+      {track.imageUrl && onZoom ? (
+        <button
+          type="button"
+          className={`t-thumb${enlarged ? " enlarged" : ""}`}
+          aria-label={enlarged ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onZoom();
+          }}
+        >
+          <img
+            className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
+            src={thumbSrc}
+            alt=""
+            loading={index < 8 ? "eager" : "lazy"}
+            decoding="async"
+            fetchPriority={index < 4 ? "high" : "auto"}
+            ref={(img) => revealLoadedImage(img, thumbSrc)}
+            onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
+          />
+        </button>
+      ) : (
+        <div className="t-thumb">
+          {track.imageUrl ? (
+            <img
+              className={imageIsHot(thumbSrc) ? "is-hot" : undefined}
+              src={thumbSrc}
+              alt=""
+              loading={index < 8 ? "eager" : "lazy"}
+              decoding="async"
+              fetchPriority={index < 4 ? "high" : "auto"}
+              ref={(img) => revealLoadedImage(img, thumbSrc)}
+              onLoad={(event) => revealLoadedImage(event.currentTarget, thumbSrc)}
+            />
           ) : null}
         </div>
-      ) : (
-        <div className="t-thumb" />
       )}
       <div className="t-info">
         <div className="t-title">
