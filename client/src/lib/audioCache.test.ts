@@ -9,6 +9,9 @@ import {
   isMobilePlayback,
   isResumeTime,
   mediaUrl,
+  markOutputNeedsRebuild,
+  outputGraphIsStale,
+  outputRebuildIsPending,
   pipelineIsDead,
   playSong,
   restoreMobileOutput,
@@ -273,6 +276,25 @@ test("switching Bluetooth devices asks the player to rebuild the live audio elem
     stop();
     stub.restore();
   }
+});
+
+test("a mobile pause marks the output graph so the next play rebuilds it", async () => {
+  const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const audio = fakeAudio();
+  try {
+    markOutputNeedsRebuild();
+    assert.equal(outputRebuildIsPending(), true);
+    await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 12, false, 1);
+    assert.equal(outputRebuildIsPending(), false);
+  } finally {
+    restore();
+  }
+});
+
+test("desktop pause does not mark the output graph for rebuild", () => {
+  markOutputNeedsRebuild();
+  assert.equal(outputRebuildIsPending(), false);
+  assert.equal(outputGraphIsStale(fakeAudio() as unknown as HTMLAudioElement), false);
 });
 
 test("desktop playback does not rebuild on Bluetooth or call events", async () => {

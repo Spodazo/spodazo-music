@@ -24,7 +24,7 @@ import {
   updateTrack,
   verifyCuratorPassword,
 } from "../lib/api";
-import { assignSrc, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
+import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
 import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
 import { applySiteIcons } from "../lib/siteIcons";
@@ -106,6 +106,11 @@ function useAdminPlayer() {
       setCurrentTime(0);
       setDuration(0);
     }
+    if (outputGraphIsStale(audio)) {
+      wantPlayingRef.current = true;
+      rebuildAudio(0, true);
+      return;
+    }
     wantPlayingRef.current = true;
     void playSong(audio, track.audioUrl, 0, false).then(() => setPlaying(true)).catch(() => {
       wantPlayingRef.current = false;
@@ -157,6 +162,7 @@ function useAdminPlayer() {
     } else {
       wantPlayingRef.current = false;
       if (audio.currentTime > 0.15) resumeTimeRef.current = audio.currentTime;
+      markOutputNeedsRebuild();
       audio.pause();
       setPlaying(false);
     }

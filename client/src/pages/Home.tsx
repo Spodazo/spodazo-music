@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
+import { CoverEye, ImageLightbox } from "../components/ImageLightbox";
 import SdgFooter from "../components/SdgFooter";
 import {
   isImageDecoded,
@@ -77,7 +78,15 @@ function CardImage({
   );
 }
 
-function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolean }) {
+function AlbumCard({
+  album,
+  priority,
+  onPeek,
+}: {
+  album: AlbumListItem;
+  priority: boolean;
+  onPeek: (src: string, alt: string) => void;
+}) {
   const hasOwnBackground = Boolean(album.heroPortrait && album.heroPortrait !== album.thumb);
   const backgroundUrl = hasOwnBackground ? album.heroUrl : "";
   const coverUrl = album.thumbUrl || (!backgroundUrl ? album.heroUrl : "");
@@ -93,6 +102,9 @@ function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolea
         ) : (
           <div className="album-card-empty" />
         )}
+        {coverUrl ? (
+          <CoverEye label={`View ${album.title} cover`} onClick={() => onPeek(coverUrl, album.title)} />
+        ) : null}
       </div>
       <div className="album-card-body">
         <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
@@ -115,6 +127,7 @@ export default function HomePage() {
     return DEFAULT_PLAYER_SETUP;
   });
   const [error, setError] = useState("");
+  const [peek, setPeek] = useState<{ src: string; alt: string } | null>(null);
   const themeRef = useFitOneLine(setup.theme);
 
   useEffect(() => {
@@ -146,14 +159,26 @@ export default function HomePage() {
       <div className="home-main">
         {error ? <p className="error">{error}</p> : null}
         {setup.collectionCoverUrl ? (
-          <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} decoding="async" />
+          <div className="cover-with-eye collection-cover-wrap">
+            <img className="collection-cover" src={setup.collectionCoverUrl} alt={setup.appName} decoding="async" />
+            <CoverEye
+              label={`View ${setup.appName} cover`}
+              onClick={() => setPeek({ src: setup.collectionCoverUrl, alt: setup.appName })}
+            />
+          </div>
         ) : null}
         <div className="album-grid">
           {albums.map((album, index) => (
-            <AlbumCard key={album.id} album={album} priority={index === 0} />
+            <AlbumCard
+              key={album.id}
+              album={album}
+              priority={index === 0}
+              onPeek={(src, alt) => setPeek({ src, alt })}
+            />
           ))}
         </div>
       </div>
+      {peek ? <ImageLightbox src={peek.src} alt={peek.alt} onClose={() => setPeek(null)} /> : null}
       <footer className="home-foot">
         {[...new Set(albums.map((album) => creditLine(album.artists, album.credits)).filter(Boolean))].map((line) => (
           <p key={line} className="home-foot-credit">{line}</p>

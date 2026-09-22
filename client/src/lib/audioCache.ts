@@ -1,7 +1,7 @@
 /**
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
- * After a call or Bluetooth route change, rebuild the live element — the old GainNode stays silent.
+ * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
  */
 
@@ -38,6 +38,7 @@ const routeWatchers = new Set<{
 let routeTimer = 0;
 let sessionInterrupted = false;
 let resumeAfterInterrupt = false;
+let outputNeedsRebuild = false;
 
 function audioContextCtor(): typeof AudioContext | undefined {
   return (
@@ -106,12 +107,21 @@ export function playbackSnapshot(audio: HTMLAudioElement | null): PlaybackSnapsh
   };
 }
 
+export function markOutputNeedsRebuild() {
+  if (isMobilePlayback()) outputNeedsRebuild = true;
+}
+
+export function outputRebuildIsPending(): boolean {
+  return outputNeedsRebuild;
+}
+
 export function outputGraphIsStale(audio: HTMLAudioElement | null): boolean {
-  if (!audio) return false;
+  if (!audio || !isMobilePlayback()) return false;
   const graph = graphs.get(audio);
   if (!graph) return false;
+  if (outputNeedsRebuild) return true;
   const state = graph.ctx.state as string;
-  return state === "interrupted" || state === "closed";
+  return state === "interrupted" || state === "closed" || state === "suspended";
 }
 
 export function restoreMobileOutput(audio: HTMLAudioElement | null, volume: number) {
@@ -172,7 +182,11 @@ export function watchPlaybackRoute(
     requestPlaybackReroute();
   };
   const onVisibility = () => {
-    if (!document.hidden && sessionInterrupted) requestPlaybackReroute();
+    if (document.hidden) {
+      markOutputNeedsRebuild();
+      return;
+    }
+    if (sessionInterrupted) requestPlaybackReroute();
   };
 
   const session = audioSession();
@@ -207,10 +221,20 @@ export function attachOutput(audio: HTMLAudioElement): OutputGraph | null {
     gain.gain.value = 0;
     source.connect(gain);
     gain.connect(ctx.destination);
+    let wasRunning = false;
     const onState = () => {
-      if ((ctx.state as string) !== "interrupted") return;
-      sessionInterrupted = true;
-      notePlayingBeforeInterrupt();
+      if (ctx.state === "running") {
+        wasRunning = true;
+        return;
+      }
+      if (!wasRunning) return;
+      const state = ctx.state as string;
+      if (state !== "interrupted" && state !== "suspended" && state !== "closed") return;
+      outputNeedsRebuild = true;
+      if (state === "interrupted") {
+        sessionInterrupted = true;
+        notePlayingBeforeInterrupt();
+      }
     };
     ctx.addEventListener("statechange", onState);
     ctx.onstatechange = onState;
@@ -328,6 +352,7 @@ export function playSong(
   targetVolume = 1,
 ): Promise<void> {
   const gen = ++playGen;
+  outputNeedsRebuild = false;
   unlockAudio(audio);
   const resume = isResumeTime(time);
   const dead = forceReload || !sameSong(audio, url);

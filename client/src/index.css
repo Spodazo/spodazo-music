@@ -209,6 +209,16 @@ a { color: inherit; }
   border-radius: 8px;
   box-shadow: var(--cover-shadow);
 }
+.collection-cover-wrap {
+  display: block;
+  width: 50vw;
+  max-width: 100%;
+  margin: 0 auto 28px;
+}
+.collection-cover-wrap .collection-cover {
+  width: 100%;
+  margin: 0;
+}
 .album-grid {
   display: flex;
   flex-wrap: wrap;
@@ -1142,7 +1152,16 @@ button.t-play-icon {
   transition: opacity 0.2s, color 0.2s;
 }
 .ctrl:hover { opacity: 1; color: var(--amber); }
-.ctrl.on { opacity: 1; color: var(--amber); }
+.ctrl.on {
+  opacity: 1;
+  color: var(--on-accent);
+  background: var(--amber);
+  border-radius: 50%;
+}
+.ctrl.on:hover {
+  color: var(--on-accent);
+  background: var(--amber2, var(--amber));
+}
 .ctrl svg { width: 26px; height: 26px; fill: currentColor; }
 .btn-play-modal {
   width: 46px;
@@ -1364,12 +1383,12 @@ button.t-play-icon {
 }
 .lightbox-card img {
   display: block;
-  width: 50vw;
+  width: min(88vw, 720px);
   height: auto;
-  max-height: 50vh;
+  max-height: 82vh;
   object-fit: contain;
   border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 1px var(--gold), 0 16px 48px rgba(0, 0, 0, 0.45);
   opacity: 0;
 }
 .lightbox-card img.is-ready {
@@ -1402,6 +1421,93 @@ button.t-play-icon {
 }
 .lightbox-close:hover { color: var(--amber); }
 .lightbox-close svg { width: 20px; height: 20px; fill: currentColor; }
+
+.cover-with-eye {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.cover-eye {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  z-index: 4;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amber);
+  background: rgba(8, 12, 18, 0.68);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+.cover-eye svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+.cover-eye:hover {
+  color: var(--text);
+  background: rgba(8, 12, 18, 0.88);
+}
+.t-thumb-wrap {
+  width: 44px;
+  height: 44px;
+}
+.t-thumb-wrap .t-thumb,
+.t-thumb-wrap .cover-eye + .t-thumb {
+  width: 100%;
+  height: 100%;
+}
+.t-thumb-wrap .cover-eye {
+  width: 18px;
+  height: 18px;
+  right: 2px;
+  bottom: 2px;
+}
+.t-thumb-wrap .cover-eye svg {
+  width: 11px;
+  height: 11px;
+}
+.portrait-cover-wrap {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.portrait-panel.has-bg .portrait-cover-wrap {
+  width: min(70%, 70vh);
+  max-height: 70%;
+  aspect-ratio: 1;
+}
+.portrait-panel:not(.has-bg) .portrait-cover-wrap {
+  width: min(80%, 80vh);
+  max-height: 80%;
+  aspect-ratio: 1;
+}
+.portrait-cover-wrap .portrait-cover {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+}
+.m-cover-wrap {
+  position: relative;
+  width: 100%;
+}
+.m-cover-wrap .m-cover {
+  width: 100%;
+}
+.cover-enlarged .cover-eye,
+.enlarged + .cover-eye,
+button.enlarged ~ .cover-eye {
+  display: none;
+}
 
 /* ── ADMIN ── */
 .admin {
@@ -2092,7 +2198,9 @@ button.t-play-icon {
     object-fit: cover;
   }
   .portrait-cover,
-  .portrait-panel.has-bg .portrait-cover {
+  .portrait-panel.has-bg .portrait-cover,
+  .portrait-cover-wrap,
+  .portrait-panel.has-bg .portrait-cover-wrap {
     position: relative;
     left: auto;
     top: auto;
@@ -2103,19 +2211,27 @@ button.t-play-icon {
     aspect-ratio: 1;
     transform: none;
   }
-  .portrait-panel:not(.has-bg) .portrait-cover {
+  .portrait-panel:not(.has-bg) .portrait-cover,
+  .portrait-panel:not(.has-bg) .portrait-cover-wrap {
     width: 80%;
     height: auto;
     left: auto;
     top: auto;
     transform: none;
   }
+  .portrait-cover-wrap .portrait-cover {
+    width: 100%;
+    height: 100%;
+  }
   .portrait-panel.cover-enlarged .portrait-stage {
     padding: 0;
   }
   .portrait-panel.cover-enlarged .portrait-cover,
   .portrait-panel.has-bg.cover-enlarged .portrait-cover,
-  .portrait-panel:not(.has-bg).cover-enlarged .portrait-cover {
+  .portrait-panel:not(.has-bg).cover-enlarged .portrait-cover,
+  .portrait-panel.cover-enlarged .portrait-cover-wrap,
+  .portrait-panel.has-bg.cover-enlarged .portrait-cover-wrap,
+  .portrait-panel:not(.has-bg).cover-enlarged .portrait-cover-wrap {
     width: 100%;
     border-radius: 0;
     box-shadow: none;
@@ -2172,14 +2288,15 @@ button.t-play-icon {
   .album-hero { padding: 10px 22px 10px 12px; flex-wrap: wrap; row-gap: 10px; }
   .album-stats { flex: 1 0 100%; }
   .track-row { padding: 9px 12px; gap: 10px; }
-  .t-thumb { width: 36px; height: 36px; }
+  .t-thumb,
+  .t-thumb-wrap { width: 36px; height: 36px; }
   .t-title { font-size: 0.78rem; white-space: normal; }
   .t-subtitle { font-size: 0.58rem; }
   .site-footer { padding: 10px 12px; }
   .hero-thumb { width: 76px; height: 76px; }
   .lightbox-card img {
-    width: 80vw;
-    max-height: 80vh;
+    width: 88vw;
+    max-height: 78vh;
   }
   .lightbox-card.on-cover img {
     width: 100%;
@@ -2292,7 +2409,8 @@ button.t-play-icon {
   .home-main {
     justify-content: flex-start;
   }
-  .collection-cover {
+  .collection-cover,
+  .collection-cover-wrap {
     box-sizing: border-box;
     width: calc(100% + 32px);
     max-width: none;
@@ -2300,6 +2418,10 @@ button.t-play-icon {
     margin-right: -16px;
     border-left: 0;
     border-right: 0;
+  }
+  .collection-cover-wrap .collection-cover {
+    width: 100%;
+    margin: 0;
   }
   .admin {
     padding: 20px 16px 48px;

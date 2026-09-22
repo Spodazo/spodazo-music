@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { Link, useRoute } from "wouter";
 import AdminLoginLink from "../components/AdminLoginLink";
+import { CoverEye, ImageLightbox } from "../components/ImageLightbox";
 import SdgFooter from "../components/SdgFooter";
 import {
   assignSrc,
   dropLegacyAudioCaches,
+  markOutputNeedsRebuild,
   outputGraphIsStale,
   pipelineIsDead,
   playSong,
@@ -129,6 +131,7 @@ export default function AlbumPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [enlargedCover, setEnlargedCover] = useState<string | null>(null);
+  const [peek, setPeek] = useState<{ src: string; alt: string } | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [durations, setDurations] = useState<Record<string, string>>({});
@@ -352,6 +355,11 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
+    if (outputGraphIsStale(audio)) {
+      wantPlayingRef.current = true;
+      rebuildAudio(0, true);
+      return Promise.resolve();
+    }
     unlockAudio(audio);
     wantPlayingRef.current = true;
     const force = Boolean(audio.src) && pipelineIsDead(audio);
@@ -613,6 +621,22 @@ export default function AlbumPage() {
     resetLyricFollow();
   }
 
+  function toggleRepeatAll() {
+    setRepeatAll((on) => {
+      const next = !on;
+      if (next) setRepeatOne(false);
+      return next;
+    });
+  }
+
+  function toggleRepeatOne() {
+    setRepeatOne((on) => {
+      const next = !on;
+      if (next) setRepeatAll(false);
+      return next;
+    });
+  }
+
   function togglePlay() {
     const audio = audioRef.current;
     const url = currentUrlRef.current;
@@ -638,6 +662,7 @@ export default function AlbumPage() {
     } else {
       wantPlayingRef.current = false;
       rememberTime();
+      markOutputNeedsRebuild();
       audio.pause();
       setPlaying(false);
       releaseWake();
@@ -717,37 +742,43 @@ export default function AlbumPage() {
             <img className="portrait-bg" src={backgroundUrl} alt="" decoding="async" />
           ) : null}
           {baseCover.url ? (
-            <button
-              type="button"
-              className={`portrait-cover${enlargedCover === "portrait" ? " enlarged" : ""}`}
-              aria-label={
-                enlargedCover === "portrait"
-                  ? `Shrink ${showingAlbumCover ? album.title : track?.title || album.title} cover`
-                  : `Enlarge ${showingAlbumCover ? album.title : track?.title || album.title} cover`
-              }
-              onClick={() => setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"))}
-            >
-              <span className="cover-sizer" aria-hidden="true" />
-              <CoverLayers
-                imgClass="portrait-img"
-                base={baseCover}
-                next={nextCover}
-                nextReady={nextReady}
-                onIncomingLoad={() => setNextReady(true)}
-                onIncomingError={() => {
-                  if (!nextCover) return;
-                  setPortraitFailed(nextCover.url);
-                  setNextCover(null);
-                  setNextReady(false);
-                }}
-                onIncomingFaded={() => {
-                  if (nextCover) promoteCover(nextCover);
-                }}
-                onBaseError={() => {
-                  if (baseCover.url) setPortraitFailed(baseCover.url);
-                }}
+            <div className="cover-with-eye portrait-cover-wrap">
+              <button
+                type="button"
+                className={`portrait-cover${enlargedCover === "portrait" ? " enlarged" : ""}`}
+                aria-label={
+                  enlargedCover === "portrait"
+                    ? `Shrink ${showingAlbumCover ? album.title : track?.title || album.title} cover`
+                    : `Enlarge ${showingAlbumCover ? album.title : track?.title || album.title} cover`
+                }
+                onClick={() => setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"))}
+              >
+                <span className="cover-sizer" aria-hidden="true" />
+                <CoverLayers
+                  imgClass="portrait-img"
+                  base={baseCover}
+                  next={nextCover}
+                  nextReady={nextReady}
+                  onIncomingLoad={() => setNextReady(true)}
+                  onIncomingError={() => {
+                    if (!nextCover) return;
+                    setPortraitFailed(nextCover.url);
+                    setNextCover(null);
+                    setNextReady(false);
+                  }}
+                  onIncomingFaded={() => {
+                    if (nextCover) promoteCover(nextCover);
+                  }}
+                  onBaseError={() => {
+                    if (baseCover.url) setPortraitFailed(baseCover.url);
+                  }}
+                />
+              </button>
+              <CoverEye
+                label={`View ${showingAlbumCover ? album.title : track?.title || album.title} cover`}
+                onClick={() => setPeek({ src: baseCover.url, alt: coverAlt })}
               />
-            </button>
+            </div>
           ) : null}
         </div>
         <AlbumsBack className="albums-back-on-art" />
@@ -758,33 +789,39 @@ export default function AlbumPage() {
           <div className="album-title-box">
             <h1 className="alb-name2">{album.title}</h1>
             {albumCoverUrl ? (
-              <button
-                type="button"
-                className={`album-cover-thumb${showingAlbumCover ? " on" : ""}`}
-                title={showingAlbumCover ? "Show song cover" : "Show album cover"}
-                aria-label={showingAlbumCover ? "Show song cover" : "Show album cover"}
-                aria-pressed={showingAlbumCover}
-                onClick={() => {
-                  if (showingAlbumCover) {
-                    setShowAlbumCover(false);
+              <div className="cover-with-eye">
+                <button
+                  type="button"
+                  className={`album-cover-thumb${showingAlbumCover ? " on" : ""}`}
+                  title={showingAlbumCover ? "Show song cover" : "Show album cover"}
+                  aria-label={showingAlbumCover ? "Show song cover" : "Show album cover"}
+                  aria-pressed={showingAlbumCover}
+                  onClick={() => {
+                    if (showingAlbumCover) {
+                      setShowAlbumCover(false);
+                      setEnlargedCover(null);
+                      return;
+                    }
+                    setShowArtistPhoto(false);
+                    setShowAlbumCover(true);
                     setEnlargedCover(null);
-                    return;
-                  }
-                  setShowArtistPhoto(false);
-                  setShowAlbumCover(true);
-                  setEnlargedCover(null);
-                }}
-              >
-                <img
-                  src={albumCoverUrl}
-                  alt=""
-                  decoding="async"
-                  ref={(img) => {
-                    if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
                   }}
-                  onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                >
+                  <img
+                    src={albumCoverUrl}
+                    alt=""
+                    decoding="async"
+                    ref={(img) => {
+                      if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+                    }}
+                    onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                  />
+                </button>
+                <CoverEye
+                  label={`View ${album.title} cover`}
+                  onClick={() => setPeek({ src: albumCoverUrl, alt: `${album.title} — ${album.artists}` })}
                 />
-              </button>
+              </div>
             ) : null}
           </div>
           <p className="alb-tag">{album.tagline}</p>
@@ -813,8 +850,8 @@ export default function AlbumPage() {
             </button>
             <button
               className={`btn-repeat-all${repeatAll ? " on" : ""}`}
-              onClick={() => setRepeatAll((on) => !on)}
-              title={repeatAll ? "Repeat all on" : "Repeat all"}
+              onClick={toggleRepeatAll}
+              title={repeatAll ? "Repeat all on — click to turn off" : "Repeat all"}
               aria-pressed={repeatAll}
               aria-label="Repeat all"
             >
@@ -823,38 +860,44 @@ export default function AlbumPage() {
             </button>
           </div>
           {artistUrl ? (
-            <button
-              type="button"
-              className={`hero-thumb${showingArtistPhoto ? " on" : ""}`}
-              title={album.artists}
-              aria-label={
-                showingArtistPhoto
-                  ? `Hide photo of ${album.artists || "the artists"}`
-                  : `Show photo of ${album.artists || "the artists"}`
-              }
-              aria-pressed={showingArtistPhoto}
-              onClick={() => {
-                if (showingArtistPhoto) {
-                  setShowArtistPhoto(false);
-                  setEnlargedCover(null);
-                  return;
+            <div className="cover-with-eye">
+              <button
+                type="button"
+                className={`hero-thumb${showingArtistPhoto ? " on" : ""}`}
+                title={album.artists}
+                aria-label={
+                  showingArtistPhoto
+                    ? `Hide photo of ${album.artists || "the artists"}`
+                    : `Show photo of ${album.artists || "the artists"}`
                 }
-                setShowAlbumCover(false);
-                setShowArtistPhoto(true);
-                setEnlargedCover(null);
-              }}
-            >
-              <img
-                src={album.artistUrl}
-                alt={album.artists}
-                fetchPriority="low"
-                decoding="async"
-                ref={(img) => {
-                  if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+                aria-pressed={showingArtistPhoto}
+                onClick={() => {
+                  if (showingArtistPhoto) {
+                    setShowArtistPhoto(false);
+                    setEnlargedCover(null);
+                    return;
+                  }
+                  setShowAlbumCover(false);
+                  setShowArtistPhoto(true);
+                  setEnlargedCover(null);
                 }}
-                onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+              >
+                <img
+                  src={album.artistUrl}
+                  alt={album.artists}
+                  fetchPriority="low"
+                  decoding="async"
+                  ref={(img) => {
+                    if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+                  }}
+                  onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+                />
+              </button>
+              <CoverEye
+                label={`View photo of ${album.artists || "the artists"}`}
+                onClick={() => setPeek({ src: artistUrl, alt: album.artists || "Artist photo" })}
               />
-            </button>
+            </div>
           ) : null}
         </div>
         <div className="tracks">
@@ -871,6 +914,11 @@ export default function AlbumPage() {
               onZoom={
                 item.imageUrl
                   ? () => setEnlargedCover((cur) => (cur === `list:${item.id}` ? null : `list:${item.id}`))
+                  : undefined
+              }
+              onPeek={
+                item.imageUrl
+                  ? () => setPeek({ src: item.imageUrl, alt: `${item.title} cover` })
                   : undefined
               }
               onWarm={() => warm()}
@@ -899,6 +947,7 @@ export default function AlbumPage() {
                   <img className="m-art-bg" src={backgroundUrl} alt="" decoding="async" />
                 ) : null}
                 {baseCover.url ? (
+                  <div className="cover-with-eye m-cover-wrap">
                   <button
                     type="button"
                     className={`m-cover${enlargedCover === `player:${track.id}` ? " enlarged" : ""}`}
@@ -926,6 +975,11 @@ export default function AlbumPage() {
                       }}
                     />
                   </button>
+                  <CoverEye
+                    label={`View ${track.title} cover`}
+                    onClick={() => setPeek({ src: baseCover.url, alt: coverAlt || `${track.title} cover` })}
+                  />
+                  </div>
                 ) : (
                   <div className="m-cover">
                     <span className="cover-sizer" aria-hidden="true" />
@@ -965,8 +1019,8 @@ export default function AlbumPage() {
                 </button>
                 <button
                   className={`ctrl${repeatAll ? " on" : ""}`}
-                  onClick={() => setRepeatAll((on) => !on)}
-                  title={repeatAll ? "Repeat all on" : "Repeat all"}
+                  onClick={toggleRepeatAll}
+                  title={repeatAll ? "Repeat all on — click to turn off" : "Repeat all"}
                   aria-pressed={repeatAll}
                   aria-label="Repeat all"
                 >
@@ -974,8 +1028,8 @@ export default function AlbumPage() {
                 </button>
                 <button
                   className={`ctrl repeat-one${repeatOne ? " on" : ""}`}
-                  onClick={() => setRepeatOne((on) => !on)}
-                  title={repeatOne ? "Repeat song on" : "Repeat song"}
+                  onClick={toggleRepeatOne}
+                  title={repeatOne ? "Repeat song on — click to turn off" : "Repeat song"}
                   aria-pressed={repeatOne}
                   aria-label="Repeat song"
                 >
@@ -1074,6 +1128,7 @@ export default function AlbumPage() {
 
     </div>
       )}
+      {peek ? <ImageLightbox src={peek.src} alt={peek.alt} onClose={() => setPeek(null)} /> : null}
     </>
   );
 }
@@ -1087,6 +1142,7 @@ function TrackRow({
   isPlaying,
   enlarged,
   onZoom,
+  onPeek,
   onWarm,
   onOpen,
   onPlayPause,
@@ -1099,6 +1155,7 @@ function TrackRow({
   isPlaying: boolean;
   enlarged?: boolean;
   onZoom?: () => void;
+  onPeek?: () => void;
   onWarm: () => void;
   onOpen: () => void;
   onPlayPause: () => void;
@@ -1129,42 +1186,49 @@ function TrackRow({
       ) : (
         <span className="t-num">{pad(track.n)}</span>
       )}
-      {track.imageUrl && onZoom ? (
-        <button
-          type="button"
-          className={`t-thumb${enlarged ? " enlarged" : ""}`}
-          aria-label={enlarged ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onZoom();
-          }}
-        >
-          <img
-            src={track.imageUrl}
-            alt=""
-            loading={index === 0 ? "eager" : "lazy"}
-            decoding="async"
-            ref={(img) => {
-              if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
-            }}
-            onLoad={(event) => event.currentTarget.classList.add("is-ready")}
-          />
-        </button>
-      ) : (
-        <div className="t-thumb">
-          {track.imageUrl ? (
-            <img
-              src={track.imageUrl}
-              alt=""
-              loading={index === 0 ? "eager" : "lazy"}
-              decoding="async"
-              ref={(img) => {
-                if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+      {track.imageUrl ? (
+        <div className="cover-with-eye t-thumb-wrap">
+          {onZoom ? (
+            <button
+              type="button"
+              className={`t-thumb${enlarged ? " enlarged" : ""}`}
+              aria-label={enlarged ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onZoom();
               }}
-              onLoad={(event) => event.currentTarget.classList.add("is-ready")}
-            />
+            >
+              <img
+                src={track.imageUrl}
+                alt=""
+                loading={index === 0 ? "eager" : "lazy"}
+                decoding="async"
+                ref={(img) => {
+                  if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+                }}
+                onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+              />
+            </button>
+          ) : (
+            <div className="t-thumb">
+              <img
+                src={track.imageUrl}
+                alt=""
+                loading={index === 0 ? "eager" : "lazy"}
+                decoding="async"
+                ref={(img) => {
+                  if (img?.complete && img.naturalWidth) img.classList.add("is-ready");
+                }}
+                onLoad={(event) => event.currentTarget.classList.add("is-ready")}
+              />
+            </div>
+          )}
+          {onPeek ? (
+            <CoverEye label={`View ${track.title} cover`} onClick={onPeek} />
           ) : null}
         </div>
+      ) : (
+        <div className="t-thumb" />
       )}
       <div className="t-info">
         <div className="t-title">
