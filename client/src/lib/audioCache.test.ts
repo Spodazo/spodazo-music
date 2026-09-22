@@ -9,9 +9,11 @@ import {
   isMobilePlayback,
   isResumeTime,
   mediaUrl,
+  attachOutput,
   markOutputNeedsRebuild,
   outputGraphIsStale,
   outputRebuildIsPending,
+  shouldRebuildOutput,
   pipelineIsDead,
   playSong,
   restoreMobileOutput,
@@ -156,7 +158,7 @@ test("playback helpers never prefetch, blob-play, or wait on the playhead", () =
   assert.doesNotMatch(src, /createObjectURL/);
   assert.doesNotMatch(src, /blob:/);
   assert.doesNotMatch(src, /caches\.open/);
-  assert.match(src, /resume \|\| !isMobilePlayback\(\)/);
+  assert.match(src, /resume \|\| !isMobilePlayback\(\) \|\| keepAudible/);
   assert.match(src, /MOBILE_HEADER_HOLD_MS/);
   assert.match(src, /interruptionend/);
   assert.match(src, /devicechange/);
@@ -295,6 +297,77 @@ test("desktop pause does not mark the output graph for rebuild", () => {
   markOutputNeedsRebuild();
   assert.equal(outputRebuildIsPending(), false);
   assert.equal(outputGraphIsStale(fakeAudio() as unknown as HTMLAudioElement), false);
+});
+
+function stubAudioContext() {
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    createMediaElementSource() {
+      return { connect() {} };
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  return () => {
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  };
+}
+
+test("a mobile song change rebuilds the output graph", () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const restoreCtx = stubAudioContext();
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.src = "/media/songs/a.mp3";
+  try {
+    attachOutput(audio);
+    assert.equal(shouldRebuildOutput(audio, "/media/songs/a.mp3"), false);
+    assert.equal(shouldRebuildOutput(audio, "/media/songs/b.mp3"), true);
+  } finally {
+    restoreCtx();
+    restoreUa();
+  }
+});
+
+test("desktop song change does not rebuild the output graph", () => {
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.src = "/media/songs/a.mp3";
+  assert.equal(shouldRebuildOutput(audio, "/media/songs/b.mp3"), false);
+});
+
+test("a mobile continuation stays unmuted when keepAudible is set", async () => {
+  const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const audio = fakeAudio();
+  try {
+    await playSong(audio as unknown as HTMLAudioElement, "/media/songs/b.mp3", 0, true, 1, true);
+    assert.equal(audio.muted, false);
+    assert.equal(audio.volume, 1);
+  } finally {
+    restore();
+  }
 });
 
 test("desktop playback does not rebuild on Bluetooth or call events", async () => {

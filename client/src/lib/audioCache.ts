@@ -1,7 +1,7 @@
 /**
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
- * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
+ * After a call, Bluetooth route change, mobile pause, or a new song after loop, rebuild the live element — the old GainNode stays silent.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
  */
 
@@ -122,6 +122,13 @@ export function outputGraphIsStale(audio: HTMLAudioElement | null): boolean {
   if (outputNeedsRebuild) return true;
   const state = graph.ctx.state as string;
   return state === "interrupted" || state === "closed" || state === "suspended";
+}
+
+export function shouldRebuildOutput(audio: HTMLAudioElement | null, nextUrl = ""): boolean {
+  if (!audio || !isMobilePlayback()) return false;
+  if (outputGraphIsStale(audio)) return true;
+  if (!nextUrl || !graphs.has(audio)) return false;
+  return !sameSong(audio, nextUrl);
 }
 
 export function restoreMobileOutput(audio: HTMLAudioElement | null, volume: number) {
@@ -350,6 +357,7 @@ export function playSong(
   time = 0,
   forceReload = false,
   targetVolume = 1,
+  keepAudible = false,
 ): Promise<void> {
   const gen = ++playGen;
   outputNeedsRebuild = false;
@@ -358,7 +366,7 @@ export function playSong(
   const dead = forceReload || !sameSong(audio, url);
   if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
 
-  if (resume || !isMobilePlayback()) {
+  if (resume || !isMobilePlayback() || keepAudible) {
     gateOpen = true;
     audio.muted = false;
     setOutput(audio, targetVolume);

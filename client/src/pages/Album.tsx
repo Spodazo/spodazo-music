@@ -8,6 +8,7 @@ import {
   dropLegacyAudioCaches,
   markOutputNeedsRebuild,
   outputGraphIsStale,
+  shouldRebuildOutput,
   pipelineIsDead,
   playSong,
   releaseOutput,
@@ -131,7 +132,6 @@ export default function AlbumPage() {
   const [active, setActive] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const [enlargedCover, setEnlargedCover] = useState<string | null>(null);
   const [peek, setPeek] = useState<{ src: string; alt: string } | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -152,7 +152,7 @@ export default function AlbumPage() {
   const resumeTimeRef = useRef(0);
   const userVolRef = useRef(0.85);
   const wantPlayingRef = useRef(false);
-  const rerouteRef = useRef<{ time: number; playing: boolean } | null>(null);
+  const rerouteRef = useRef<{ time: number; playing: boolean; keepAudible?: boolean } | null>(null);
   const [audioGen, setAudioGen] = useState(0);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
@@ -273,12 +273,12 @@ export default function AlbumPage() {
     albumRef.current = album;
   }, [album]);
 
-  function rebuildAudio(time: number, playing: boolean) {
+  function rebuildAudio(time: number, playing: boolean, keepAudible = false) {
     const audio = audioRef.current;
     if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
       resumeTimeRef.current = audio.currentTime;
     }
-    rerouteRef.current = { time, playing };
+    rerouteRef.current = { time, playing, keepAudible };
     releaseOutput(audio);
     audio?.pause();
     setAudioGen((value) => value + 1);
@@ -320,7 +320,7 @@ export default function AlbumPage() {
       return;
     }
     wantPlayingRef.current = true;
-    void playSong(audio, url, pending.time, true, userVolRef.current)
+    void playSong(audio, url, pending.time, true, userVolRef.current, pending.keepAudible)
       .then(() => {
         setPlaying(true);
         acquireWake();
@@ -363,9 +363,9 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
-    if (outputGraphIsStale(audio)) {
+    if (shouldRebuildOutput(audio, url)) {
       wantPlayingRef.current = true;
-      rebuildAudio(0, true);
+      rebuildAudio(0, true, true);
       return Promise.resolve();
     }
     unlockAudio(audio);
@@ -385,7 +385,6 @@ export default function AlbumPage() {
     if (!next || !audio) return;
     currentUrlRef.current = next.audioUrl;
     resumeTimeRef.current = 0;
-    setEnlargedCover(null);
     if (autoplay) {
       void startPlay().then(() => {
         setPlaying(true);
@@ -402,7 +401,6 @@ export default function AlbumPage() {
   function showPlayingCover() {
     setShowAlbumCover(false);
     setShowArtistPhoto(false);
-    setEnlargedCover(null);
   }
 
   function playAt(index: number, autoplay: boolean) {
@@ -427,7 +425,6 @@ export default function AlbumPage() {
   }
 
   function closeModal() {
-    setEnlargedCover(null);
     setLyricsOpen(false);
     setModalOpen(false);
     history.replaceState(null, "", location.pathname + location.search);
@@ -679,6 +676,7 @@ export default function AlbumPage() {
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.loop = repeatOne;
+    if (!repeatOne) markOutputNeedsRebuild();
   }, [repeatOne]);
 
   function onEnded() {
@@ -741,7 +739,7 @@ export default function AlbumPage() {
       ) : (
     <div className={`layout${modalOpen ? " player-open" : ""}`}>
       <AdminLoginLink />
-      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}${enlargedCover === "portrait" ? " cover-enlarged" : ""}`}>
+      <aside className={`portrait-panel${backgroundUrl ? " has-bg" : ""}`}>
         <div
           className="portrait-stage"
           style={backgroundUrl ? { backgroundImage: `url("${backgroundUrl}")` } : undefined}
@@ -753,13 +751,9 @@ export default function AlbumPage() {
             <div className="cover-with-eye portrait-cover-wrap">
               <button
                 type="button"
-                className={`portrait-cover${enlargedCover === "portrait" ? " enlarged" : ""}`}
-                aria-label={
-                  enlargedCover === "portrait"
-                    ? `Shrink ${showingAlbumCover ? album.title : track?.title || album.title} cover`
-                    : `Enlarge ${showingAlbumCover ? album.title : track?.title || album.title} cover`
-                }
-                onClick={() => setEnlargedCover((cur) => (cur === "portrait" ? null : "portrait"))}
+                className="portrait-cover"
+                aria-label={`View ${showingAlbumCover ? album.title : track?.title || album.title} cover`}
+                onClick={() => setPeek({ src: baseCover.url, alt: coverAlt })}
               >
                 <span className="cover-sizer" aria-hidden="true" />
                 <CoverLayers
@@ -807,12 +801,10 @@ export default function AlbumPage() {
                   onClick={() => {
                     if (showingAlbumCover) {
                       setShowAlbumCover(false);
-                      setEnlargedCover(null);
                       return;
                     }
                     setShowArtistPhoto(false);
                     setShowAlbumCover(true);
-                    setEnlargedCover(null);
                   }}
                 >
                   <img
@@ -882,12 +874,10 @@ export default function AlbumPage() {
                 onClick={() => {
                   if (showingArtistPhoto) {
                     setShowArtistPhoto(false);
-                    setEnlargedCover(null);
                     return;
                   }
                   setShowAlbumCover(false);
                   setShowArtistPhoto(true);
-                  setEnlargedCover(null);
                 }}
               >
                 <img
@@ -917,12 +907,6 @@ export default function AlbumPage() {
               durationLabel={durations[item.id] || item.durationLabel}
               active={active === index}
               isPlaying={active === index && playing}
-              enlarged={enlargedCover === `list:${item.id}`}
-              onZoom={
-                item.imageUrl
-                  ? () => setEnlargedCover((cur) => (cur === `list:${item.id}` ? null : `list:${item.id}`))
-                  : undefined
-              }
               onPeek={
                 item.imageUrl
                   ? () => setPeek({ src: item.imageUrl, alt: `${item.title} cover` })
@@ -947,7 +931,7 @@ export default function AlbumPage() {
 
       {track && modalOpen ? (
         <div className="modal open">
-          <div className={`modal-card${enlargedCover === `player:${track.id}` ? " cover-enlarged" : ""}`}>
+          <div className="modal-card">
             <div className="modal-head">
               <div className={`m-art${backgroundUrl ? " has-bg" : ""}`}>
                 {backgroundUrl ? (
@@ -957,9 +941,9 @@ export default function AlbumPage() {
                   <div className="cover-with-eye m-cover-wrap">
                   <button
                     type="button"
-                    className={`m-cover${enlargedCover === `player:${track.id}` ? " enlarged" : ""}`}
-                    aria-label={enlargedCover === `player:${track.id}` ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
-                    onClick={() => setEnlargedCover((cur) => (cur === `player:${track.id}` ? null : `player:${track.id}`))}
+                    className="m-cover"
+                    aria-label={`View ${track.title} cover`}
+                    onClick={() => setPeek({ src: baseCover.url, alt: coverAlt || `${track.title} cover` })}
                   >
                     <span className="cover-sizer" aria-hidden="true" />
                     <CoverLayers
@@ -1147,8 +1131,6 @@ function TrackRow({
   durationLabel,
   active,
   isPlaying,
-  enlarged,
-  onZoom,
   onPeek,
   onWarm,
   onOpen,
@@ -1160,8 +1142,6 @@ function TrackRow({
   durationLabel?: string;
   active: boolean;
   isPlaying: boolean;
-  enlarged?: boolean;
-  onZoom?: () => void;
   onPeek?: () => void;
   onWarm: () => void;
   onOpen: () => void;
@@ -1181,7 +1161,7 @@ function TrackRow({
 
   return (
     <div
-      className={`track-row${active ? " active" : ""}${isPlaying ? " playing" : ""}${enlarged ? " cover-enlarged" : ""}`}
+      className={`track-row${active ? " active" : ""}${isPlaying ? " playing" : ""}`}
       data-i={index}
       aria-current={isPlaying ? "true" : undefined}
       onPointerDown={onWarm}
@@ -1196,14 +1176,14 @@ function TrackRow({
       )}
       {track.imageUrl ? (
         <div className="cover-with-eye t-thumb-wrap">
-          {onZoom ? (
+          {onPeek ? (
             <button
               type="button"
-              className={`t-thumb${enlarged ? " enlarged" : ""}`}
-              aria-label={enlarged ? `Shrink ${track.title} cover` : `Enlarge ${track.title} cover`}
+              className="t-thumb"
+              aria-label={`View ${track.title} cover`}
               onClick={(event) => {
                 event.stopPropagation();
-                onZoom();
+                onPeek();
               }}
             >
               <img

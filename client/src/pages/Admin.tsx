@@ -24,7 +24,7 @@ import {
   updateTrack,
   verifyCuratorPassword,
 } from "../lib/api";
-import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
+import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
 import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
 import { applySiteIcons } from "../lib/siteIcons";
@@ -48,7 +48,7 @@ function useAdminPlayer() {
   const currentUrlRef = useRef("");
   const resumeTimeRef = useRef(0);
   const wantPlayingRef = useRef(false);
-  const rerouteRef = useRef<{ time: number; playing: boolean } | null>(null);
+  const rerouteRef = useRef<{ time: number; playing: boolean; keepAudible?: boolean } | null>(null);
   const [audioGen, setAudioGen] = useState(0);
   const [queue, setQueue] = useState<AdminQueue | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -56,12 +56,12 @@ function useAdminPlayer() {
   const [duration, setDuration] = useState(0);
   const current = queue?.tracks[queue.index] ?? null;
 
-  function rebuildAudio(time: number, playingNext: boolean) {
+  function rebuildAudio(time: number, playingNext: boolean, keepAudible = false) {
     const audio = audioRef.current;
     if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
       resumeTimeRef.current = audio.currentTime;
     }
-    rerouteRef.current = { time, playing: playingNext };
+    rerouteRef.current = { time, playing: playingNext, keepAudible };
     releaseOutput(audio);
     audio?.pause();
     setAudioGen((value) => value + 1);
@@ -87,7 +87,7 @@ function useAdminPlayer() {
       return;
     }
     wantPlayingRef.current = true;
-    void playSong(audio, url, pending.time, true)
+    void playSong(audio, url, pending.time, true, 1, pending.keepAudible)
       .then(() => setPlaying(true))
       .catch(() => {
         wantPlayingRef.current = false;
@@ -106,9 +106,9 @@ function useAdminPlayer() {
       setCurrentTime(0);
       setDuration(0);
     }
-    if (outputGraphIsStale(audio)) {
+    if (shouldRebuildOutput(audio, track.audioUrl)) {
       wantPlayingRef.current = true;
-      rebuildAudio(0, true);
+      rebuildAudio(0, true, true);
       return;
     }
     wantPlayingRef.current = true;
