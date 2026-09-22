@@ -16,6 +16,7 @@ import {
   shouldRebuildOutput,
   pipelineIsDead,
   playSong,
+  releaseOutput,
   restoreMobileOutput,
   setOutputLevel,
   waitForAudible,
@@ -158,7 +159,7 @@ test("playback helpers never prefetch, blob-play, or wait on the playhead", () =
   assert.doesNotMatch(src, /createObjectURL/);
   assert.doesNotMatch(src, /blob:/);
   assert.doesNotMatch(src, /caches\.open/);
-  assert.match(src, /resume \|\| !isMobilePlayback\(\) \|\| keepAudible/);
+  assert.match(src, /resume \|\| !mobile \|\| keepAudible/);
   assert.match(src, /MOBILE_HEADER_HOLD_MS/);
   assert.match(src, /interruptionend/);
   assert.match(src, /devicechange/);
@@ -367,6 +368,114 @@ test("a mobile continuation stays unmuted when keepAudible is set", async () => 
     assert.equal(audio.volume, 1);
   } finally {
     restore();
+  }
+});
+
+test("the next mobile song reuses the live audio context instead of opening a silent one", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const created: Array<{ closed: boolean }> = [];
+  const gains: number[] = [];
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    closed = false;
+    constructor() {
+      created.push(this);
+    }
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      const gain = {
+        value: 0,
+        cancelScheduledValues() {},
+        setValueAtTime(value: number) {
+          gain.value = value;
+          gains.push(value);
+        },
+        linearRampToValueAtTime() {},
+      };
+      return { gain, connect() {}, disconnect() {} };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      this.closed = true;
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const first = fakeAudio() as unknown as HTMLAudioElement;
+  const next = fakeAudio() as unknown as HTMLAudioElement;
+  try {
+    attachOutput(first);
+    releaseOutput(first);
+    await playSong(next, "/media/songs/b.mp3", 0, true, 0.85, true);
+    assert.equal(created.length, 1);
+    assert.equal(created[0].closed, false);
+    assert.equal(next.muted, false);
+    assert.ok(gains.includes(0.85));
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
+test("a mobile continuation does not open an audio context outside a tap", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  let constructed = 0;
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    constructor() {
+      constructed += 1;
+    }
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio();
+  try {
+    await playSong(audio as unknown as HTMLAudioElement, "/media/songs/b.mp3", 0, true, 0.85, true);
+    assert.equal(constructed, 0);
+    assert.equal(audio.muted, false);
+    assert.equal(audio.volume, 0.85);
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
   }
 });
 

@@ -1,7 +1,8 @@
 /**
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
- * After a call, Bluetooth route change, mobile pause, or a new song after loop, rebuild the live element — the old GainNode stays silent.
+ * After a call, Bluetooth route change, mobile pause, or a new song, rebuild the live element — the old GainNode stays silent.
+ * Keep the AudioContext the first tap resumed. A context created when the song ends stays silent until the next tap.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
  */
 
@@ -20,8 +21,12 @@ let gateOpen = true;
 type OutputGraph = {
   ctx: AudioContext;
   gain: GainNode;
-  onState?: () => void;
+  source: MediaElementAudioSourceNode;
 };
+
+let sharedCtx: AudioContext | null = null;
+let sharedCtor: typeof AudioContext | null = null;
+let sharedWatch: (() => void) | null = null;
 
 export type PlaybackSnapshot = {
   url: string;
@@ -145,29 +150,98 @@ export function restoreMobileOutput(audio: HTMLAudioElement | null, volume: numb
   setOutput(audio, volume);
 }
 
+function retireContext() {
+  const ctx = sharedCtx;
+  const watch = sharedWatch;
+  sharedCtx = null;
+  sharedCtor = null;
+  sharedWatch = null;
+  if (!ctx) return;
+  if (watch) {
+    try {
+      ctx.removeEventListener("statechange", watch);
+    } catch {
+      /* older WebKit */
+    }
+    ctx.onstatechange = null;
+  }
+  try {
+    void ctx.close();
+  } catch {
+    /* already closed */
+  }
+}
+
+function watchContext(ctx: AudioContext) {
+  let wasRunning = ctx.state === "running";
+  const onState = () => {
+    if (ctx.state === "running") {
+      wasRunning = true;
+      return;
+    }
+    if (!wasRunning) return;
+    const state = ctx.state as string;
+    if (state !== "interrupted" && state !== "suspended" && state !== "closed") return;
+    outputNeedsRebuild = true;
+    if (state === "interrupted") {
+      sessionInterrupted = true;
+      notePlayingBeforeInterrupt();
+    }
+  };
+  sharedWatch = onState;
+  try {
+    ctx.addEventListener("statechange", onState);
+  } catch {
+    /* older WebKit */
+  }
+  ctx.onstatechange = onState;
+}
+
+/** The context resumed by the first tap. A new one started from `ended` stays silent. */
+function adoptContext(): AudioContext | null {
+  const Ctor = audioContextCtor();
+  if (!Ctor) return null;
+  if (sharedCtor !== Ctor) retireContext();
+  if (sharedCtx) {
+    const state = sharedCtx.state as string;
+    if (state === "closed" || state === "interrupted") retireContext();
+    else return sharedCtx;
+  }
+  try {
+    const ctx = new Ctor();
+    sharedCtx = ctx;
+    sharedCtor = Ctor;
+    watchContext(ctx);
+    return ctx;
+  } catch {
+    return null;
+  }
+}
+
+function runningSharedContext(): AudioContext | null {
+  const Ctor = audioContextCtor();
+  if (!Ctor || sharedCtor !== Ctor || !sharedCtx) return null;
+  return sharedCtx.state === "running" ? sharedCtx : null;
+}
+
 export function releaseOutput(audio: HTMLAudioElement | null) {
   if (!audio) return;
   const graph = graphs.get(audio);
   if (!graph) return;
   graphs.delete(audio);
-  if (graph.onState) {
-    try {
-      graph.ctx.removeEventListener("statechange", graph.onState);
-    } catch {
-      /* older WebKit */
-    }
-    graph.ctx.onstatechange = null;
+  try {
+    graph.source.disconnect();
+  } catch {
+    /* already disconnected */
   }
   try {
     graph.gain.disconnect();
   } catch {
     /* already disconnected */
   }
-  try {
-    void graph.ctx.close();
-  } catch {
-    /* already closed */
-  }
+  const state = graph.ctx.state as string;
+  if (state === "running" || state === "suspended") return;
+  if (sharedCtx === graph.ctx) retireContext();
 }
 
 export function watchPlaybackRoute(
@@ -216,36 +290,18 @@ export function watchPlaybackRoute(
   };
 }
 
-export function attachOutput(audio: HTMLAudioElement): OutputGraph | null {
+export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGraph | null {
   const existing = graphs.get(audio);
   if (existing) return existing;
-  const Ctor = audioContextCtor();
-  if (!Ctor) return null;
+  const ctx = adoptContext();
+  if (!ctx) return null;
   try {
-    const ctx = new Ctor();
     const source = ctx.createMediaElementSource(audio);
     const gain = ctx.createGain();
-    gain.gain.value = 0;
+    gain.gain.value = initialGain;
     source.connect(gain);
     gain.connect(ctx.destination);
-    let wasRunning = false;
-    const onState = () => {
-      if (ctx.state === "running") {
-        wasRunning = true;
-        return;
-      }
-      if (!wasRunning) return;
-      const state = ctx.state as string;
-      if (state !== "interrupted" && state !== "suspended" && state !== "closed") return;
-      outputNeedsRebuild = true;
-      if (state === "interrupted") {
-        sessionInterrupted = true;
-        notePlayingBeforeInterrupt();
-      }
-    };
-    ctx.addEventListener("statechange", onState);
-    ctx.onstatechange = onState;
-    const graph = { ctx, gain, onState };
+    const graph = { ctx, gain, source };
     graphs.set(audio, graph);
     return graph;
   } catch {
@@ -254,15 +310,17 @@ export function attachOutput(audio: HTMLAudioElement): OutputGraph | null {
 }
 
 function setOutput(audio: HTMLAudioElement, value: number) {
+  const level = Math.max(0, Math.min(1, value));
   const graph = graphs.get(audio);
   if (graph) {
     const now = graph.ctx.currentTime;
     graph.gain.gain.cancelScheduledValues(now);
-    graph.gain.gain.setValueAtTime(Math.max(0, Math.min(1, value)), now);
+    graph.gain.gain.value = level;
+    graph.gain.gain.setValueAtTime(level, now);
     audio.volume = 1;
     return;
   }
-  audio.volume = Math.max(0, Math.min(1, value));
+  audio.volume = level;
 }
 
 export function setOutputLevel(audio: HTMLAudioElement | null, volume: number) {
@@ -361,12 +419,21 @@ export function playSong(
 ): Promise<void> {
   const gen = ++playGen;
   outputNeedsRebuild = false;
-  unlockAudio(audio);
   const resume = isResumeTime(time);
+  const mobile = isMobilePlayback();
+  const continuation = keepAudible && mobile;
   const dead = forceReload || !sameSong(audio, url);
-  if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
+  if (continuation) {
+    if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
+    setPlaybackSession();
+    // Only join a context the first tap already started. Creating one here stays silent until a later tap.
+    if (!graphs.has(audio) && runningSharedContext()) attachOutput(audio, targetVolume);
+  } else {
+    unlockAudio(audio);
+    if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
+  }
 
-  if (resume || !isMobilePlayback() || keepAudible) {
+  if (resume || !mobile || keepAudible) {
     gateOpen = true;
     audio.muted = false;
     setOutput(audio, targetVolume);
@@ -419,6 +486,8 @@ export function setPlaybackSession() {
 export function unlockAudio(audio?: HTMLAudioElement | null) {
   setPlaybackSession();
   if (!audio || !isMobilePlayback()) return;
+  // A song already playing natively must not be pulled into a new gain node at 0.
+  if (!graphs.has(audio) && !audio.paused) return;
   const graph = attachOutput(audio);
   if (graph && graph.ctx.state === "suspended") void graph.ctx.resume();
 }

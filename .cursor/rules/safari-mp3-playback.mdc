@@ -23,6 +23,7 @@ All playback goes through `playSong` / `unlockAudio` in `client/src/lib/audioCac
 - Blob URL or `spodazo-audio-*` Cache playback
 - Strip Xing from VBR
 - Seek to `START_OFFSET` after `play()`
+- Close or recreate the AudioContext when the next song starts (it stays silent until the next tap)
 - Force 48 kHz `AudioContext` or unlock a different element
 - Rely on `audio.volume = 0` alone on iOS
 - Wait for `playing` + `currentTime` + a long fade (cuts music on desktop too)

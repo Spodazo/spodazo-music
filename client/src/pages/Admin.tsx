@@ -95,9 +95,9 @@ function useAdminPlayer() {
       });
   }, [audioGen]);
 
-  function startTrack(track: PublicTrack) {
+  function startTrack(track: PublicTrack, keepAudible = false) {
     const audio = audioRef.current;
-    unlockAudio(audio);
+    if (!keepAudible) unlockAudio(audio);
     if (!audio || !track.audioUrl) return;
     currentUrlRef.current = track.audioUrl;
     resumeTimeRef.current = 0;
@@ -112,7 +112,7 @@ function useAdminPlayer() {
       return;
     }
     wantPlayingRef.current = true;
-    void playSong(audio, track.audioUrl, 0, false).then(() => setPlaying(true)).catch(() => {
+    void playSong(audio, track.audioUrl, 0, false, 1, keepAudible).then(() => setPlaying(true)).catch(() => {
       wantPlayingRef.current = false;
       setPlaying(false);
     });
@@ -244,7 +244,7 @@ function useAdminPlayer() {
     const next = queue.tracks.findIndex((track, index) => index > queue.index && track.audioUrl);
     if (next >= 0) {
       setQueue({ ...queue, index: next });
-      startTrack(queue.tracks[next]);
+      startTrack(queue.tracks[next], true);
       return;
     }
     wantPlayingRef.current = false;

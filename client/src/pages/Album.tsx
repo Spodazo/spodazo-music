@@ -363,7 +363,7 @@ export default function AlbumPage() {
     wakeRef.current = null;
   }
 
-  function startPlay() {
+  function startPlay(keepAudible = false) {
     const audio = audioRef.current;
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
@@ -372,17 +372,17 @@ export default function AlbumPage() {
       rebuildAudio(0, true, true);
       return Promise.resolve();
     }
-    unlockAudio(audio);
+    if (!keepAudible) unlockAudio(audio);
     wantPlayingRef.current = true;
     const force = Boolean(audio.src) && pipelineIsDead(audio);
-    return playSong(audio, url, 0, force, userVolRef.current);
+    return playSong(audio, url, 0, force, userVolRef.current, keepAudible);
   }
 
   function warm() {
     unlockAudio(audioRef.current);
   }
 
-  function load(index: number, autoplay: boolean) {
+  function load(index: number, autoplay: boolean, keepAudible = false) {
     const catalog = albumRef.current;
     const next = catalog?.tracks[index];
     const audio = audioRef.current;
@@ -391,7 +391,7 @@ export default function AlbumPage() {
     resumeTimeRef.current = 0;
     setEnlargedCover(null);
     if (autoplay) {
-      void startPlay().then(() => {
+      void startPlay(keepAudible).then(() => {
         setPlaying(true);
         window.setTimeout(() => acquireWake(), 400);
       }).catch(() => setPlaying(false));
@@ -409,9 +409,9 @@ export default function AlbumPage() {
     setEnlargedCover(null);
   }
 
-  function playAt(index: number, autoplay: boolean) {
+  function playAt(index: number, autoplay: boolean, keepAudible = false) {
     showPlayingCover();
-    load(index, autoplay);
+    load(index, autoplay, keepAudible);
     setActive(index);
   }
 
@@ -690,11 +690,11 @@ export default function AlbumPage() {
     if (repeatOne) return;
     if (!album || active === null) return;
     if (active < album.tracks.length - 1) {
-      playAt(active + 1, true);
+      playAt(active + 1, true, true);
       return;
     }
     if (repeatAll) {
-      playAt(0, true);
+      playAt(0, true, true);
       return;
     }
     wantPlayingRef.current = false;
