@@ -142,7 +142,8 @@ export function outputGraphIsStale(audio: HTMLAudioElement | null): boolean {
   if (!graph) return false;
   if (outputNeedsRebuild) return true;
   const state = graph.ctx.state as string;
-  return state === "interrupted" || state === "closed" || state === "suspended";
+  // interrupted/suspended recover with resume(); only a closed context needs a rebuild.
+  return state === "closed";
 }
 
 export function shouldRebuildOutput(audio: HTMLAudioElement | null, nextUrl = ""): boolean {
@@ -249,8 +250,12 @@ function adoptContext(): AudioContext | null {
   if (sharedCtor !== Ctor) retireContext();
   if (sharedCtx) {
     const state = sharedCtx.state as string;
-    if (state === "closed" || state === "interrupted") retireContext();
-    else return sharedCtx;
+    if (state === "closed") {
+      retireContext();
+    } else {
+      if (state === "interrupted" || state === "suspended") void sharedCtx.resume().catch(() => undefined);
+      return sharedCtx;
+    }
   }
   try {
     const ctx = new Ctor();
@@ -325,6 +330,34 @@ export function watchPlaybackRoute(
     session?.removeEventListener?.("interruptionend", onInterruptEnd);
     navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
     if (routeWatchers.size === 0) window.clearTimeout(routeTimer);
+  };
+}
+
+/** While Music is in the background, another PWA reloading can interrupt WebAudio — keep healing. */
+export function startBackgroundPlaybackGuard(
+  getAudio: () => HTMLAudioElement | null,
+  shouldKeepPlaying: () => boolean,
+): () => void {
+  if (!isMobilePlayback()) return () => {};
+
+  const heal = () => {
+    if (!shouldKeepPlaying()) return;
+    const audio = getAudio();
+    if (!audio) return;
+    if (audio.paused) {
+      void resumePlaybackAfterInterrupt(audio);
+      return;
+    }
+    resumeLiveOutput(audio);
+  };
+
+  const id = window.setInterval(heal, 500);
+  document.addEventListener("visibilitychange", heal);
+  window.addEventListener("pageshow", heal);
+  return () => {
+    window.clearInterval(id);
+    document.removeEventListener("visibilitychange", heal);
+    window.removeEventListener("pageshow", heal);
   };
 }
 

@@ -17,6 +17,7 @@ import {
   START_OFFSET,
   unlockAudio,
   watchPlaybackRoute,
+  startBackgroundPlaybackGuard,
 } from "../lib/audioCache";
 import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum } from "../lib/albumCache";
 import { readLastPlace, writeLastPlace } from "../lib/lastPlace";
@@ -312,7 +313,19 @@ export default function AlbumPage() {
     void dropLegacyAudioCaches();
     const onHide = () => rememberPlace();
     const onVisibility = () => {
-      if (document.hidden) onHide();
+      if (document.hidden) {
+        onHide();
+        return;
+      }
+      const audio = audioRef.current;
+      const url = currentUrlRef.current;
+      if (wantPlayingRef.current && audio && url && audio.paused) {
+        restoreMobileOutput(audio, userVolRef.current);
+        void audio
+          .play()
+          .then(() => setPlaying(true))
+          .catch(() => undefined);
+      }
     };
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("pagehide", onHide);
@@ -323,11 +336,16 @@ export default function AlbumPage() {
         rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current);
       },
     );
+    const stopGuard = startBackgroundPlaybackGuard(
+      () => audioRef.current,
+      () => wantPlayingRef.current,
+    );
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onHide);
       window.removeEventListener("freeze", onHide);
       stopRoute();
+      stopGuard();
     };
   }, []);
 
