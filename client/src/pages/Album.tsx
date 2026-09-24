@@ -786,7 +786,18 @@ export default function AlbumPage() {
         wantPlayingRef.current = true;
         setPlaying(true);
       }}
-      onPause={() => setPlaying(false)}
+      onPause={() => {
+        const audio = audioRef.current;
+        if (wantPlayingRef.current && audio && !rerouteRef.current) {
+          restoreMobileOutput(audio, userVolRef.current);
+          void audio
+            .play()
+            .then(() => setPlaying(true))
+            .catch(() => setPlaying(false));
+          return;
+        }
+        setPlaying(false);
+      }}
     />
   );
 
