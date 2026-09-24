@@ -21,6 +21,8 @@ import {
   setOutputLevel,
   waitForAudible,
   watchPlaybackRoute,
+  resumeLiveOutput,
+  resumePlaybackAfterInterrupt,
   shouldReroutePlayback,
   type PlaybackSnapshot,
 } from "./audioCache";
@@ -40,6 +42,19 @@ if (!("location" in window) || !window.location?.href) {
 if (typeof globalThis.requestAnimationFrame !== "function") {
   globalThis.requestAnimationFrame = (fn: FrameRequestCallback) =>
     setTimeout(() => fn(performance.now()), 0) as unknown as number;
+}
+if (typeof globalThis.document === "undefined") {
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      hidden: false,
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() {
+        return true;
+      },
+    },
+  });
 }
 
 function fakeAudio() {
@@ -232,28 +247,32 @@ test("restoreMobileOutput unmutes after the opener gate has closed", async () =>
 
 test("a phone-call interruption asks the player to rebuild the live audio element", async () => {
   const stub = stubAudioSession();
+  const restoreCtx = stubAudioContext();
   const audio = fakeAudio();
   audio.src = "/media/songs/a.mp3";
-    audio.currentTime = 42;
-    audio.paused = false;
-    let snapshot: PlaybackSnapshot | undefined;
-    const stop = watchPlaybackRoute(
-      () => audio as unknown as HTMLAudioElement,
-      (next) => {
-        snapshot = next;
-      },
-    );
-    try {
-      stub.session.dispatch("interruptionbegin");
-      audio.paused = true;
-      stub.session.dispatch("interruptionend");
-      await new Promise((resolve) => setTimeout(resolve, 80));
-      assert.ok(snapshot);
-      assert.equal(snapshot.time, 42);
-      assert.equal(snapshot.playing, true);
+  audio.currentTime = 42;
+  audio.paused = false;
+  const graph = attachOutput(audio as unknown as HTMLAudioElement, 0.8);
+  if (graph) graph.ctx.state = "interrupted";
+  let snapshot: PlaybackSnapshot | undefined;
+  const stop = watchPlaybackRoute(
+    () => audio as unknown as HTMLAudioElement,
+    (next) => {
+      snapshot = next;
+    },
+  );
+  try {
+    stub.session.dispatch("interruptionbegin");
+    audio.paused = true;
+    stub.session.dispatch("interruptionend");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.ok(snapshot);
+    assert.equal(snapshot.time, 42);
+    assert.equal(snapshot.playing, true);
   } finally {
     stop();
     stub.restore();
+    restoreCtx();
   }
 });
 
@@ -290,6 +309,32 @@ test("closing another phone app does not pause or rebuild a playing song", async
     await new Promise((resolve) => setTimeout(resolve, 80));
     assert.equal(audio.paused, false);
     assert.equal(rerouted, false);
+  } finally {
+    stop();
+    stub.restore();
+  }
+});
+
+test("when another app ducks Music in the background, playback resumes without a rebuild", async () => {
+  const stub = stubAudioSession();
+  const audio = fakeAudio();
+  audio.src = "/media/songs/a.mp3";
+  audio.currentTime = 33;
+  audio.paused = false;
+  let rerouted = false;
+  const stop = watchPlaybackRoute(
+    () => audio as unknown as HTMLAudioElement,
+    () => {
+      rerouted = true;
+    },
+  );
+  try {
+    stub.session.dispatch("interruptionbegin");
+    audio.paused = true;
+    stub.session.dispatch("interruptionend");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.equal(rerouted, false);
+    assert.equal(audio.paused, false);
   } finally {
     stop();
     stub.restore();

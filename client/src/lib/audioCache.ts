@@ -45,6 +45,12 @@ export function shouldReroutePlayback(
   if (!audio) return false;
   if (reason === "visibility") return false;
   if (reason === "devicechange") return true;
+  if (reason === "interruptionend") {
+    if (!audio.paused) return false;
+    if (outputGraphIsStale(audio) || pipelineIsDead(audio)) return true;
+    if (resumeAfterInterrupt) return false;
+    return true;
+  }
   return audio.paused;
 }
 
@@ -107,10 +113,8 @@ function flushPlaybackReroute() {
 
 function requestPlaybackReroute() {
   if (!isMobilePlayback()) return;
-  if (typeof document !== "undefined" && document.hidden) return;
   window.clearTimeout(routeTimer);
   routeTimer = window.setTimeout(() => {
-    if (typeof document !== "undefined" && document.hidden) return;
     flushPlaybackReroute();
   }, 50);
 }
@@ -158,6 +162,23 @@ export function resumeLiveOutput(audio: HTMLAudioElement | null): boolean {
     if (state === "suspended" || state === "interrupted") void graph.ctx.resume();
   }
   return true;
+}
+
+/** Another installed app (e.g. Books) must not force a rebuild — resume the live element. */
+export function resumePlaybackAfterInterrupt(
+  audio: HTMLAudioElement | null,
+  volume = 1,
+): Promise<boolean> {
+  if (!audio) return Promise.resolve(false);
+  restoreMobileOutput(audio, volume);
+  const graph = graphs.get(audio);
+  if (graph) {
+    const state = graph.ctx.state as string;
+    if (state === "suspended" || state === "interrupted") {
+      return graph.ctx.resume().then(() => audio.play().then(() => !audio.paused)).catch(() => false);
+    }
+  }
+  return audio.play().then(() => !audio.paused).catch(() => false);
 }
 
 export function restoreMobileOutput(audio: HTMLAudioElement | null, volume: number) {
@@ -282,14 +303,30 @@ export function watchPlaybackRoute(
   };
   const onInterruptEnd = () => {
     let reroute = false;
+    let resumePending = false;
     for (const item of routeWatchers) {
       const audio = item.getAudio();
-      if (shouldReroutePlayback(audio, "interruptionend")) reroute = true;
-      else resumeLiveOutput(audio);
+      if (shouldReroutePlayback(audio, "interruptionend")) {
+        reroute = true;
+        continue;
+      }
+      if (audio?.paused && resumeAfterInterrupt) {
+        resumePending = true;
+        void resumePlaybackAfterInterrupt(audio).then((ok) => {
+          if (ok) {
+            sessionInterrupted = false;
+            resumeAfterInterrupt = false;
+          }
+        });
+        continue;
+      }
+      resumeLiveOutput(audio);
     }
     if (!reroute) {
-      sessionInterrupted = false;
-      resumeAfterInterrupt = false;
+      if (!resumePending) {
+        sessionInterrupted = false;
+        resumeAfterInterrupt = false;
+      }
       return;
     }
     sessionInterrupted = true;
