@@ -2,6 +2,7 @@
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
  * After a call, Bluetooth route change, mobile pause, or a new song, rebuild the live element — the old GainNode stays silent.
+ * Another app opening or closing must not pause a song that is still playing.
  * Keep the AudioContext the first tap resumed. A context created when the song ends stays silent until the next tap.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
  */
@@ -33,6 +34,19 @@ export type PlaybackSnapshot = {
   time: number;
   playing: boolean;
 };
+
+export type PlaybackRerouteReason = "visibility" | "interruptionend" | "devicechange";
+
+/** Another app opening or closing is not a dead speaker. A call pauses us. Bluetooth needs a new route. */
+export function shouldReroutePlayback(
+  audio: HTMLAudioElement | null,
+  reason: PlaybackRerouteReason,
+): boolean {
+  if (!audio) return false;
+  if (reason === "visibility") return false;
+  if (reason === "devicechange") return true;
+  return audio.paused;
+}
 
 const graphs = new WeakMap<HTMLAudioElement, OutputGraph>();
 const routeWatchers = new Set<{
@@ -136,6 +150,16 @@ export function shouldRebuildOutput(audio: HTMLAudioElement | null, nextUrl = ""
   return !sameSong(audio, nextUrl);
 }
 
+export function resumeLiveOutput(audio: HTMLAudioElement | null): boolean {
+  if (!audio || audio.paused) return false;
+  const graph = graphs.get(audio);
+  if (graph) {
+    const state = graph.ctx.state as string;
+    if (state === "suspended" || state === "interrupted") void graph.ctx.resume();
+  }
+  return true;
+}
+
 export function restoreMobileOutput(audio: HTMLAudioElement | null, volume: number) {
   if (!audio) return;
   gateOpen = true;
@@ -181,12 +205,13 @@ function watchContext(ctx: AudioContext) {
     }
     if (!wasRunning) return;
     const state = ctx.state as string;
-    if (state !== "interrupted" && state !== "suspended" && state !== "closed") return;
-    outputNeedsRebuild = true;
-    if (state === "interrupted") {
-      sessionInterrupted = true;
-      notePlayingBeforeInterrupt();
+    if (state === "closed") {
+      outputNeedsRebuild = true;
+      return;
     }
+    if (state !== "interrupted" && state !== "suspended") return;
+    sessionInterrupted = true;
+    notePlayingBeforeInterrupt();
   };
   sharedWatch = onState;
   try {
@@ -256,19 +281,21 @@ export function watchPlaybackRoute(
     notePlayingBeforeInterrupt();
   };
   const onInterruptEnd = () => {
+    let reroute = false;
+    for (const item of routeWatchers) {
+      const audio = item.getAudio();
+      if (shouldReroutePlayback(audio, "interruptionend")) reroute = true;
+      else resumeLiveOutput(audio);
+    }
+    if (!reroute) {
+      sessionInterrupted = false;
+      resumeAfterInterrupt = false;
+      return;
+    }
     sessionInterrupted = true;
     requestPlaybackReroute();
   };
   const onDeviceChange = () => {
-    requestPlaybackReroute();
-  };
-  const onVisibility = () => {
-    if (document.hidden) {
-      notePlayingBeforeInterrupt();
-      markOutputNeedsRebuild();
-      sessionInterrupted = true;
-      return;
-    }
     requestPlaybackReroute();
   };
 
@@ -276,18 +303,12 @@ export function watchPlaybackRoute(
   session?.addEventListener?.("interruptionbegin", onInterruptBegin);
   session?.addEventListener?.("interruptionend", onInterruptEnd);
   navigator.mediaDevices?.addEventListener?.("devicechange", onDeviceChange);
-  if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", onVisibility);
-  }
 
   return () => {
     routeWatchers.delete(watch);
     session?.removeEventListener?.("interruptionbegin", onInterruptBegin);
     session?.removeEventListener?.("interruptionend", onInterruptEnd);
     navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
-    if (typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", onVisibility);
-    }
     if (routeWatchers.size === 0) window.clearTimeout(routeTimer);
   };
 }

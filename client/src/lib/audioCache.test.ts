@@ -21,6 +21,7 @@ import {
   setOutputLevel,
   waitForAudible,
   watchPlaybackRoute,
+  shouldReroutePlayback,
   type PlaybackSnapshot,
 } from "./audioCache";
 
@@ -256,37 +257,42 @@ test("a phone-call interruption asks the player to rebuild the live audio elemen
   }
 });
 
-test("coming back from another phone app asks the player to keep going", async () => {
-  if (typeof document === "undefined") return;
+test("another app opening or closing does not tear down a song that is still playing", () => {
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.paused = false;
+  assert.equal(shouldReroutePlayback(audio, "visibility"), false);
+  assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
+  audio.paused = true;
+  assert.equal(shouldReroutePlayback(audio, "visibility"), false);
+  assert.equal(shouldReroutePlayback(audio, "interruptionend"), true);
+  assert.equal(shouldReroutePlayback(audio, "devicechange"), true);
+});
+
+test("closing another phone app does not pause or rebuild a playing song", async () => {
   const stub = stubAudioSession();
   const audio = fakeAudio();
   audio.src = "/media/songs/a.mp3";
   audio.currentTime = 20;
   audio.paused = false;
-  let hidden = false;
-  const hiddenDesc = Object.getOwnPropertyDescriptor(document, "hidden");
-  Object.defineProperty(document, "hidden", { configurable: true, get: () => hidden });
-  let snapshot: PlaybackSnapshot | undefined;
+  let rerouted = false;
   const stop = watchPlaybackRoute(
     () => audio as unknown as HTMLAudioElement,
-    (next) => {
-      snapshot = next;
+    () => {
+      rerouted = true;
     },
   );
   try {
-    hidden = true;
-    document.dispatchEvent(new Event("visibilitychange"));
-    audio.paused = true;
-    hidden = false;
-    document.dispatchEvent(new Event("visibilitychange"));
+    stub.session.dispatch("interruptionbegin");
+    stub.session.dispatch("interruptionend");
+    if (typeof document !== "undefined") {
+      document.dispatchEvent(new Event("visibilitychange"));
+    }
     await new Promise((resolve) => setTimeout(resolve, 80));
-    assert.ok(snapshot);
-    assert.equal(snapshot.playing, true);
-    assert.equal(snapshot.time, 20);
+    assert.equal(audio.paused, false);
+    assert.equal(rerouted, false);
   } finally {
     stop();
     stub.restore();
-    if (hiddenDesc) Object.defineProperty(document, "hidden", hiddenDesc);
   }
 });
 
