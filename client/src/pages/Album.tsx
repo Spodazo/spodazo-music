@@ -19,6 +19,7 @@ import {
   watchPlaybackRoute,
 } from "../lib/audioCache";
 import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum } from "../lib/albumCache";
+import { readLastPlace, writeLastPlace } from "../lib/lastPlace";
 import { fetchPlayerSetup } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
@@ -52,7 +53,7 @@ function trackHasLyrics(track: { lyrics: string; instrumental?: boolean } | null
 
 function AlbumsBack({ className = "" }: { className?: string }) {
   return (
-    <Link href="/" className={`albums-back${className ? ` ${className}` : ""}`} aria-label="Back to albums">
+    <Link href="/" className={`albums-back${className ? ` ${className}` : ""}`} aria-label="Back to albums" onClick={() => writeLastPlace({ path: "/" })}>
       <IconBack />
       Albums
     </Link>
@@ -159,6 +160,8 @@ export default function AlbumPage() {
   const resumeTimeRef = useRef(0);
   const userVolRef = useRef(0.85);
   const wantPlayingRef = useRef(false);
+  const activeRef = useRef<number | null>(null);
+  const restoredRef = useRef("");
   const rerouteRef = useRef<{ time: number; playing: boolean; keepAudible?: boolean } | null>(null);
   const [audioGen, setAudioGen] = useState(0);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
@@ -180,6 +183,18 @@ export default function AlbumPage() {
     if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
       resumeTimeRef.current = audio.currentTime;
     }
+  }
+
+  function rememberPlace() {
+    rememberTime();
+    const index = activeRef.current;
+    const current = albumRef.current && index !== null ? albumRef.current.tracks[index] : null;
+    writeLastPlace({
+      path: `/${slug}`,
+      playing: wantPlayingRef.current,
+      trackId: current?.id,
+      time: resumeTimeRef.current,
+    });
   }
 
   useEffect(() => {
@@ -277,6 +292,10 @@ export default function AlbumPage() {
     albumRef.current = album;
   }, [album]);
 
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
+
   function rebuildAudio(time: number, playing: boolean, keepAudible = false) {
     const audio = audioRef.current;
     if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
@@ -291,7 +310,7 @@ export default function AlbumPage() {
   useEffect(() => {
     setPlaybackSession();
     void dropLegacyAudioCaches();
-    const onHide = () => rememberTime();
+    const onHide = () => rememberPlace();
     const onVisibility = () => {
       if (document.hidden) onHide();
     };
@@ -414,6 +433,41 @@ export default function AlbumPage() {
     load(index, autoplay, keepAudible);
     setActive(index);
   }
+
+  useEffect(() => {
+    if (!album || restoredRef.current === slug) return;
+    restoredRef.current = slug;
+    if (location.hash) {
+      writeLastPlace({ path: `/${slug}` });
+      return;
+    }
+    const place = readLastPlace();
+    if (!place?.path.startsWith(`/${slug}`) || !place.trackId) {
+      writeLastPlace({ path: `/${slug}` });
+      return;
+    }
+    const index = album.tracks.findIndex((item) => item.id === place.trackId);
+    if (index < 0) {
+      writeLastPlace({ path: `/${slug}` });
+      return;
+    }
+    const resume = place.time || 0;
+    playAt(index, false);
+    resumeTimeRef.current = resume;
+    if (!place.playing) return;
+    const audio = audioRef.current;
+    const url = album.tracks[index]?.audioUrl;
+    if (!audio || !url) return;
+    wantPlayingRef.current = true;
+    void playSong(audio, url, resume, true, userVolRef.current)
+      .then(() => {
+        setPlaying(true);
+        void acquireWake();
+      })
+      .catch(() => {
+        wantPlayingRef.current = false;
+      });
+  }, [album, slug]);
 
   function openAt(index: number, autoplay: boolean) {
     const sameSong = active === index && Boolean(currentUrlRef.current);

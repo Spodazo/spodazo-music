@@ -264,10 +264,12 @@ export function watchPlaybackRoute(
   };
   const onVisibility = () => {
     if (document.hidden) {
+      notePlayingBeforeInterrupt();
       markOutputNeedsRebuild();
+      sessionInterrupted = true;
       return;
     }
-    if (sessionInterrupted) requestPlaybackReroute();
+    requestPlaybackReroute();
   };
 
   const session = audioSession();

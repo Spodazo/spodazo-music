@@ -12,6 +12,7 @@ import {
 } from "../lib/homeCache";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
+import { writeLastPlace } from "../lib/lastPlace";
 import { applyPalette } from "../lib/palette";
 
 function useFitOneLine(text: string) {
@@ -111,6 +112,7 @@ export default function HomePage() {
   const themeRef = useFitOneLine(setup.theme);
 
   useEffect(() => {
+    writeLastPlace({ path: "/" });
     loadHomeAlbums()
       .then(setAlbums)
       .catch((err: Error) => setError(err.message));
