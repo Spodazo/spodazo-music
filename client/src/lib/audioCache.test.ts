@@ -245,7 +245,7 @@ test("restoreMobileOutput unmutes after the opener gate has closed", async () =>
   }
 });
 
-test("a phone-call interruption asks the player to rebuild the live audio element", async () => {
+test("a phone call pauses playback without rebuilding on session interruption end", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio();
@@ -254,11 +254,11 @@ test("a phone-call interruption asks the player to rebuild the live audio elemen
   audio.paused = false;
   const graph = attachOutput(audio as unknown as HTMLAudioElement, 0.8);
   if (graph) graph.ctx.state = "interrupted";
-  let snapshot: PlaybackSnapshot | undefined;
+  let rerouted = false;
   const stop = watchPlaybackRoute(
     () => audio as unknown as HTMLAudioElement,
-    (next) => {
-      snapshot = next;
+    () => {
+      rerouted = true;
     },
   );
   try {
@@ -266,9 +266,8 @@ test("a phone-call interruption asks the player to rebuild the live audio elemen
     audio.paused = true;
     stub.session.dispatch("interruptionend");
     await new Promise((resolve) => setTimeout(resolve, 80));
-    assert.ok(snapshot);
-    assert.equal(snapshot.time, 42);
-    assert.equal(snapshot.playing, true);
+    assert.equal(rerouted, false);
+    assert.equal(audio.paused, false);
   } finally {
     stop();
     stub.restore();
@@ -283,7 +282,7 @@ test("another app opening or closing does not tear down a song that is still pla
   assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
   audio.paused = true;
   assert.equal(shouldReroutePlayback(audio, "visibility"), false);
-  assert.equal(shouldReroutePlayback(audio, "interruptionend"), true);
+  assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
   assert.equal(shouldReroutePlayback(audio, "devicechange"), true);
 });
 

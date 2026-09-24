@@ -46,10 +46,8 @@ export function shouldReroutePlayback(
   if (reason === "visibility") return false;
   if (reason === "devicechange") return true;
   if (reason === "interruptionend") {
-    if (!audio.paused) return false;
-    if (outputGraphIsStale(audio) || pipelineIsDead(audio)) return true;
-    if (resumeAfterInterrupt) return false;
-    return true;
+    // Books (and other PWAs) flash the system session; that is not a phone call or dead pipeline.
+    return false;
   }
   return audio.paused;
 }
@@ -233,6 +231,7 @@ function watchContext(ctx: AudioContext) {
     if (state !== "interrupted" && state !== "suspended") return;
     sessionInterrupted = true;
     notePlayingBeforeInterrupt();
+    void ctx.resume().catch(() => undefined);
   };
   sharedWatch = onState;
   try {
@@ -302,35 +301,14 @@ export function watchPlaybackRoute(
     notePlayingBeforeInterrupt();
   };
   const onInterruptEnd = () => {
-    let reroute = false;
-    let resumePending = false;
     for (const item of routeWatchers) {
       const audio = item.getAudio();
-      if (shouldReroutePlayback(audio, "interruptionend")) {
-        reroute = true;
-        continue;
-      }
-      if (audio?.paused && resumeAfterInterrupt) {
-        resumePending = true;
-        void resumePlaybackAfterInterrupt(audio).then((ok) => {
-          if (ok) {
-            sessionInterrupted = false;
-            resumeAfterInterrupt = false;
-          }
-        });
-        continue;
-      }
-      resumeLiveOutput(audio);
+      if (!audio || !resumeAfterInterrupt) continue;
+      if (audio.paused) void resumePlaybackAfterInterrupt(audio);
+      else resumeLiveOutput(audio);
     }
-    if (!reroute) {
-      if (!resumePending) {
-        sessionInterrupted = false;
-        resumeAfterInterrupt = false;
-      }
-      return;
-    }
-    sessionInterrupted = true;
-    requestPlaybackReroute();
+    sessionInterrupted = false;
+    resumeAfterInterrupt = false;
   };
   const onDeviceChange = () => {
     requestPlaybackReroute();
