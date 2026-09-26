@@ -1,4 +1,7 @@
 export const LAST_PLACE_KEY = "spodazo-last-place-v1";
+const SESSION_BOOT_KEY = "spodazo-music-session-v1";
+
+let sessionRestoreAllowed: boolean | undefined;
 
 export type LastPlace = {
   path: string;
@@ -54,6 +57,18 @@ export function readLastPlace(): LastPlace | null {
   }
 }
 
+/** True only on the first document load in this tab session (home-screen launch). False after refresh. */
+export function persistedSessionRestoreAllowed(): boolean {
+  if (sessionRestoreAllowed !== undefined) return sessionRestoreAllowed;
+  try {
+    sessionRestoreAllowed = sessionStorage.getItem(SESSION_BOOT_KEY) !== "1";
+    sessionStorage.setItem(SESSION_BOOT_KEY, "1");
+  } catch {
+    sessionRestoreAllowed = true;
+  }
+  return sessionRestoreAllowed;
+}
+
 export function isNavigationReload(): boolean {
   if (typeof performance === "undefined") return false;
   const entry = performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined;
@@ -62,14 +77,19 @@ export function isNavigationReload(): boolean {
   return legacy?.type === 1;
 }
 
-export function restoreLastPlace(
-  currentPath: string,
-  standalone = standaloneApp(),
-  opts: { skipOnReload?: boolean } = {},
-): string {
-  if (opts.skipOnReload && isNavigationReload()) return currentPath;
+function restoreLastPlaceFromStorage(currentPath: string, standalone: boolean): string {
   if (currentPath !== "/" || !standalone) return currentPath;
   const last = readLastPlace();
   if (!last || !isRestorablePath(last.path)) return currentPath;
   return last.path;
+}
+
+export function restoreLastPlace(currentPath: string, standalone = standaloneApp()): string {
+  if (!persistedSessionRestoreAllowed()) return currentPath;
+  return restoreLastPlaceFromStorage(currentPath, standalone);
+}
+
+/** Test helper — reset the in-memory gate (simulates a new document load in the same tab). */
+export function resetSessionRestoreGateForTests() {
+  sessionRestoreAllowed = undefined;
 }

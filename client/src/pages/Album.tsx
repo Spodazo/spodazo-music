@@ -21,7 +21,7 @@ import {
   startBackgroundPlaybackGuard,
 } from "../lib/audioCache";
 import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum } from "../lib/albumCache";
-import { readLastPlace, writeLastPlace } from "../lib/lastPlace";
+import { persistedSessionRestoreAllowed, readLastPlace, writeLastPlace } from "../lib/lastPlace";
 import { fetchPlayerSetup } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
 import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
@@ -376,6 +376,7 @@ export default function AlbumPage() {
   useEffect(() => {
     if (!album) return;
     const fromHash = () => {
+      if (!persistedSessionRestoreAllowed()) return;
       const hash = decodeURIComponent(location.hash.replace(/^#/, ""));
       if (!hash) return;
       const index = album.tracks.findIndex((item) => item.slug === hash || item.key === hash);
@@ -463,6 +464,10 @@ export default function AlbumPage() {
   useEffect(() => {
     if (!album || restoredRef.current === slug) return;
     restoredRef.current = slug;
+    if (!persistedSessionRestoreAllowed()) {
+      writeLastPlace({ path: `/${slug}` });
+      return;
+    }
     if (location.hash) {
       writeLastPlace({ path: `/${slug}` });
       return;

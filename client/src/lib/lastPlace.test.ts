@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  isNavigationReload,
   isRestorablePath,
   LAST_PLACE_KEY,
+  persistedSessionRestoreAllowed,
   readLastPlace,
+  resetSessionRestoreGateForTests,
   restoreLastPlace,
   writeLastPlace,
 } from "./lastPlace";
@@ -31,11 +32,31 @@ const localStorageMock = {
   },
 };
 
+const sessionMemory = new Map<string, string>();
+const sessionStorageMock = {
+  getItem(key: string) {
+    return sessionMemory.get(key) ?? null;
+  },
+  setItem(key: string, value: string) {
+    sessionMemory.set(key, value);
+  },
+  removeItem(key: string) {
+    sessionMemory.delete(key);
+  },
+};
+
 Object.defineProperty(globalThis, "localStorage", { value: localStorageMock, configurable: true });
+Object.defineProperty(globalThis, "sessionStorage", { value: sessionStorageMock, configurable: true });
 Object.defineProperty(globalThis, "window", {
-  value: { localStorage: localStorageMock },
+  value: { localStorage: localStorageMock, sessionStorage: sessionStorageMock },
   configurable: true,
 });
+
+function freshSession() {
+  sessionMemory.clear();
+  memory.clear();
+  resetSessionRestoreGateForTests();
+}
 
 test("only an album path is restored after the phone relaunches the app", () => {
   assert.equal(isRestorablePath("/willow-songs"), true);
@@ -45,31 +66,29 @@ test("only an album path is restored after the phone relaunches the app", () => 
 });
 
 test("a home-screen launch returns to the album that was playing", () => {
+  freshSession();
   memory.clear();
   writeLastPlace({ path: "/willow-songs", playing: true, trackId: "t1", time: 42 });
   assert.equal(readLastPlace()?.trackId, "t1");
+  assert.equal(persistedSessionRestoreAllowed(), true);
   assert.equal(restoreLastPlace("/", true), "/willow-songs");
   assert.equal(restoreLastPlace("/", false), "/");
   assert.equal(restoreLastPlace("/admin", true), "/admin");
 });
 
-test("a reload from the home screen does not jump back to the last album", () => {
-  memory.clear();
+test("a refresh in the same tab session does not jump back to the last album", () => {
+  freshSession();
   writeLastPlace({ path: "/willow-songs", playing: true });
-  Object.defineProperty(globalThis, "performance", {
-    configurable: true,
-    value: {
-      getEntriesByType(type: string) {
-        if (type === "navigation") return [{ type: "reload" }];
-        return [];
-      },
-    },
-  });
-  assert.equal(isNavigationReload(), true);
-  assert.equal(restoreLastPlace("/", true, { skipOnReload: true }), "/");
+  assert.equal(persistedSessionRestoreAllowed(), true);
+  assert.equal(restoreLastPlace("/", true), "/willow-songs");
+  sessionMemory.set("spodazo-music-session-v1", "1");
+  resetSessionRestoreGateForTests();
+  assert.equal(persistedSessionRestoreAllowed(), false);
+  assert.equal(restoreLastPlace("/", true), "/");
 });
 
 test("choosing the album list keeps the next launch on home", () => {
+  freshSession();
   memory.clear();
   writeLastPlace({ path: "/willow-songs", playing: true });
   writeLastPlace({ path: "/" });
