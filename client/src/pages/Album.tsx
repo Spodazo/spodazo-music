@@ -12,6 +12,7 @@ import {
   playSong,
   releaseOutput,
   restoreMobileOutput,
+  sameSong,
   setOutputLevel,
   setPlaybackSession,
   START_OFFSET,
@@ -404,15 +405,22 @@ export default function AlbumPage() {
     const audio = audioRef.current;
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
+    if (keepAudible) {
+      // After `ended` there is no tap — remounting the tag opens a silent WebAudio path.
+      if (shouldRebuildOutput(audio, url)) releaseOutput(audio);
+      wantPlayingRef.current = true;
+      const force = Boolean(audio.src) && (pipelineIsDead(audio) || !sameSong(audio, url));
+      return playSong(audio, url, 0, force, userVolRef.current, true);
+    }
     if (shouldRebuildOutput(audio, url)) {
       wantPlayingRef.current = true;
       rebuildAudio(0, true, true);
       return Promise.resolve();
     }
-    if (!keepAudible) unlockAudio(audio);
+    unlockAudio(audio);
     wantPlayingRef.current = true;
     const force = Boolean(audio.src) && pipelineIsDead(audio);
-    return playSong(audio, url, 0, force, userVolRef.current, keepAudible);
+    return playSong(audio, url, 0, force, userVolRef.current, false);
   }
 
   function warm() {
@@ -761,6 +769,8 @@ export default function AlbumPage() {
   function onEnded() {
     if (repeatOne) return;
     if (!album || active === null) return;
+    const onLastTrack = active >= album.tracks.length - 1;
+    if (onLastTrack && !repeatAll) wantPlayingRef.current = false;
     if (active < album.tracks.length - 1) {
       playAt(active + 1, true, true);
       return;
@@ -769,7 +779,6 @@ export default function AlbumPage() {
       playAt(0, true, true);
       return;
     }
-    wantPlayingRef.current = false;
     setPlaying(false);
     releaseWake();
   }
@@ -806,7 +815,13 @@ export default function AlbumPage() {
       }}
       onPause={() => {
         const audio = audioRef.current;
-        if (wantPlayingRef.current && audio && !rerouteRef.current) {
+        const atEnd =
+          audio &&
+          (audio.ended ||
+            (Number.isFinite(audio.duration) &&
+              audio.duration > 0 &&
+              audio.currentTime >= audio.duration - 0.35));
+        if (wantPlayingRef.current && audio && !rerouteRef.current && !atEnd) {
           restoreMobileOutput(audio, userVolRef.current);
           void audio
             .play()

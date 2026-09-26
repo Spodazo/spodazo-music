@@ -268,10 +268,14 @@ function adoptContext(): AudioContext | null {
   }
 }
 
-function runningSharedContext(): AudioContext | null {
+/** Shared context from the first tap — includes suspended/interrupted so auto-advance can rejoin it. */
+function sharedPlaybackContext(): AudioContext | null {
   const Ctor = audioContextCtor();
   if (!Ctor || sharedCtor !== Ctor || !sharedCtx) return null;
-  return sharedCtx.state === "running" ? sharedCtx : null;
+  const state = sharedCtx.state as string;
+  if (state === "closed") return null;
+  if (state === "suspended" || state === "interrupted") void sharedCtx.resume().catch(() => undefined);
+  return sharedCtx;
 }
 
 export function releaseOutput(audio: HTMLAudioElement | null) {
@@ -345,6 +349,7 @@ export function startBackgroundPlaybackGuard(
     const audio = getAudio();
     if (!audio) return;
     if (audio.paused) {
+      if (audio.ended) return;
       void resumePlaybackAfterInterrupt(audio);
       return;
     }
@@ -498,7 +503,7 @@ export function playSong(
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
     setPlaybackSession();
     // Only join a context the first tap already started. Creating one here stays silent until a later tap.
-    if (!graphs.has(audio) && runningSharedContext()) attachOutput(audio, targetVolume);
+    if (!graphs.has(audio) && sharedPlaybackContext()) attachOutput(audio, targetVolume);
   } else {
     unlockAudio(audio);
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);

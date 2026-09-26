@@ -24,7 +24,7 @@ import {
   updateTrack,
   verifyCuratorPassword,
 } from "../lib/api";
-import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
+import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, sameSong, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
 import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
 import { applySiteIcons } from "../lib/siteIcons";
@@ -97,7 +97,6 @@ function useAdminPlayer() {
 
   function startTrack(track: PublicTrack, keepAudible = false) {
     const audio = audioRef.current;
-    if (!keepAudible) unlockAudio(audio);
     if (!audio || !track.audioUrl) return;
     currentUrlRef.current = track.audioUrl;
     resumeTimeRef.current = 0;
@@ -106,13 +105,24 @@ function useAdminPlayer() {
       setCurrentTime(0);
       setDuration(0);
     }
+    if (keepAudible) {
+      if (shouldRebuildOutput(audio, track.audioUrl)) releaseOutput(audio);
+      wantPlayingRef.current = true;
+      const force = Boolean(audio.src) && (pipelineIsDead(audio) || !sameSong(audio, track.audioUrl));
+      void playSong(audio, track.audioUrl, 0, force, 1, true).then(() => setPlaying(true)).catch(() => {
+        wantPlayingRef.current = false;
+        setPlaying(false);
+      });
+      return;
+    }
+    unlockAudio(audio);
     if (shouldRebuildOutput(audio, track.audioUrl)) {
       wantPlayingRef.current = true;
       rebuildAudio(0, true, true);
       return;
     }
     wantPlayingRef.current = true;
-    void playSong(audio, track.audioUrl, 0, false, 1, keepAudible).then(() => setPlaying(true)).catch(() => {
+    void playSong(audio, track.audioUrl, 0, false, 1, false).then(() => setPlaying(true)).catch(() => {
       wantPlayingRef.current = false;
       setPlaying(false);
     });
