@@ -26,7 +26,7 @@ for (const album of cachedAlbums) {
   if (cached) prefetchAlbumImages(cached);
 }
 void dropLegacyAudioCaches();
-const lastPath = restoreLastPlace(`${window.location.pathname}`);
+const lastPath = restoreLastPlace(window.location.pathname, undefined, { skipOnReload: true });
 if (lastPath !== window.location.pathname) {
   window.history.replaceState(window.history.state, "", lastPath + window.location.search + window.location.hash);
 }

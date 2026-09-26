@@ -68,6 +68,15 @@ export function writeCachedSetup(setup: PlayerSetup) {
   }
 }
 
+export function clearHomeClientCache() {
+  try {
+    storage()?.removeItem(HOME_ALBUMS_KEY);
+    storage()?.removeItem(HOME_SETUP_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
 export function cacheAlbumsFromNetwork(next: AlbumListItem[]): AlbumListItem[] {
   const prev = readCachedAlbums();
   const prevById = new Map(prev.map((album) => [album.id, album]));

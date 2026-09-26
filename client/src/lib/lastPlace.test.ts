@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  isNavigationReload,
   isRestorablePath,
   LAST_PLACE_KEY,
   readLastPlace,
@@ -50,6 +51,22 @@ test("a home-screen launch returns to the album that was playing", () => {
   assert.equal(restoreLastPlace("/", true), "/willow-songs");
   assert.equal(restoreLastPlace("/", false), "/");
   assert.equal(restoreLastPlace("/admin", true), "/admin");
+});
+
+test("a reload from the home screen does not jump back to the last album", () => {
+  memory.clear();
+  writeLastPlace({ path: "/willow-songs", playing: true });
+  Object.defineProperty(globalThis, "performance", {
+    configurable: true,
+    value: {
+      getEntriesByType(type: string) {
+        if (type === "navigation") return [{ type: "reload" }];
+        return [];
+      },
+    },
+  });
+  assert.equal(isNavigationReload(), true);
+  assert.equal(restoreLastPlace("/", true, { skipOnReload: true }), "/");
 });
 
 test("choosing the album list keeps the next launch on home", () => {

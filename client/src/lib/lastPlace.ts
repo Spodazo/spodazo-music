@@ -54,7 +54,20 @@ export function readLastPlace(): LastPlace | null {
   }
 }
 
-export function restoreLastPlace(currentPath: string, standalone = standaloneApp()): string {
+export function isNavigationReload(): boolean {
+  if (typeof performance === "undefined") return false;
+  const entry = performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined;
+  if (entry?.type === "reload") return true;
+  const legacy = (performance as Performance & { navigation?: { type?: number } }).navigation;
+  return legacy?.type === 1;
+}
+
+export function restoreLastPlace(
+  currentPath: string,
+  standalone = standaloneApp(),
+  opts: { skipOnReload?: boolean } = {},
+): string {
+  if (opts.skipOnReload && isNavigationReload()) return currentPath;
   if (currentPath !== "/" || !standalone) return currentPath;
   const last = readLastPlace();
   if (!last || !isRestorablePath(last.path)) return currentPath;
