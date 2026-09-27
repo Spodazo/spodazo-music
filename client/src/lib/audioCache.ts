@@ -1,7 +1,8 @@
 /**
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
- * After a call, Bluetooth route change, mobile pause, or a new song, rebuild the live element — the old GainNode stays silent.
+ * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
+ * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
  * Keep the AudioContext the first tap resumed. A context created when the song ends stays silent until the next tap.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
@@ -502,7 +503,8 @@ export function playSong(
   if (continuation) {
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
     setPlaybackSession();
-    // Only join a context the first tap already started. Creating one here stays silent until a later tap.
+    // Keep an existing MediaElementSource. Releasing it on this element cannot reattach.
+    // Only join a context the first tap already started — creating one here stays silent until a later tap.
     if (!graphs.has(audio) && sharedPlaybackContext()) attachOutput(audio, targetVolume);
   } else {
     unlockAudio(audio);

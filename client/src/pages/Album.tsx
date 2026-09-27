@@ -407,8 +407,8 @@ export default function AlbumPage() {
     const url = currentUrlRef.current;
     if (!audio || !url) return Promise.resolve();
     if (keepAudible) {
-      // After `ended` there is no tap — remounting the tag opens a silent WebAudio path.
-      if (shouldRebuildOutput(audio, url)) releaseOutput(audio);
+      // After `ended` there is no tap. Keep the live MediaElementSource — releasing it on this
+      // element cannot reattach (once per element) and auto-advance stays silent.
       wantPlayingRef.current = true;
       const force = Boolean(audio.src) && (pipelineIsDead(audio) || !sameSong(audio, url));
       return playSong(audio, url, 0, force, userVolRef.current, true);
