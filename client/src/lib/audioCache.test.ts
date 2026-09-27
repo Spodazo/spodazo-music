@@ -455,6 +455,118 @@ test("a mobile continuation stays unmuted when keepAudible is set", async () => 
   }
 });
 
+test("auto-advance on the same element keeps the live MediaElementSource audible", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const sourced = new WeakSet<object>();
+  let sourceCreates = 0;
+  const gains: number[] = [];
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    createMediaElementSource(element: object) {
+      if (sourced.has(element)) {
+        throw new Error("HTMLMediaElement already connected to a MediaElementAudioSourceNode");
+      }
+      sourced.add(element);
+      sourceCreates += 1;
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      const gain = {
+        value: 0,
+        cancelScheduledValues() {},
+        setValueAtTime(value: number) {
+          gain.value = value;
+          gains.push(value);
+        },
+        linearRampToValueAtTime() {},
+      };
+      return { gain, connect() {}, disconnect() {} };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  try {
+    attachOutput(audio, 0.8);
+    assert.equal(sourceCreates, 1);
+    await playSong(audio, "/media/songs/b.mp3", 0, true, 0.85, true);
+    assert.equal(sourceCreates, 1);
+    assert.equal(audio.muted, false);
+    assert.ok(gains.includes(0.85));
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
+test("releasing MediaElementSource on the same element cannot reattach for auto-advance", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const sourced = new WeakSet<object>();
+  let sourceCreates = 0;
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    createMediaElementSource(element: object) {
+      if (sourced.has(element)) {
+        throw new Error("HTMLMediaElement already connected to a MediaElementAudioSourceNode");
+      }
+      sourced.add(element);
+      sourceCreates += 1;
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  try {
+    attachOutput(audio, 0.8);
+    releaseOutput(audio);
+    await playSong(audio, "/media/songs/b.mp3", 0, true, 0.85, true);
+    // Browser forbids a second MediaElementSource on the same element — graph stays missing.
+    assert.equal(sourceCreates, 1);
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
 test("the next mobile song reuses the live audio context instead of opening a silent one", async () => {
   const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
   const created: Array<{ closed: boolean }> = [];

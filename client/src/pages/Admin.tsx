@@ -106,7 +106,7 @@ function useAdminPlayer() {
       setDuration(0);
     }
     if (keepAudible) {
-      if (shouldRebuildOutput(audio, track.audioUrl)) releaseOutput(audio);
+      // Keep the live MediaElementSource on this element — release+reattach is impossible and silent.
       wantPlayingRef.current = true;
       const force = Boolean(audio.src) && (pipelineIsDead(audio) || !sameSong(audio, track.audioUrl));
       void playSong(audio, track.audioUrl, 0, force, 1, true).then(() => setPlaying(true)).catch(() => {
