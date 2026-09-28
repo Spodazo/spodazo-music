@@ -1246,6 +1246,7 @@ button.t-play-icon {
   overscroll-behavior: contain;
   user-select: none;
   -webkit-user-select: none;
+  container-type: size;
 }
 .lyrics-scroll-track {
   will-change: transform;
@@ -1306,7 +1307,7 @@ button.t-play-icon {
   );
 }
 .lyrics-scroll-pad {
-  height: 42%;
+  height: 42cqh;
   min-height: 8rem;
 }
 .lyrics-text {
@@ -2200,6 +2201,17 @@ button.t-play-icon {
   }
   .lyrics-dock {
     flex: none;
+  }
+  /* Sing-along sheet needs a viewport shorter than the lyrics or travel collapses. */
+  .lyrics-dock.has-sheet {
+    height: min(58dvh, 480px);
+    min-height: 240px;
+    max-height: min(58dvh, 480px);
+  }
+  .lyrics-dock.has-sheet .lyrics-static {
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
   }
   .lyrics-static {
     overflow: visible;
