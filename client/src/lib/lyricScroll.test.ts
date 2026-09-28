@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { lyricScrollAt, songLengthSeconds } from "./lyricScroll";
+import { lyricMaxTravel, lyricPadPixels, lyricScrollAt, songLengthSeconds } from "./lyricScroll";
 
 test("songLengthSeconds ignores unknown HTML audio durations", () => {
   assert.equal(songLengthSeconds(204), 204);
@@ -21,4 +21,19 @@ test("lyric scroll lasts the whole song, not the length of the lyric text", () =
 test("lyric scroll stays put until the song length is known", () => {
   assert.equal(lyricScrollAt(30, 0, 800), 0);
   assert.equal(lyricScrollAt(30, Number.NaN, 800), 0);
+});
+
+test("lyric pad is a share of the sheet viewport so the last lines can rise", () => {
+  assert.equal(lyricPadPixels(0), 0);
+  assert.equal(lyricPadPixels(200), 128);
+  assert.equal(lyricPadPixels(400), 168);
+});
+
+test("sing-along travel needs a sheet shorter than the lyric track", () => {
+  const lyrics = 900;
+  const pad = lyricPadPixels(320);
+  assert.equal(lyricMaxTravel(320, lyrics + pad), lyrics + pad - 320);
+  // Dock grown to full lyric height (mobile regression): almost nothing left to scroll.
+  assert.equal(lyricMaxTravel(lyrics, lyrics + 128), 128);
+  assert.ok(lyricMaxTravel(320, lyrics + pad) > lyricMaxTravel(lyrics, lyrics + 128));
 });

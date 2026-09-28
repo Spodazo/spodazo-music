@@ -24,7 +24,7 @@ import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum } from "../lib/albu
 import { persistedSessionRestoreAllowed, readLastPlace, writeLastPlace } from "../lib/lastPlace";
 import { fetchPlayerSetup } from "../lib/api";
 import { totalListeningLabel } from "../lib/listeningTime";
-import { lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
+import { lyricMaxTravel, lyricPadPixels, lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
@@ -553,11 +553,21 @@ export default function AlbumPage() {
     return estimated;
   }
 
+  function syncLyricPad() {
+    const view = lyricsRef.current;
+    const trackEl = lyricsTrackRef.current;
+    if (!view || !trackEl) return;
+    const pad = trackEl.querySelector(".lyrics-scroll-pad") as HTMLElement | null;
+    if (!pad) return;
+    const next = `${lyricPadPixels(view.clientHeight)}px`;
+    if (pad.style.height !== next) pad.style.height = next;
+  }
+
   function lyricMaxScroll(): number {
     const view = lyricsRef.current;
     const trackEl = lyricsTrackRef.current;
     if (!view || !trackEl) return 0;
-    return Math.max(0, trackEl.scrollHeight - view.clientHeight);
+    return lyricMaxTravel(view.clientHeight, trackEl.scrollHeight);
   }
 
   function lyricNaturalScroll(): number {
@@ -627,6 +637,7 @@ export default function AlbumPage() {
     const tick = (now: number) => {
       const drag = lyricsDrag.current;
       lyricsClock.current.lastTick = now;
+      syncLyricPad();
       if (!drag.holding && drag.follow) {
         applyLyricY(lyricNaturalScroll() + drag.offset);
       }
