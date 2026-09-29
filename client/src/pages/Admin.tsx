@@ -71,8 +71,9 @@ function useAdminPlayer() {
     return watchPlaybackRoute(
       () => audioRef.current,
       (snapshot) => {
-        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current);
+        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current, true);
       },
+      () => 1,
     );
   }, []);
 

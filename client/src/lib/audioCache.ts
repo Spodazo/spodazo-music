@@ -4,6 +4,8 @@
  * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
  * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
+ * When iOS keeps the element playing but WebAudio is muted/interrupted, heal with ensureMobileOutputAudible — do not remount on visibility.
+ * Leaving an album must release the MediaElementSource so the next album does not inherit a silent graph.
  * Keep the AudioContext the first tap resumed. A context created when the song ends stays silent until the next tap.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
  */
@@ -57,6 +59,7 @@ const graphs = new WeakMap<HTMLAudioElement, OutputGraph>();
 const routeWatchers = new Set<{
   getAudio: () => HTMLAudioElement | null;
   onReroute: (snapshot: PlaybackSnapshot) => void;
+  getVolume: () => number;
 }>();
 
 let routeTimer = 0;
@@ -162,6 +165,16 @@ export function resumeLiveOutput(audio: HTMLAudioElement | null): boolean {
     if (state === "suspended" || state === "interrupted") void graph.ctx.resume();
   }
   return true;
+}
+
+/**
+ * Heal playing-but-silent after backgrounding or album hops: unmute, restore gain,
+ * resume interrupted/suspended context. Does not remount or create a new AudioContext.
+ */
+export function ensureMobileOutputAudible(audio: HTMLAudioElement | null, volume = 1): void {
+  if (!audio || !isMobilePlayback()) return;
+  restoreMobileOutput(audio, volume);
+  if (!audio.paused) resumeLiveOutput(audio);
 }
 
 /** Another installed app (e.g. Books) must not force a rebuild — resume the live element. */
@@ -302,8 +315,9 @@ export function releaseOutput(audio: HTMLAudioElement | null) {
 export function watchPlaybackRoute(
   getAudio: () => HTMLAudioElement | null,
   onReroute: (snapshot: PlaybackSnapshot) => void,
+  getVolume: () => number = () => 1,
 ): () => void {
-  const watch = { getAudio, onReroute };
+  const watch = { getAudio, onReroute, getVolume };
   routeWatchers.add(watch);
 
   const onInterruptBegin = () => {
@@ -314,8 +328,9 @@ export function watchPlaybackRoute(
     for (const item of routeWatchers) {
       const audio = item.getAudio();
       if (!audio || !resumeAfterInterrupt) continue;
-      if (audio.paused) void resumePlaybackAfterInterrupt(audio);
-      else resumeLiveOutput(audio);
+      const volume = item.getVolume();
+      if (audio.paused) void resumePlaybackAfterInterrupt(audio, volume);
+      else ensureMobileOutputAudible(audio, volume);
     }
     sessionInterrupted = false;
     resumeAfterInterrupt = false;
@@ -342,6 +357,7 @@ export function watchPlaybackRoute(
 export function startBackgroundPlaybackGuard(
   getAudio: () => HTMLAudioElement | null,
   shouldKeepPlaying: () => boolean,
+  getVolume: () => number = () => 1,
 ): () => void {
   if (!isMobilePlayback()) return () => {};
 
@@ -349,12 +365,14 @@ export function startBackgroundPlaybackGuard(
     if (!shouldKeepPlaying()) return;
     const audio = getAudio();
     if (!audio) return;
+    const volume = getVolume();
     if (audio.paused) {
       if (audio.ended) return;
-      void resumePlaybackAfterInterrupt(audio);
+      void resumePlaybackAfterInterrupt(audio, volume);
       return;
     }
-    resumeLiveOutput(audio);
+    // iOS often keeps paused=false while GainNode stays at 0 or the context is interrupted.
+    ensureMobileOutputAudible(audio, volume);
   };
 
   const id = window.setInterval(heal, 500);
@@ -567,7 +585,9 @@ export function unlockAudio(audio?: HTMLAudioElement | null) {
   // A song already playing natively must not be pulled into a new gain node at 0.
   if (!graphs.has(audio) && !audio.paused) return;
   const graph = attachOutput(audio);
-  if (graph && graph.ctx.state === "suspended") void graph.ctx.resume();
+  if (!graph) return;
+  const state = graph.ctx.state as string;
+  if (state === "suspended" || state === "interrupted") void graph.ctx.resume();
 }
 
 export function waitForAudible(audio: HTMLAudioElement, minTime: number, timeoutMs = 1500): Promise<void> {
