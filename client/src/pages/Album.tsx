@@ -53,9 +53,17 @@ function trackHasLyrics(track: { lyrics: string; instrumental?: boolean } | null
   return Boolean(lyrics.replace(/^\[[^\]]+\]\s*/gm, "").trim());
 }
 
-function AlbumsBack({ className = "" }: { className?: string }) {
+function AlbumsBack({ className = "", onLeave }: { className?: string; onLeave?: () => void }) {
   return (
-    <Link href="/" className={`albums-back${className ? ` ${className}` : ""}`} aria-label="Back to albums" onClick={() => writeLastPlace({ path: "/" })}>
+    <Link
+      href="/"
+      className={`albums-back${className ? ` ${className}` : ""}`}
+      aria-label="Back to albums"
+      onClick={() => {
+        onLeave?.();
+        writeLastPlace({ path: "/" });
+      }}
+    >
       <IconBack />
       Albums
     </Link>
@@ -164,6 +172,7 @@ export default function AlbumPage() {
   const wantPlayingRef = useRef(false);
   const activeRef = useRef<number | null>(null);
   const restoredRef = useRef("");
+  const leaveForHomeRef = useRef(false);
   const rerouteRef = useRef<{ time: number; playing: boolean; keepAudible?: boolean } | null>(null);
   const [audioGen, setAudioGen] = useState(0);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
@@ -298,6 +307,14 @@ export default function AlbumPage() {
     activeRef.current = active;
   }, [active]);
 
+  function leaveAlbumForHome() {
+    leaveForHomeRef.current = true;
+    wantPlayingRef.current = false;
+    const audio = audioRef.current;
+    releaseOutput(audio);
+    audio?.pause();
+  }
+
   function rebuildAudio(time: number, playing: boolean, keepAudible = false) {
     const audio = audioRef.current;
     if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
@@ -312,7 +329,11 @@ export default function AlbumPage() {
   useEffect(() => {
     setPlaybackSession();
     void dropLegacyAudioCaches();
-    const onHide = () => rememberPlace();
+    const onHide = () => {
+      // Albums back already wrote home — do not re-persist this album as still playing.
+      if (leaveForHomeRef.current) return;
+      rememberPlace();
+    };
     const onVisibility = () => {
       if (document.hidden) {
         onHide();
@@ -320,12 +341,15 @@ export default function AlbumPage() {
       }
       const audio = audioRef.current;
       const url = currentUrlRef.current;
-      if (wantPlayingRef.current && audio && url && audio.paused) {
+      // iOS often keeps the element "playing" while WebAudio is muted/interrupted.
+      if (wantPlayingRef.current && audio && url) {
         restoreMobileOutput(audio, userVolRef.current);
-        void audio
-          .play()
-          .then(() => setPlaying(true))
-          .catch(() => undefined);
+        if (audio.paused) {
+          void audio
+            .play()
+            .then(() => setPlaying(true))
+            .catch(() => undefined);
+        }
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -334,12 +358,15 @@ export default function AlbumPage() {
     const stopRoute = watchPlaybackRoute(
       () => audioRef.current,
       (snapshot) => {
-        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current);
+        // Keep audible across Bluetooth remounts — opener mute after a route change is silent.
+        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current, true);
       },
+      () => userVolRef.current,
     );
     const stopGuard = startBackgroundPlaybackGuard(
       () => audioRef.current,
       () => wantPlayingRef.current,
+      () => userVolRef.current,
     );
     return () => {
       document.removeEventListener("visibilitychange", onVisibility);
@@ -349,6 +376,21 @@ export default function AlbumPage() {
       stopGuard();
     };
   }, []);
+
+  // Leaving an album (or switching slugs) must drop the old MediaElementSource so the next
+  // album does not inherit a silent graph on a destroyed element.
+  useEffect(() => {
+    return () => {
+      const audio = audioRef.current;
+      wantPlayingRef.current = false;
+      currentUrlRef.current = "";
+      releaseOutput(audio);
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+      }
+    };
+  }, [slug]);
 
   useEffect(() => {
     const pending = rerouteRef.current;
@@ -490,7 +532,8 @@ export default function AlbumPage() {
     const url = album.tracks[index]?.audioUrl;
     if (!audio || !url) return;
     wantPlayingRef.current = true;
-    void playSong(audio, url, resume, true, userVolRef.current)
+    // keepAudible: join an existing first-tap context only — creating one on restore stays silent.
+    void playSong(audio, url, resume, true, userVolRef.current, true)
       .then(() => {
         setPlaying(true);
         void acquireWake();
@@ -854,9 +897,9 @@ export default function AlbumPage() {
     <>
       {player}
       {error ? (
-        <main className="home"><AdminLoginLink /><AlbumsBack /><p className="error">{error}</p></main>
+        <main className="home"><AdminLoginLink /><AlbumsBack onLeave={leaveAlbumForHome} /><p className="error">{error}</p></main>
       ) : !album ? (
-        <main className="home"><AdminLoginLink /><AlbumsBack /><p>Loading…</p></main>
+        <main className="home"><AdminLoginLink /><AlbumsBack onLeave={leaveAlbumForHome} /><p>Loading…</p></main>
       ) : (
     <div className={`layout${modalOpen ? " player-open" : ""}`}>
       <AdminLoginLink />
@@ -902,11 +945,11 @@ export default function AlbumPage() {
             </button>
           ) : null}
         </div>
-        <AlbumsBack className="albums-back-on-art" />
+        <AlbumsBack className="albums-back-on-art" onLeave={leaveAlbumForHome} />
       </aside>
       <section className="track-panel">
         <div className="album-head">
-          <AlbumsBack />
+          <AlbumsBack onLeave={leaveAlbumForHome} />
           <div className="album-title-box">
             <h1 className="alb-name2">{album.title}</h1>
             {albumCoverUrl ? (

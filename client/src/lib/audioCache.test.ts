@@ -10,6 +10,7 @@ import {
   isResumeTime,
   mediaUrl,
   attachOutput,
+  ensureMobileOutputAudible,
   markOutputNeedsRebuild,
   outputGraphIsStale,
   outputRebuildIsPending,
@@ -19,6 +20,8 @@ import {
   releaseOutput,
   restoreMobileOutput,
   setOutputLevel,
+  startBackgroundPlaybackGuard,
+  unlockAudio,
   waitForAudible,
   watchPlaybackRoute,
   resumeLiveOutput,
@@ -716,5 +719,264 @@ test("desktop playback does not rebuild on Bluetooth or call events", async () =
     stop();
     if (previous) Object.defineProperty(globalThis, "navigator", previous);
     else delete (globalThis as { navigator?: Navigator }).navigator;
+  }
+});
+
+test("playing-but-silent heals gain and mute without remounting", () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const gains: number[] = [];
+  let resumeCalls = 0;
+  let sourceCreates = 0;
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "interrupted";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    createMediaElementSource() {
+      sourceCreates += 1;
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      const gain = {
+        value: 0,
+        cancelScheduledValues() {},
+        setValueAtTime(value: number) {
+          gain.value = value;
+          gains.push(value);
+        },
+        linearRampToValueAtTime() {},
+      };
+      return { gain, connect() {}, disconnect() {} };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      resumeCalls += 1;
+      this.state = "running";
+      return Promise.resolve();
+    }
+    close() {
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.paused = false;
+  audio.muted = true;
+  try {
+    attachOutput(audio, 0);
+    assert.equal(sourceCreates, 1);
+    ensureMobileOutputAudible(audio, 0.85);
+    assert.equal(audio.muted, false);
+    assert.ok(gains.includes(0.85));
+    assert.ok(resumeCalls >= 1);
+    assert.equal(sourceCreates, 1);
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
+test("unlockAudio resumes an interrupted context", () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  let resumeCalls = 0;
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      resumeCalls += 1;
+      this.state = "running";
+      return Promise.resolve();
+    }
+    close() {
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.paused = true;
+  try {
+    const graph = attachOutput(audio, 0);
+    assert.ok(graph);
+    graph!.ctx.state = "interrupted" as AudioContextState;
+    resumeCalls = 0;
+    unlockAudio(audio);
+    assert.ok(resumeCalls >= 1);
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
+test("background guard restores volume while the element is still playing", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const gains: number[] = [];
+  const previous = window.AudioContext;
+  const docListeners = new Map<string, Set<() => void>>();
+  const winListeners = new Map<string, Set<() => void>>();
+  const previousDoc = Object.getOwnPropertyDescriptor(globalThis, "document");
+  Object.defineProperty(globalThis, "document", {
+    configurable: true,
+    value: {
+      hidden: false,
+      addEventListener(type: string, fn: () => void) {
+        if (!docListeners.has(type)) docListeners.set(type, new Set());
+        docListeners.get(type)!.add(fn);
+      },
+      removeEventListener(type: string, fn: () => void) {
+        docListeners.get(type)?.delete(fn);
+      },
+      dispatchEvent(event: Event) {
+        for (const fn of docListeners.get(event.type) || []) fn();
+        return true;
+      },
+    },
+  });
+  const previousAdd = window.addEventListener;
+  const previousRemove = window.removeEventListener;
+  window.addEventListener = ((type: string, fn: () => void) => {
+    if (!winListeners.has(type)) winListeners.set(type, new Set());
+    winListeners.get(type)!.add(fn);
+  }) as typeof window.addEventListener;
+  window.removeEventListener = ((type: string, fn: () => void) => {
+    winListeners.get(type)?.delete(fn);
+  }) as typeof window.removeEventListener;
+  class FakeContext {
+    state = "interrupted";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      const gain = {
+        value: 0,
+        cancelScheduledValues() {},
+        setValueAtTime(value: number) {
+          gain.value = value;
+          gains.push(value);
+        },
+        linearRampToValueAtTime() {},
+      };
+      return { gain, connect() {}, disconnect() {} };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      this.state = "running";
+      return Promise.resolve();
+    }
+    close() {
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.paused = false;
+  audio.muted = true;
+  attachOutput(audio, 0);
+  let stop = () => {};
+  try {
+    stop = startBackgroundPlaybackGuard(
+      () => audio,
+      () => true,
+      () => 0.7,
+    );
+    document.dispatchEvent(new Event("visibilitychange"));
+    assert.equal(audio.muted, false);
+    assert.ok(gains.includes(0.7));
+  } finally {
+    stop();
+    window.addEventListener = previousAdd;
+    window.removeEventListener = previousRemove;
+    if (previousDoc) Object.defineProperty(globalThis, "document", previousDoc);
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
+test("Album heals playing-but-silent and tears down when leaving an album", () => {
+  const src = readFileSync(new URL("../pages/Album.tsx", import.meta.url), "utf8");
+  assert.match(src, /restoreMobileOutput\(audio, userVolRef\.current\);\s*\n\s*if \(audio\.paused\)/s);
+  assert.match(src, /rebuildAudio\(snapshot\.time, snapshot\.playing \|\| wantPlayingRef\.current, true\)/);
+  assert.match(src, /releaseOutput\(audio\);\s*\n\s*if \(audio\) \{\s*\n\s*audio\.pause\(\);/s);
+  assert.match(src, /playSong\(audio, url, resume, true, userVolRef\.current, true\)/);
+  assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
+  assert.match(src, /leaveAlbumForHome/);
+  assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
+});
+
+test("a keepAudible remount at song start stays unmuted", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const gains: number[] = [];
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      const gain = {
+        value: 0,
+        cancelScheduledValues() {},
+        setValueAtTime(value: number) {
+          gain.value = value;
+          gains.push(value);
+        },
+        linearRampToValueAtTime() {},
+      };
+      return { gain, connect() {}, disconnect() {} };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const first = fakeAudio() as unknown as HTMLAudioElement;
+  const remount = fakeAudio() as unknown as HTMLAudioElement;
+  try {
+    attachOutput(first, 0.85);
+    releaseOutput(first);
+    await playSong(remount, "/media/songs/a.mp3", 0.05, true, 0.85, true);
+    assert.equal(remount.muted, false);
+    assert.ok(gains.includes(0.85));
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
   }
 });
