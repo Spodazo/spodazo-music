@@ -18,6 +18,7 @@ import {
   pipelineIsDead,
   playSong,
   releaseOutput,
+  releaseOutputForRouteChange,
   restoreMobileOutput,
   setOutputLevel,
   startBackgroundPlaybackGuard,
@@ -924,7 +925,8 @@ test("background guard restores volume while the element is still playing", asyn
 test("Album heals playing-but-silent and tears down when leaving an album", () => {
   const src = readFileSync(new URL("../pages/Album.tsx", import.meta.url), "utf8");
   assert.match(src, /restoreMobileOutput\(audio, userVolRef\.current\);\s*\n\s*if \(audio\.paused\)/s);
-  assert.match(src, /rebuildAudio\(snapshot\.time, snapshot\.playing \|\| wantPlayingRef\.current, true\)/);
+  assert.match(src, /rebuildAudioAfterRouteChange\(snapshot\.time, snapshot\.playing \|\| wantPlayingRef\.current\)/);
+  assert.match(src, /releaseOutputForRouteChange/);
   assert.match(src, /releaseOutput\(audio\);\s*\n\s*if \(audio\) \{\s*\n\s*audio\.pause\(\);/s);
   assert.match(src, /playSong\(audio, url, resume, true, userVolRef\.current, true\)/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
@@ -976,6 +978,143 @@ test("a keepAudible remount at song start stays unmuted", async () => {
     assert.ok(gains.includes(0.85));
   } finally {
     restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
+test("Bluetooth route change retires a running context so remount plays natively", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const created: Array<{ state: string; closed: boolean }> = [];
+  let sourceCreates = 0;
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    closed = false;
+    constructor() {
+      created.push(this);
+    }
+    createMediaElementSource() {
+      sourceCreates += 1;
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      this.closed = true;
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const first = fakeAudio() as unknown as HTMLAudioElement;
+  const remount = fakeAudio() as unknown as HTMLAudioElement;
+  try {
+    attachOutput(first, 0.85);
+    assert.equal(created.length, 1);
+    assert.equal(sourceCreates, 1);
+    // Plain releaseOutput keeps a running shared context — that is the Bluetooth silent bug.
+    releaseOutput(first);
+    assert.equal(created[0].closed, false);
+
+    releaseOutputForRouteChange(null);
+    assert.equal(created[0].closed, true);
+
+    await playSong(remount, "/media/songs/a.mp3", 42, true, 0.85, true);
+    // No new silent context outside a tap; native element volume stays audible on the new device.
+    assert.equal(created.length, 1);
+    assert.equal(sourceCreates, 1);
+    assert.equal(remount.muted, false);
+    assert.equal(remount.volume, 0.85);
+    assert.equal(remount.paused, false);
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
+});
+
+test("devicechange rebuild path retires the shared context before remounting", async () => {
+  const stub = stubAudioSession();
+  const created: Array<{ closed: boolean }> = [];
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    closed = false;
+    constructor() {
+      created.push(this);
+    }
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      this.closed = true;
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.src = "/media/songs/a.mp3";
+  audio.currentTime = 18;
+  audio.paused = false;
+  attachOutput(audio, 0.8);
+  let snapshot: PlaybackSnapshot | undefined;
+  const stop = watchPlaybackRoute(
+    () => audio,
+    (next) => {
+      snapshot = next;
+      releaseOutputForRouteChange(audio);
+    },
+    () => 0.8,
+  );
+  try {
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    assert.ok(snapshot);
+    assert.equal(snapshot.playing, true);
+    assert.equal(created[0].closed, true);
+  } finally {
+    stop();
+    stub.restore();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
     else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
   }
