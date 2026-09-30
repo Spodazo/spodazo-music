@@ -11,6 +11,7 @@ import {
   pipelineIsDead,
   playSong,
   releaseOutput,
+  releaseOutputForRouteChange,
   restoreMobileOutput,
   sameSong,
   setOutputLevel,
@@ -326,6 +327,18 @@ export default function AlbumPage() {
     setAudioGen((value) => value + 1);
   }
 
+  /** Bluetooth / output-route change: drop the shared context so we do not reattach to a dead route. */
+  function rebuildAudioAfterRouteChange(time: number, playing: boolean) {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
+      resumeTimeRef.current = audio.currentTime;
+    }
+    rerouteRef.current = { time, playing, keepAudible: true };
+    releaseOutputForRouteChange(audio);
+    audio?.pause();
+    setAudioGen((value) => value + 1);
+  }
+
   useEffect(() => {
     setPlaybackSession();
     void dropLegacyAudioCaches();
@@ -358,8 +371,7 @@ export default function AlbumPage() {
     const stopRoute = watchPlaybackRoute(
       () => audioRef.current,
       (snapshot) => {
-        // Keep audible across Bluetooth remounts — opener mute after a route change is silent.
-        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current, true);
+        rebuildAudioAfterRouteChange(snapshot.time, snapshot.playing || wantPlayingRef.current);
       },
       () => userVolRef.current,
     );
@@ -406,6 +418,8 @@ export default function AlbumPage() {
     wantPlayingRef.current = true;
     void playSong(audio, url, pending.time, true, userVolRef.current, pending.keepAudible)
       .then(() => {
+        // Route-change remounts play natively until the next tap; keep element unmuted at user volume.
+        restoreMobileOutput(audio, userVolRef.current);
         setPlaying(true);
         acquireWake();
       })

@@ -2,6 +2,8 @@
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
  * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
+ * Bluetooth must also retire the shared AudioContext: a still-"running" context often cannot reach the new device.
+ * After retiring, remount and play natively (keepAudible, no new context) until the next tap opens a fresh graph.
  * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
  * When iOS keeps the element playing but WebAudio is muted/interrupted, heal with ensureMobileOutputAudible — do not remount on visibility.
@@ -310,6 +312,16 @@ export function releaseOutput(audio: HTMLAudioElement | null) {
   const state = graph.ctx.state as string;
   if (state === "running" || state === "suspended") return;
   if (sharedCtx === graph.ctx) retireContext();
+}
+
+/**
+ * Bluetooth (and similar) output-route changes: remount on a fresh element and drop the
+ * shared AudioContext. A context that still reports "running" often cannot reach the new
+ * device; reattaching to it leaves the song playing silently. Play natively until the next tap.
+ */
+export function releaseOutputForRouteChange(audio: HTMLAudioElement | null) {
+  releaseOutput(audio);
+  retireContext();
 }
 
 export function watchPlaybackRoute(

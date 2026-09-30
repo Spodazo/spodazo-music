@@ -24,7 +24,7 @@ import {
   updateTrack,
   verifyCuratorPassword,
 } from "../lib/api";
-import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, restoreMobileOutput, sameSong, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
+import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, releaseOutputForRouteChange, restoreMobileOutput, sameSong, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
 import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
 import { applySiteIcons } from "../lib/siteIcons";
@@ -67,11 +67,22 @@ function useAdminPlayer() {
     setAudioGen((value) => value + 1);
   }
 
+  function rebuildAudioAfterRouteChange(time: number, playingNext: boolean) {
+    const audio = audioRef.current;
+    if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0.15) {
+      resumeTimeRef.current = audio.currentTime;
+    }
+    rerouteRef.current = { time, playing: playingNext, keepAudible: true };
+    releaseOutputForRouteChange(audio);
+    audio?.pause();
+    setAudioGen((value) => value + 1);
+  }
+
   useEffect(() => {
     return watchPlaybackRoute(
       () => audioRef.current,
       (snapshot) => {
-        rebuildAudio(snapshot.time, snapshot.playing || wantPlayingRef.current, true);
+        rebuildAudioAfterRouteChange(snapshot.time, snapshot.playing || wantPlayingRef.current);
       },
       () => 1,
     );
@@ -89,7 +100,10 @@ function useAdminPlayer() {
     }
     wantPlayingRef.current = true;
     void playSong(audio, url, pending.time, true, 1, pending.keepAudible)
-      .then(() => setPlaying(true))
+      .then(() => {
+        restoreMobileOutput(audio, 1);
+        setPlaying(true);
+      })
       .catch(() => {
         wantPlayingRef.current = false;
         setPlaying(false);
