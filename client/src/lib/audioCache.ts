@@ -7,7 +7,7 @@
  * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
  * When iOS keeps the element playing but WebAudio is muted/interrupted, heal with ensureMobileOutputAudible — do not remount on visibility.
- * Leaving an album must release the MediaElementSource so the next album does not inherit a silent graph.
+ * Leaving an album must retire the shared AudioContext so the next album's first tap opens a fresh audible graph.
  * Keep the AudioContext the first tap resumed. A context created when the song ends stays silent until the next tap.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
  */
@@ -156,6 +156,10 @@ export function shouldRebuildOutput(audio: HTMLAudioElement | null, nextUrl = ""
   if (!audio || !isMobilePlayback()) return false;
   if (outputGraphIsStale(audio)) return true;
   if (!nextUrl || !graphs.has(audio)) return false;
+  // warm() may attach a graph before src is set — that is not a song change. Remounting
+  // here would play() after the tap gesture and leave the first song silent.
+  const current = (audio.currentSrc || audio.src || "").split("#")[0];
+  if (!current) return false;
   return !sameSong(audio, nextUrl);
 }
 
@@ -318,10 +322,12 @@ export function releaseOutput(audio: HTMLAudioElement | null) {
  * Bluetooth (and similar) output-route changes: remount on a fresh element and drop the
  * shared AudioContext. A context that still reports "running" often cannot reach the new
  * device; reattaching to it leaves the song playing silently. Play natively until the next tap.
+ * Also used when leaving an album so the next album's first tap opens a fresh audible context.
  */
 export function releaseOutputForRouteChange(audio: HTMLAudioElement | null) {
   releaseOutput(audio);
   retireContext();
+  gateOpen = true;
 }
 
 export function watchPlaybackRoute(

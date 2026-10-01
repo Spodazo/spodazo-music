@@ -312,7 +312,8 @@ export default function AlbumPage() {
     leaveForHomeRef.current = true;
     wantPlayingRef.current = false;
     const audio = audioRef.current;
-    releaseOutput(audio);
+    // Retire the shared context — reusing it on the next album's first tap stays silent.
+    releaseOutputForRouteChange(audio);
     audio?.pause();
   }
 
@@ -389,14 +390,14 @@ export default function AlbumPage() {
     };
   }, []);
 
-  // Leaving an album (or switching slugs) must drop the old MediaElementSource so the next
-  // album does not inherit a silent graph on a destroyed element.
+  // Leaving an album (or switching slugs) must drop the old MediaElementSource and retire the
+  // shared AudioContext so the next album's first tap opens a fresh audible graph.
   useEffect(() => {
     return () => {
       const audio = audioRef.current;
       wantPlayingRef.current = false;
       currentUrlRef.current = "";
-      releaseOutput(audio);
+      releaseOutputForRouteChange(audio);
       if (audio) {
         audio.pause();
         audio.removeAttribute("src");

@@ -441,6 +441,20 @@ test("a mobile song change rebuilds the output graph", () => {
   }
 });
 
+test("warm attach before src is set does not force a remount rebuild", () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const restoreCtx = stubAudioContext();
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  try {
+    attachOutput(audio);
+    // No src yet — pointerdown warm() must not trigger async remount outside the tap.
+    assert.equal(shouldRebuildOutput(audio, "/media/songs/a.mp3"), false);
+  } finally {
+    restoreCtx();
+    restoreUa();
+  }
+});
+
 test("desktop song change does not rebuild the output graph", () => {
   const audio = fakeAudio() as unknown as HTMLAudioElement;
   audio.src = "/media/songs/a.mp3";
@@ -926,12 +940,77 @@ test("Album heals playing-but-silent and tears down when leaving an album", () =
   const src = readFileSync(new URL("../pages/Album.tsx", import.meta.url), "utf8");
   assert.match(src, /restoreMobileOutput\(audio, userVolRef\.current\);\s*\n\s*if \(audio\.paused\)/s);
   assert.match(src, /rebuildAudioAfterRouteChange\(snapshot\.time, snapshot\.playing \|\| wantPlayingRef\.current\)/);
-  assert.match(src, /releaseOutputForRouteChange/);
-  assert.match(src, /releaseOutput\(audio\);\s*\n\s*if \(audio\) \{\s*\n\s*audio\.pause\(\);/s);
+  assert.match(src, /releaseOutputForRouteChange\(audio\)/);
+  assert.match(src, /leaveAlbumForHome/);
+  assert.match(src, /Retire the shared context/);
   assert.match(src, /playSong\(audio, url, resume, true, userVolRef\.current, true\)/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
-  assert.match(src, /leaveAlbumForHome/);
   assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
+});
+
+test("leaving an album retires the shared context so the next album can unlock audibly", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const created: Array<{ closed: boolean }> = [];
+  let resumeCalls = 0;
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    currentTime = 0;
+    destination = {};
+    onstatechange: (() => void) | null = null;
+    closed = false;
+    constructor() {
+      created.push(this);
+    }
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      return {
+        gain: {
+          value: 0,
+          cancelScheduledValues() {},
+          setValueAtTime() {},
+          linearRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      resumeCalls += 1;
+      this.state = "running";
+      return Promise.resolve();
+    }
+    close() {
+      this.closed = true;
+      this.state = "closed";
+      return Promise.resolve();
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const firstAlbum = fakeAudio() as unknown as HTMLAudioElement;
+  firstAlbum.paused = false;
+  const nextAlbum = fakeAudio() as unknown as HTMLAudioElement;
+  nextAlbum.paused = true;
+  try {
+    attachOutput(firstAlbum, 0.85);
+    assert.equal(created.length, 1);
+    releaseOutputForRouteChange(firstAlbum);
+    assert.equal(created[0].closed, true);
+
+    // Next album's first tap must open a fresh context (not reuse the retired one).
+    unlockAudio(nextAlbum);
+    assert.equal(created.length, 2);
+    assert.equal(created[1].closed, false);
+    assert.ok(resumeCalls >= 1 || created[1].state === "running");
+  } finally {
+    restoreUa();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
 });
 
 test("a keepAudible remount at song start stays unmuted", async () => {
