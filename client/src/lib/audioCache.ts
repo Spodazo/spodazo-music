@@ -2,8 +2,8 @@
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
  * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
- * Bluetooth must also retire the shared AudioContext: a still-"running" context often cannot reach the new device.
- * After retiring, remount and play natively (keepAudible, no new context) until the next tap opens a fresh graph.
+ * Bluetooth must retire the shared AudioContext, wait for the route to settle, remount, and play natively.
+ * Keep native-only until the next user tap so nothing reattaches a silent WebAudio graph on the new device.
  * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
  * When iOS keeps the element playing but WebAudio is muted/interrupted, heal with ensureMobileOutputAudible — do not remount on visibility.
@@ -20,9 +20,18 @@ export const HEADER_HOLD = 0.05;
 /** Mobile opener only. Keep the sum with MOBILE_HEADER_FADE_MS at or under 80ms. */
 export const MOBILE_HEADER_HOLD_MS = 30;
 export const MOBILE_HEADER_FADE_MS = 20;
+/** Wait for Bluetooth/device routes to finish flipping before remounting playback. */
+export const ROUTE_CHANGE_DEBOUNCE_MS = 450;
+/** Re-assert native play/unmute while a new Bluetooth route finishes coming up. */
+export const ROUTE_SETTLE_MS = 2000;
+export const ROUTE_SETTLE_TICK_MS = 250;
 
 let playGen = 0;
 let gateOpen = true;
+/** After a Bluetooth remount, refuse WebAudio until the next user tap unlocks a fresh graph. */
+let nativeOutputOnly = false;
+let routeChangePending = false;
+let routeSettleGen = 0;
 
 type OutputGraph = {
   ctx: AudioContext;
@@ -112,6 +121,9 @@ function flushPlaybackReroute() {
   }
   sessionInterrupted = false;
   resumeAfterInterrupt = false;
+  routeChangePending = false;
+  // Remount must stay on the native element path until the next tap.
+  nativeOutputOnly = true;
   for (const item of snapshots) item.onReroute(item.snapshot);
 }
 
@@ -120,7 +132,21 @@ function requestPlaybackReroute() {
   window.clearTimeout(routeTimer);
   routeTimer = window.setTimeout(() => {
     flushPlaybackReroute();
-  }, 50);
+  }, ROUTE_CHANGE_DEBOUNCE_MS);
+}
+
+/** True after a Bluetooth remount until the next unlock tap builds a fresh graph. */
+export function isNativeOutputOnly(): boolean {
+  return nativeOutputOnly;
+}
+
+/** Test helper — clear route-change locks between cases. */
+export function resetOutputRouteStateForTests() {
+  nativeOutputOnly = false;
+  routeChangePending = false;
+  routeSettleGen += 1;
+  window.clearTimeout(routeTimer);
+  routeTimer = 0;
 }
 
 export function playbackSnapshot(audio: HTMLAudioElement | null): PlaybackSnapshot | null {
@@ -328,6 +354,7 @@ export function releaseOutputForRouteChange(audio: HTMLAudioElement | null) {
   releaseOutput(audio);
   retireContext();
   gateOpen = true;
+  nativeOutputOnly = true;
 }
 
 export function watchPlaybackRoute(
@@ -343,6 +370,12 @@ export function watchPlaybackRoute(
     notePlayingBeforeInterrupt();
   };
   const onInterruptEnd = () => {
+    // Bluetooth device flips also fire session interruptions. Let the debounced remount
+    // own recovery — resurrecting the old WebAudio graph here stays silent on the new device.
+    if (routeChangePending || nativeOutputOnly) {
+      sessionInterrupted = false;
+      return;
+    }
     for (const item of routeWatchers) {
       const audio = item.getAudio();
       if (!audio || !resumeAfterInterrupt) continue;
@@ -354,6 +387,9 @@ export function watchPlaybackRoute(
     resumeAfterInterrupt = false;
   };
   const onDeviceChange = () => {
+    routeChangePending = true;
+    nativeOutputOnly = true;
+    notePlayingBeforeInterrupt();
     requestPlaybackReroute();
   };
 
@@ -384,6 +420,16 @@ export function startBackgroundPlaybackGuard(
     const audio = getAudio();
     if (!audio) return;
     const volume = getVolume();
+    if (nativeOutputOnly) {
+      // Stay on the element path after Bluetooth — do not revive WebAudio here.
+      setPlaybackSession();
+      audio.muted = false;
+      gateOpen = true;
+      if (!graphs.has(audio)) audio.volume = Math.max(0, Math.min(1, volume));
+      else setOutput(audio, volume);
+      if (audio.paused && !audio.ended) void audio.play().catch(() => undefined);
+      return;
+    }
     if (audio.paused) {
       if (audio.ended) return;
       void resumePlaybackAfterInterrupt(audio, volume);
@@ -403,9 +449,50 @@ export function startBackgroundPlaybackGuard(
   };
 }
 
+/**
+ * After a Bluetooth remount, keep re-asserting unmuted native playback while the new
+ * output route finishes coming online. Does not create an AudioContext.
+ */
+export function settleRoutePlayback(
+  getAudio: () => HTMLAudioElement | null,
+  shouldKeepPlaying: () => boolean,
+  getVolume: () => number = () => 1,
+): () => void {
+  if (!isMobilePlayback()) return () => {};
+  const gen = ++routeSettleGen;
+  const started = performance.now();
+  const tick = () => {
+    if (gen !== routeSettleGen) return;
+    if (!shouldKeepPlaying()) return;
+    const audio = getAudio();
+    if (!audio) return;
+    setPlaybackSession();
+    audio.muted = false;
+    gateOpen = true;
+    const volume = Math.max(0, Math.min(1, getVolume()));
+    if (!graphs.has(audio)) audio.volume = volume;
+    else setOutput(audio, volume);
+    if (audio.paused && !audio.ended) void audio.play().catch(() => undefined);
+  };
+  tick();
+  const id = window.setInterval(() => {
+    if (gen !== routeSettleGen || performance.now() - started >= ROUTE_SETTLE_MS) {
+      window.clearInterval(id);
+      return;
+    }
+    tick();
+  }, ROUTE_SETTLE_TICK_MS);
+  return () => {
+    if (gen === routeSettleGen) routeSettleGen += 1;
+    window.clearInterval(id);
+  };
+}
+
 export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGraph | null {
   const existing = graphs.get(audio);
   if (existing) return existing;
+  // After Bluetooth remount, stay native until a user tap clears nativeOutputOnly via unlockAudio.
+  if (nativeOutputOnly) return null;
   const ctx = adoptContext();
   if (!ctx) return null;
   try {
@@ -541,7 +628,10 @@ export function playSong(
     setPlaybackSession();
     // Keep an existing MediaElementSource. Releasing it on this element cannot reattach.
     // Only join a context the first tap already started — creating one here stays silent until a later tap.
-    if (!graphs.has(audio) && sharedPlaybackContext()) attachOutput(audio, targetVolume);
+    // After Bluetooth, nativeOutputOnly blocks attach until unlockAudio on the next tap.
+    if (!nativeOutputOnly && !graphs.has(audio) && sharedPlaybackContext()) {
+      attachOutput(audio, targetVolume);
+    }
   } else {
     unlockAudio(audio);
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
@@ -600,8 +690,11 @@ export function setPlaybackSession() {
 export function unlockAudio(audio?: HTMLAudioElement | null) {
   setPlaybackSession();
   if (!audio || !isMobilePlayback()) return;
-  // A song already playing natively must not be pulled into a new gain node at 0.
-  if (!graphs.has(audio) && !audio.paused) return;
+  // User tap after Bluetooth: allow a fresh WebAudio graph on the new route even if still playing natively.
+  const allowAttachWhilePlaying = nativeOutputOnly;
+  nativeOutputOnly = false;
+  // A song already playing natively must not be pulled into a new gain node at 0 — unless this tap ends native-only mode.
+  if (!graphs.has(audio) && !audio.paused && !allowAttachWhilePlaying) return;
   const graph = attachOutput(audio);
   if (!graph) return;
   const state = graph.ctx.state as string;

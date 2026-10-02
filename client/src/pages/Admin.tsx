@@ -24,7 +24,7 @@ import {
   updateTrack,
   verifyCuratorPassword,
 } from "../lib/api";
-import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, releaseOutputForRouteChange, restoreMobileOutput, sameSong, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
+import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, releaseOutputForRouteChange, restoreMobileOutput, sameSong, settleRoutePlayback, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
 import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
 import { applySiteIcons } from "../lib/siteIcons";
@@ -49,6 +49,7 @@ function useAdminPlayer() {
   const resumeTimeRef = useRef(0);
   const wantPlayingRef = useRef(false);
   const rerouteRef = useRef<{ time: number; playing: boolean; keepAudible?: boolean } | null>(null);
+  const stopRouteSettleRef = useRef<(() => void) | null>(null);
   const [audioGen, setAudioGen] = useState(0);
   const [queue, setQueue] = useState<AdminQueue | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -79,6 +80,13 @@ function useAdminPlayer() {
   }
 
   useEffect(() => {
+    return () => {
+      stopRouteSettleRef.current?.();
+      stopRouteSettleRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     return watchPlaybackRoute(
       () => audioRef.current,
       (snapshot) => {
@@ -103,6 +111,14 @@ function useAdminPlayer() {
       .then(() => {
         restoreMobileOutput(audio, 1);
         setPlaying(true);
+        if (pending.keepAudible) {
+          stopRouteSettleRef.current?.();
+          stopRouteSettleRef.current = settleRoutePlayback(
+            () => audioRef.current,
+            () => wantPlayingRef.current,
+            () => 1,
+          );
+        }
       })
       .catch(() => {
         wantPlayingRef.current = false;
