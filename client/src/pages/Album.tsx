@@ -20,6 +20,7 @@ import {
   unlockAudio,
   watchPlaybackRoute,
   startBackgroundPlaybackGuard,
+  settleRoutePlayback,
 } from "../lib/audioCache";
 import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum } from "../lib/albumCache";
 import { persistedSessionRestoreAllowed, readLastPlace, writeLastPlace } from "../lib/lastPlace";
@@ -175,6 +176,7 @@ export default function AlbumPage() {
   const restoredRef = useRef("");
   const leaveForHomeRef = useRef(false);
   const rerouteRef = useRef<{ time: number; playing: boolean; keepAudible?: boolean } | null>(null);
+  const stopRouteSettleRef = useRef<(() => void) | null>(null);
   const [audioGen, setAudioGen] = useState(0);
   const lyricsRef = useRef<HTMLDivElement | null>(null);
   const lyricsSheetRef = useRef<HTMLDivElement | null>(null);
@@ -387,6 +389,8 @@ export default function AlbumPage() {
       window.removeEventListener("freeze", onHide);
       stopRoute();
       stopGuard();
+      stopRouteSettleRef.current?.();
+      stopRouteSettleRef.current = null;
     };
   }, []);
 
@@ -423,6 +427,14 @@ export default function AlbumPage() {
         restoreMobileOutput(audio, userVolRef.current);
         setPlaying(true);
         acquireWake();
+        if (pending.keepAudible) {
+          stopRouteSettleRef.current?.();
+          stopRouteSettleRef.current = settleRoutePlayback(
+            () => audioRef.current,
+            () => wantPlayingRef.current,
+            () => userVolRef.current,
+          );
+        }
       })
       .catch(() => {
         wantPlayingRef.current = false;
