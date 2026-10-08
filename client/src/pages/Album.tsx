@@ -1112,6 +1112,14 @@ export default function AlbumPage() {
                 setRepeatAll(false);
                 playAt(index, true);
               }}
+              onPlayAgain={() => {
+                if (active === index && currentUrlRef.current) {
+                  restartSong();
+                  if (audioRef.current?.paused) togglePlay();
+                  return;
+                }
+                playAt(index, true);
+              }}
             />
           ))}
         </div>
@@ -1323,6 +1331,7 @@ function TrackRow({
   onOpen,
   onPlayPause,
   onToggleRepeat,
+  onPlayAgain,
 }: {
   track: PublicTrack;
   albumSlug: string;
@@ -1337,6 +1346,7 @@ function TrackRow({
   onOpen: () => void;
   onPlayPause: () => void;
   onToggleRepeat: () => void;
+  onPlayAgain: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const thumbSrc = track.imageUrl ? withImageWidth(track.imageUrl, LIST_THUMB_WIDTH) : "";
@@ -1415,28 +1425,42 @@ function TrackRow({
         {isPlaying ? <div className="t-now">Playing</div> : null}
         {track.scripture ? <div className="t-subtitle">{track.scripture}</div> : null}
       </div>
-      <button
-        type="button"
-        className={`t-repeat${repeatOneOn ? " on" : ""}`}
-        title={repeatOneOn ? "Repeat song on — click to turn off" : "Repeat song"}
-        aria-pressed={repeatOneOn}
-        aria-label={repeatOneOn ? `Turn off repeat for ${track.title}` : `Repeat ${track.title}`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onToggleRepeat();
-        }}
-      >
-        <IconRepeatOne />
-      </button>
-      <button
-        type="button"
-        className={`t-copy${copied ? " on" : ""}`}
-        data-tip={copied ? "Copied" : "Copy link to send this song to your friends.."}
-        aria-label={copied ? `Copied link to ${track.title}` : "Copy link to send this song to your friends.."}
-        onClick={copyLink}
-      >
-        {copied ? "Copied" : <IconLink />}
-      </button>
+      <div className="t-actions">
+        <button
+          type="button"
+          className={`t-repeat${repeatOneOn ? " on" : ""}`}
+          title={repeatOneOn ? "Repeat song on — click to turn off" : "Repeat song"}
+          aria-pressed={repeatOneOn}
+          aria-label={repeatOneOn ? `Turn off repeat for ${track.title}` : `Repeat ${track.title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleRepeat();
+          }}
+        >
+          <IconRepeatOne />
+        </button>
+        <button
+          type="button"
+          className="t-again"
+          title="Play again"
+          aria-label={`Play ${track.title} again from the beginning`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onPlayAgain();
+          }}
+        >
+          <IconRestart />
+        </button>
+        <button
+          type="button"
+          className={`t-copy${copied ? " on" : ""}`}
+          data-tip={copied ? "Copied" : "Copy link to send this song to your friends.."}
+          aria-label={copied ? `Copied link to ${track.title}` : "Copy link to send this song to your friends.."}
+          onClick={copyLink}
+        >
+          {copied ? "Copied" : <IconLink />}
+        </button>
+      </div>
       <span className="t-dur">{durationLabel || "—"}</span>
       <button
         type="button"

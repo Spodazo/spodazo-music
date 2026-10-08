@@ -811,8 +811,15 @@ button.m-cover.enlarged {
   font-variant-numeric: tabular-nums;
   opacity: 0.9;
 }
+.t-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+}
 .t-copy,
-.t-repeat {
+.t-repeat,
+.t-again {
   position: relative;
   flex-shrink: 0;
   display: inline-flex;
@@ -833,7 +840,8 @@ button.m-cover.enlarged {
   transition: color 0.2s, opacity 0.2s, background 0.2s;
 }
 .t-copy svg,
-.t-repeat svg { width: 20px; height: 20px; fill: currentColor; }
+.t-repeat svg,
+.t-again svg { width: 20px; height: 20px; fill: currentColor; }
 .t-copy::after {
   content: attr(data-tip);
   position: absolute;
@@ -862,10 +870,12 @@ button.m-cover.enlarged {
 }
 .track-row:hover .t-copy,
 .track-row:hover .t-repeat,
+.track-row:hover .t-again,
 .t-copy:hover,
 .t-copy.on,
 .t-repeat:hover,
-.t-repeat.on {
+.t-repeat.on,
+.t-again:hover {
   color: var(--amber);
   opacity: 1;
 }
@@ -2168,7 +2178,19 @@ button.t-play-icon {
   .album-head .alb-credit { font-size: 0.58rem; }
   .album-hero { padding: 10px 22px 10px 12px; flex-wrap: wrap; row-gap: 10px; }
   .album-stats { flex: 1 0 100%; }
-  .track-row { padding: 9px 12px; gap: 10px; }
+  .track-row { padding: 9px 12px; gap: 8px; }
+  .t-actions { gap: 0; margin-right: -2px; }
+  .t-actions .t-copy,
+  .t-actions .t-repeat,
+  .t-actions .t-again {
+    min-width: 28px;
+    height: 30px;
+    padding: 0 2px;
+  }
+  .t-actions .t-copy svg,
+  .t-actions .t-repeat svg,
+  .t-actions .t-again svg { width: 18px; height: 18px; }
+  .t-dur { font-size: 0.65rem; }
   .t-thumb { width: 36px; height: 36px; }
   .t-title { font-size: 0.78rem; white-space: normal; }
   .t-subtitle { font-size: 0.58rem; }
