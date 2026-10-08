@@ -6,6 +6,7 @@ import {
   assignSrc,
   dropLegacyAudioCaches,
   markOutputNeedsRebuild,
+  isNativeOutputOnly,
   outputGraphIsStale,
   shouldRebuildOutput,
   pipelineIsDead,
@@ -400,6 +401,18 @@ export default function AlbumPage() {
   // Leaving an album (or switching slugs) must drop the old MediaElementSource and retire the
   // shared AudioContext so the next album's first tap opens a fresh audible graph.
   useEffect(() => {
+    setPlaying(false);
+    setActive(null);
+    setModalOpen(false);
+    setEnlargedCover(null);
+    setLyricsOpen(false);
+    setCurrentTime(0);
+    setDuration(0);
+    wantPlayingRef.current = false;
+    currentUrlRef.current = "";
+    pendingLyricsIntroRef.current = false;
+    restoredRef.current = "";
+
     return () => {
       const audio = audioRef.current;
       wantPlayingRef.current = false;
@@ -558,6 +571,8 @@ export default function AlbumPage() {
     playAt(index, false);
     resumeTimeRef.current = resume;
     if (!place.playing) return;
+    // After another album (or route teardown), auto-play without a tap stays silent on mobile.
+    if (isNativeOutputOnly()) return;
     const audio = audioRef.current;
     const url = album.tracks[index]?.audioUrl;
     if (!audio || !url) return;
@@ -573,7 +588,7 @@ export default function AlbumPage() {
       });
   }, [album, slug]);
 
-  function tryLyricsIntro(index: number): boolean {
+  function tryLyricsIntro(index: number, autoplay: boolean): boolean {
     const next = albumRef.current?.tracks[index];
     if (!next || !trackHasLyrics(next) || lyricsIntroDoneRef.current.has(next.id)) return false;
 
@@ -584,18 +599,29 @@ export default function AlbumPage() {
       setSheetOffset(0);
       resetLyricFollow();
       setLyricsOpen(true);
+      if (autoplay) {
+        const audio = audioRef.current;
+        if (audio?.paused) {
+          void startPlay()
+            .then(() => {
+              setPlaying(true);
+              void acquireWake();
+            })
+            .catch(() => setPlaying(false));
+        }
+      }
       window.setTimeout(() => {
         history.replaceState(null, "", `#${next.slug}`);
       }, 250);
       return true;
     }
     pendingLyricsIntroRef.current = true;
-    playAt(index, false);
+    playAt(index, autoplay);
     return true;
   }
 
   function openAt(index: number, autoplay: boolean) {
-    if (tryLyricsIntro(index)) return;
+    if (tryLyricsIntro(index, autoplay)) return;
     const sameSong = active === index && Boolean(currentUrlRef.current);
     if (!sameSong) playAt(index, autoplay);
     else showPlayingCover();
@@ -914,7 +940,7 @@ export default function AlbumPage() {
 
   const player = (
     <audio
-      key={audioGen}
+      key={`${slug}-${audioGen}`}
       ref={audioRef}
       preload="none"
       playsInline
@@ -1139,7 +1165,7 @@ export default function AlbumPage() {
                   togglePlay();
                   return;
                 }
-                if (tryLyricsIntro(index)) return;
+                if (tryLyricsIntro(index, true)) return;
                 playAt(index, true);
               }}
               onToggleRepeat={() => {
