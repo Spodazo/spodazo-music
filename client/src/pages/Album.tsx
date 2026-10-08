@@ -1088,6 +1088,7 @@ export default function AlbumPage() {
               durationLabel={durations[item.id] || item.durationLabel}
               active={active === index}
               isPlaying={active === index && playing}
+              repeatOneOn={active === index && repeatOne}
               enlarged={enlargedCover === `list:${item.id}`}
               onZoom={
                 item.imageUrl
@@ -1101,6 +1102,15 @@ export default function AlbumPage() {
                   showPlayingCover();
                   togglePlay();
                 } else playAt(index, true);
+              }}
+              onToggleRepeat={() => {
+                if (active === index) {
+                  toggleRepeatOne();
+                  return;
+                }
+                setRepeatOne(true);
+                setRepeatAll(false);
+                playAt(index, true);
               }}
             />
           ))}
@@ -1306,11 +1316,13 @@ function TrackRow({
   durationLabel,
   active,
   isPlaying,
+  repeatOneOn,
   enlarged,
   onZoom,
   onWarm,
   onOpen,
   onPlayPause,
+  onToggleRepeat,
 }: {
   track: PublicTrack;
   albumSlug: string;
@@ -1318,11 +1330,13 @@ function TrackRow({
   durationLabel?: string;
   active: boolean;
   isPlaying: boolean;
+  repeatOneOn: boolean;
   enlarged?: boolean;
   onZoom?: () => void;
   onWarm: () => void;
   onOpen: () => void;
   onPlayPause: () => void;
+  onToggleRepeat: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const thumbSrc = track.imageUrl ? withImageWidth(track.imageUrl, LIST_THUMB_WIDTH) : "";
@@ -1401,6 +1415,19 @@ function TrackRow({
         {isPlaying ? <div className="t-now">Playing</div> : null}
         {track.scripture ? <div className="t-subtitle">{track.scripture}</div> : null}
       </div>
+      <button
+        type="button"
+        className={`t-repeat${repeatOneOn ? " on" : ""}`}
+        title={repeatOneOn ? "Repeat song on — click to turn off" : "Repeat song"}
+        aria-pressed={repeatOneOn}
+        aria-label={repeatOneOn ? `Turn off repeat for ${track.title}` : `Repeat ${track.title}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          onToggleRepeat();
+        }}
+      >
+        <IconRepeatOne />
+      </button>
       <button
         type="button"
         className={`t-copy${copied ? " on" : ""}`}

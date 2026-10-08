@@ -6,3 +6,4 @@ dist
 .music-data
 .railway
 *.tar.gz
+exports/

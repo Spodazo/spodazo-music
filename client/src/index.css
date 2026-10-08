@@ -811,7 +811,8 @@ button.m-cover.enlarged {
   font-variant-numeric: tabular-nums;
   opacity: 0.9;
 }
-.t-copy {
+.t-copy,
+.t-repeat {
   position: relative;
   flex-shrink: 0;
   display: inline-flex;
@@ -831,13 +832,14 @@ button.m-cover.enlarged {
   opacity: 1;
   transition: color 0.2s, opacity 0.2s, background 0.2s;
 }
-.t-copy svg { width: 20px; height: 20px; fill: currentColor; }
+.t-copy svg,
+.t-repeat svg { width: 20px; height: 20px; fill: currentColor; }
 .t-copy::after {
   content: attr(data-tip);
   position: absolute;
   right: 0;
-  bottom: calc(100% + 6px);
-  z-index: 9;
+  top: calc(100% + 6px);
+  z-index: 20;
   width: max-content;
   max-width: 200px;
   padding: 6px 8px;
@@ -859,12 +861,16 @@ button.m-cover.enlarged {
   opacity: 1;
 }
 .track-row:hover .t-copy,
+.track-row:hover .t-repeat,
 .t-copy:hover,
-.t-copy.on {
+.t-copy.on,
+.t-repeat:hover,
+.t-repeat.on {
   color: var(--amber);
   opacity: 1;
 }
-.t-copy.on { background: color-mix(in srgb, var(--amber) 12%, transparent); }
+.t-copy.on,
+.t-repeat.on { background: color-mix(in srgb, var(--amber) 12%, transparent); }
 button.t-play-icon {
   width: 34px;
   height: 34px;
