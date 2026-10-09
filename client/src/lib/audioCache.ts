@@ -2,7 +2,9 @@
  * Safari/PWA playback helpers.
  * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
  * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
- * Bluetooth must retire the shared AudioContext, wait for the route to settle, remount, and play natively.
+ * Bluetooth with a live WebAudio graph must retire the shared AudioContext, remount, and play natively.
+ * Car stereos often flap A2DP/HFP (repeated devicechange). Remount only while a graph is attached;
+ * once native, settle/heal the same element — tearing it down again reloads the MP3 and stutters.
  * Keep native-only until the next user tap so nothing reattaches a silent WebAudio graph on the new device.
  * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
@@ -32,6 +34,7 @@ let gateOpen = true;
 let nativeOutputOnly = false;
 let routeChangePending = false;
 let routeSettleGen = 0;
+let softSettleStop: (() => void) | null = null;
 
 type OutputGraph = {
   ctx: AudioContext;
@@ -51,14 +54,14 @@ export type PlaybackSnapshot = {
 
 export type PlaybackRerouteReason = "visibility" | "interruptionend" | "devicechange";
 
-/** Another app opening or closing is not a dead speaker. A call pauses us. Bluetooth needs a new route. */
+/** Another app opening or closing is not a dead speaker. A call pauses us. Bluetooth needs a new route only while WebAudio is attached. */
 export function shouldReroutePlayback(
   audio: HTMLAudioElement | null,
   reason: PlaybackRerouteReason,
 ): boolean {
   if (!audio) return false;
   if (reason === "visibility") return false;
-  if (reason === "devicechange") return true;
+  if (reason === "devicechange") return graphs.has(audio);
   if (reason === "interruptionend") {
     // Books (and other PWAs) flash the system session; that is not a phone call or dead pipeline.
     return false;
@@ -105,8 +108,54 @@ function notePlayingBeforeInterrupt() {
   }
 }
 
+function anyWatcherNeedsRouteRemount(): boolean {
+  for (const watch of routeWatchers) {
+    const audio = watch.getAudio();
+    if (audio && graphs.has(audio)) return true;
+  }
+  return false;
+}
+
+function stopSoftRouteSettle() {
+  softSettleStop?.();
+  softSettleStop = null;
+}
+
+/** Heal native playback without remounting — used when the car stereo flaps after we are already native. */
+function softSettleNativeRoutes() {
+  routeChangePending = false;
+  nativeOutputOnly = true;
+  const keepPlaying = resumeAfterInterrupt;
+  sessionInterrupted = false;
+  resumeAfterInterrupt = false;
+  stopSoftRouteSettle();
+  const stops: Array<() => void> = [];
+  for (const watch of routeWatchers) {
+    stops.push(
+      settleRoutePlayback(
+        watch.getAudio,
+        () => {
+          const audio = watch.getAudio();
+          if (!audio || audio.ended) return false;
+          return !audio.paused || keepPlaying;
+        },
+        watch.getVolume,
+      ),
+    );
+  }
+  softSettleStop = () => {
+    for (const stop of stops) stop();
+  };
+}
+
 function flushPlaybackReroute() {
   if (!isMobilePlayback()) return;
+  // A later flap may have already dropped the graph; do not tear down a healthy native element.
+  if (!anyWatcherNeedsRouteRemount()) {
+    softSettleNativeRoutes();
+    return;
+  }
+  stopSoftRouteSettle();
   const snapshots: Array<{ onReroute: (snapshot: PlaybackSnapshot) => void; snapshot: PlaybackSnapshot }> = [];
   for (const watch of routeWatchers) {
     const snapshot = playbackSnapshot(watch.getAudio());
@@ -147,6 +196,7 @@ export function resetOutputRouteStateForTests() {
   routeSettleGen += 1;
   window.clearTimeout(routeTimer);
   routeTimer = 0;
+  stopSoftRouteSettle();
 }
 
 export function playbackSnapshot(audio: HTMLAudioElement | null): PlaybackSnapshot | null {
@@ -387,10 +437,17 @@ export function watchPlaybackRoute(
     resumeAfterInterrupt = false;
   };
   const onDeviceChange = () => {
-    routeChangePending = true;
+    if (!isMobilePlayback()) return;
     nativeOutputOnly = true;
     notePlayingBeforeInterrupt();
-    requestPlaybackReroute();
+    // WebAudio cannot follow a new Bluetooth device — remount once onto the native element.
+    // Further flaps must not remount: each rebuild reloads the stream and sounds like a bad link.
+    if (anyWatcherNeedsRouteRemount()) {
+      routeChangePending = true;
+      requestPlaybackReroute();
+      return;
+    }
+    softSettleNativeRoutes();
   };
 
   const session = audioSession();
@@ -403,7 +460,10 @@ export function watchPlaybackRoute(
     session?.removeEventListener?.("interruptionbegin", onInterruptBegin);
     session?.removeEventListener?.("interruptionend", onInterruptEnd);
     navigator.mediaDevices?.removeEventListener?.("devicechange", onDeviceChange);
-    if (routeWatchers.size === 0) window.clearTimeout(routeTimer);
+    if (routeWatchers.size === 0) {
+      window.clearTimeout(routeTimer);
+      stopSoftRouteSettle();
+    }
   };
 }
 
