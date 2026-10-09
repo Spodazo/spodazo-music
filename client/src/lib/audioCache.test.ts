@@ -284,14 +284,26 @@ test("a phone call pauses playback without rebuilding on session interruption en
 });
 
 test("another app opening or closing does not tear down a song that is still playing", () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
-  audio.paused = false;
-  assert.equal(shouldReroutePlayback(audio, "visibility"), false);
-  assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
-  audio.paused = true;
-  assert.equal(shouldReroutePlayback(audio, "visibility"), false);
-  assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
-  assert.equal(shouldReroutePlayback(audio, "devicechange"), true);
+  try {
+    audio.paused = false;
+    assert.equal(shouldReroutePlayback(audio, "visibility"), false);
+    assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
+    audio.paused = true;
+    assert.equal(shouldReroutePlayback(audio, "visibility"), false);
+    assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
+    // Native element already follows the system route — no remount without a WebAudio graph.
+    assert.equal(shouldReroutePlayback(audio, "devicechange"), false);
+    attachOutput(audio, 0.8);
+    assert.equal(shouldReroutePlayback(audio, "devicechange"), true);
+  } finally {
+    releaseOutput(audio);
+    restoreCtx();
+    restoreUa();
+    resetOutputRouteStateForTests();
+  }
 });
 
 test("closing another phone app does not pause or rebuild a playing song", async () => {
@@ -350,27 +362,81 @@ test("when another app ducks Music in the background, playback resumes without a
 
 test("switching Bluetooth devices asks the player to rebuild the live audio element", async () => {
   const stub = stubAudioSession();
-  const audio = fakeAudio();
+  const restoreCtx = stubAudioContext();
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
   audio.src = "/media/songs/a.mp3";
   audio.currentTime = 18;
   audio.paused = false;
-    let snapshot: PlaybackSnapshot | undefined;
-    const stop = watchPlaybackRoute(
-      () => audio as unknown as HTMLAudioElement,
-      (next) => {
-        snapshot = next;
-      },
-    );
-    try {
-      stub.devices.dispatch("devicechange");
-      await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-      assert.ok(snapshot);
-      assert.equal(snapshot.time, 18);
-      assert.equal(snapshot.playing, true);
-      assert.equal(isNativeOutputOnly(), true);
+  attachOutput(audio, 0.8);
+  let snapshot: PlaybackSnapshot | undefined;
+  const stop = watchPlaybackRoute(
+    () => audio,
+    (next) => {
+      snapshot = next;
+      releaseOutputForRouteChange(audio);
+    },
+  );
+  try {
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
+    assert.ok(snapshot);
+    assert.equal(snapshot.time, 18);
+    assert.equal(snapshot.playing, true);
+    assert.equal(isNativeOutputOnly(), true);
   } finally {
     stop();
     stub.restore();
+    restoreCtx();
+    resetOutputRouteStateForTests();
+  }
+});
+
+test("car Bluetooth flaps after native remount settle without rebuilding the element", async () => {
+  const stub = stubAudioSession();
+  const restoreCtx = stubAudioContext();
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.src = "/media/songs/a.mp3";
+  audio.currentTime = 22;
+  audio.paused = false;
+  audio.muted = false;
+  audio.volume = 0.8;
+  attachOutput(audio, 0.8);
+  let reroutes = 0;
+  const stop = watchPlaybackRoute(
+    () => audio,
+    () => {
+      reroutes += 1;
+      releaseOutputForRouteChange(audio);
+    },
+    () => 0.8,
+  );
+  try {
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
+    assert.equal(reroutes, 1);
+    assert.equal(isNativeOutputOnly(), true);
+
+    // Head unit keeps flipping A2DP/HFP — must not tear down and reload the song again.
+    stub.devices.dispatch("devicechange");
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
+    assert.equal(reroutes, 1);
+    assert.equal(isNativeOutputOnly(), true);
+    assert.equal(audio.muted, false);
+    assert.equal(audio.volume, 0.8);
+    assert.equal(audio.paused, false);
+
+    // Flaps often pause the element after interruptionbegin; settle should resume without remounting.
+    stub.session.dispatch("interruptionbegin");
+    audio.paused = true;
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    assert.equal(reroutes, 1);
+    assert.equal(audio.paused, false);
+  } finally {
+    stop();
+    stub.restore();
+    restoreCtx();
     resetOutputRouteStateForTests();
   }
 });
