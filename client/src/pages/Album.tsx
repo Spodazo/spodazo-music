@@ -175,8 +175,6 @@ export default function AlbumPage() {
   const wantPlayingRef = useRef(false);
   const activeRef = useRef<number | null>(null);
   /** Per session: user closed the sing-along sheet for this track id. */
-  const lyricsIntroDoneRef = useRef(new Set<string>());
-  const pendingLyricsIntroRef = useRef(false);
   const restoredRef = useRef("");
   const leaveForHomeRef = useRef(false);
   const rerouteRef = useRef<{ time: number; playing: boolean; keepAudible?: boolean } | null>(null);
@@ -410,7 +408,6 @@ export default function AlbumPage() {
     setDuration(0);
     wantPlayingRef.current = false;
     currentUrlRef.current = "";
-    pendingLyricsIntroRef.current = false;
     restoredRef.current = "";
 
     return () => {
@@ -588,40 +585,8 @@ export default function AlbumPage() {
       });
   }, [album, slug]);
 
-  function tryLyricsIntro(index: number, autoplay: boolean): boolean {
-    const next = albumRef.current?.tracks[index];
-    if (!next || !trackHasLyrics(next) || lyricsIntroDoneRef.current.has(next.id)) return false;
-
-    const sameSong = active === index && Boolean(currentUrlRef.current);
-    setModalOpen(true);
-    if (sameSong) {
-      showPlayingCover();
-      setSheetOffset(0);
-      resetLyricFollow();
-      setLyricsOpen(true);
-      if (autoplay) {
-        const audio = audioRef.current;
-        if (audio?.paused) {
-          void startPlay()
-            .then(() => {
-              setPlaying(true);
-              void acquireWake();
-            })
-            .catch(() => setPlaying(false));
-        }
-      }
-      window.setTimeout(() => {
-        history.replaceState(null, "", `#${next.slug}`);
-      }, 250);
-      return true;
-    }
-    pendingLyricsIntroRef.current = true;
-    playAt(index, autoplay);
-    return true;
-  }
-
   function openAt(index: number, autoplay: boolean) {
-    if (tryLyricsIntro(index, autoplay)) return;
+    // Keep introduction / Bible verses visible — sing-along opens from the button only.
     const sameSong = active === index && Boolean(currentUrlRef.current);
     if (!sameSong) playAt(index, autoplay);
     else showPlayingCover();
@@ -734,22 +699,11 @@ export default function AlbumPage() {
   function closeLyricsSheet() {
     setSheetOffset(0);
     setLyricsOpen(false);
-    const idx = activeRef.current;
-    const id = idx !== null ? albumRef.current?.tracks[idx]?.id : undefined;
-    if (id) lyricsIntroDoneRef.current.add(id);
   }
 
   useEffect(() => {
     setSheetOffset(0);
     resetLyricFollow();
-    if (pendingLyricsIntroRef.current) {
-      pendingLyricsIntroRef.current = false;
-      const current = track;
-      if (current && trackHasLyrics(current) && !lyricsIntroDoneRef.current.has(current.id)) {
-        setLyricsOpen(true);
-        return;
-      }
-    }
     setLyricsOpen(false);
   }, [track?.id]);
 
@@ -1165,7 +1119,6 @@ export default function AlbumPage() {
                   togglePlay();
                   return;
                 }
-                if (tryLyricsIntro(index, true)) return;
                 playAt(index, true);
               }}
               onToggleRepeat={() => {
