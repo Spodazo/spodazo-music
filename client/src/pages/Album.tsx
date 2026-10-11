@@ -538,6 +538,7 @@ export default function AlbumPage() {
   }
 
   function playAt(index: number, autoplay: boolean, keepAudible = false) {
+    showIntroduction();
     showPlayingCover();
     load(index, autoplay, keepAudible);
     setActive(index);
@@ -585,8 +586,15 @@ export default function AlbumPage() {
       });
   }, [album, slug]);
 
+  function showIntroduction() {
+    setSheetOffset(0);
+    setLyricsOpen(false);
+  }
+
   function openAt(index: number, autoplay: boolean) {
-    // Keep introduction / Bible verses visible — sing-along opens from the button only.
+    // Intro / Bible verses stay visible unless the user opens Sing Along.
+    // Opening or playing a song again always brings the intro back.
+    showIntroduction();
     const sameSong = active === index && Boolean(currentUrlRef.current);
     if (!sameSong) playAt(index, autoplay);
     else showPlayingCover();
@@ -810,6 +818,7 @@ export default function AlbumPage() {
   function restartSong() {
     const audio = audioRef.current;
     if (!audio) return;
+    showIntroduction();
     audio.currentTime = START_OFFSET;
     setCurrentTime(0);
     resetLyricFollow();
