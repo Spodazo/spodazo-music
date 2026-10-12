@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
-import { dataDir, faviconDir, imagesDir, songsDir, uniqueFileName } from "./paths";
+import { dataDir, ensureDataDirs, faviconDir, imagesDir, songsDir, uniqueFileName } from "./paths";
 
 function usableFile(full: string): string | null {
   if (!fs.existsSync(full)) return null;
@@ -21,6 +21,44 @@ export function localSongPath(filename: string): string | null {
 
 export function assetVersion(): string {
   return process.env.BUILD_ID || process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || "dev";
+}
+
+const CONTENT_REV_FILE = "content-rev";
+
+/** Stamp every catalog/media change so PWAs refresh without waiting for a deploy. */
+export function bumpContentRevision(): string {
+  ensureDataDirs();
+  const full = path.join(dataDir(), CONTENT_REV_FILE);
+  const previous = Number(contentRevision()) || 0;
+  const stamp = String(Math.max(Date.now(), previous + 1));
+  const tmp = `${full}.tmp`;
+  fs.writeFileSync(tmp, stamp);
+  fs.renameSync(tmp, full);
+  return stamp;
+}
+
+export function contentRevision(): string {
+  const full = path.join(dataDir(), CONTENT_REV_FILE);
+  try {
+    if (fs.existsSync(full)) {
+      const stamp = fs.readFileSync(full, "utf8").trim();
+      if (stamp) return stamp;
+    }
+  } catch {
+    /* missing volume */
+  }
+  return "0";
+}
+
+/** Per-file bust so a replaced MP3 cannot reuse a year-long immutable URL. */
+export function audioFileVersion(filename: string): string {
+  const full = localSongPath(filename);
+  if (!full) return assetVersion();
+  try {
+    return `${assetVersion()}-${Math.round(fs.statSync(full).mtimeMs)}`;
+  } catch {
+    return assetVersion();
+  }
 }
 
 export const LIST_THUMB_WIDTH = 360;
@@ -89,7 +127,19 @@ export async function preparedImagePath(full: string, width?: number): Promise<s
 
 export function audioUrl(filename: string): string {
   if (!filename) return "";
-  return `/media/songs/${encodeURIComponent(filename)}?v=${assetVersion()}`;
+  return `/media/songs/${encodeURIComponent(filename)}?v=${audioFileVersion(filename)}`;
+}
+
+export function removeSongFile(filename: string): boolean {
+  if (!filename) return false;
+  const full = localSongPath(filename);
+  if (!full) return false;
+  try {
+    fs.unlinkSync(full);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function trackDownloadName(track: { file?: string; title?: string }): string {

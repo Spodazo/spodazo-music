@@ -7,9 +7,20 @@ import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
 import { currentIconStamp } from "./htmlIcons";
-import { assetVersion, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, mp3DataOffset, parseImageWidth, prepareFaviconSet, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
+import { assetVersion, bumpContentRevision, contentRevision, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, mp3DataOffset, parseImageWidth, prepareFaviconSet, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "CDN-Cache-Control": "no-store",
+  "Cloudflare-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+} as const;
+
+function noteCatalogChange() {
+  bumpContentRevision();
+}
 
 const disk = multer.diskStorage({
   destination: (_req, file, cb) => {
@@ -109,16 +120,12 @@ function trackFields(body: Request["body"], albumId?: string) {
 
 export function registerRoutes(app: Express): void {
   app.get("/api/version", (_req, res) => {
-    res.set({
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-      "CDN-Cache-Control": "no-store",
-      "Cloudflare-CDN-Cache-Control": "no-store",
-      Pragma: "no-cache",
-    });
+    res.set(NO_STORE_HEADERS);
     res.json({
       app: "spodazo-music",
       ok: true,
       build: assetVersion(),
+      catalog: contentRevision(),
       musicDataDir: process.env.MUSIC_DATA_DIR || ".music-data",
       database: process.env.DATABASE_URL ? "postgres" : "json",
     });
@@ -158,7 +165,9 @@ export function registerRoutes(app: Express): void {
         return;
       }
     }
-    res.json(await store.updatePlayerSetup(fields));
+    const setup = await store.updatePlayerSetup(fields);
+    noteCatalogChange();
+    res.json(setup);
   });
 
   const faviconNoStore = {
@@ -260,6 +269,7 @@ export function registerRoutes(app: Express): void {
   app.get("/api/albums", async (req, res) => {
     const store = await getStore();
     const list = await store.listAlbums();
+    res.set(NO_STORE_HEADERS);
     res.json(req.session?.admin ? list : list.filter((album) => !album.hidden));
     void warmHomeCardImages(list);
   });
@@ -271,6 +281,7 @@ export function registerRoutes(app: Express): void {
       res.status(404).json({ error: "Album not found" });
       return;
     }
+    res.set(NO_STORE_HEADERS);
     res.json(album);
     void warmHomeCardImages(
       [{ thumb: album.thumb, heroPortrait: album.heroPortrait }],
@@ -399,6 +410,7 @@ export function registerRoutes(app: Express): void {
     if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
     if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
     const created = await store.createAlbum(fields);
+    noteCatalogChange();
     res.status(201).json(await store.getAlbumById(created.id));
   });
 
@@ -418,6 +430,7 @@ export function registerRoutes(app: Express): void {
       res.status(404).json({ error: "Album not found" });
       return;
     }
+    noteCatalogChange();
     res.json(await store.getAlbumById(updated.id));
   });
 
@@ -428,6 +441,7 @@ export function registerRoutes(app: Express): void {
       res.status(404).json({ error: "Album not found" });
       return;
     }
+    noteCatalogChange();
     res.json({ ok: true });
   });
 
@@ -451,6 +465,7 @@ export function registerRoutes(app: Express): void {
     if (files?.artwork?.[0]) fields.img = files.artwork[0].filename;
     if (!fields.n) fields.n = album.tracks.length + 1;
     const created = await store.createTrack(fields as Parameters<typeof store.createTrack>[0]);
+    noteCatalogChange();
     res.status(201).json(created);
   });
 
@@ -488,6 +503,7 @@ export function registerRoutes(app: Express): void {
         }),
       );
     }
+    noteCatalogChange();
     res.status(201).json({ tracks: created });
   });
 
@@ -496,6 +512,7 @@ export function registerRoutes(app: Express): void {
     { name: "artwork", maxCount: 1 },
   ]), async (req, res) => {
     const store = await getStore();
+    const existing = await store.getTrackById(req.params.id);
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const fields = trackFields(req.body);
     if (files?.audio?.[0]) fields.file = files.audio[0].filename;
@@ -505,16 +522,23 @@ export function registerRoutes(app: Express): void {
       res.status(404).json({ error: "Track not found" });
       return;
     }
+    if (files?.audio?.[0] && existing?.file && existing.file !== updated.file) {
+      removeSongFile(existing.file);
+    }
+    noteCatalogChange();
     res.json(updated);
   });
 
   app.delete("/api/admin/tracks/:id", requireAdmin, async (req, res) => {
     const store = await getStore();
+    const existing = await store.getTrackById(req.params.id);
     const ok = await store.deleteTrack(req.params.id);
     if (!ok) {
       res.status(404).json({ error: "Track not found" });
       return;
     }
+    if (existing?.file) removeSongFile(existing.file);
+    noteCatalogChange();
     res.json({ ok: true });
   });
 
@@ -541,13 +565,16 @@ export function registerRoutes(app: Express): void {
       res.status(404).json({ error: "Track not found" });
       return;
     }
+    noteCatalogChange();
     res.json(updated);
   });
 
   app.post("/api/admin/albums/:id/reorder", requireAdmin, async (req, res) => {
     const store = await getStore();
     const trackIds = Array.isArray(req.body?.trackIds) ? req.body.trackIds.map(String) : [];
-    res.json(await store.reorderTracks(req.params.id, trackIds));
+    const reordered = await store.reorderTracks(req.params.id, trackIds);
+    noteCatalogChange();
+    res.json(reordered);
   });
 
   app.post("/api/admin/albums/:id/visibility", requireAdmin, async (req, res) => {
@@ -558,6 +585,7 @@ export function registerRoutes(app: Express): void {
       res.status(404).json({ error: "Album not found" });
       return;
     }
+    noteCatalogChange();
     res.json(await store.getAlbumById(updated.id));
   });
 
@@ -565,6 +593,7 @@ export function registerRoutes(app: Express): void {
     const store = await getStore();
     const albumIds = Array.isArray(req.body?.albumIds) ? req.body.albumIds.map(String) : [];
     await store.reorderAlbums(albumIds);
+    noteCatalogChange();
     res.json(await store.listAlbums());
   });
 

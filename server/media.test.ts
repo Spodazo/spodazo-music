@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import sharp from "sharp";
 import test from "node:test";
-import { assetVersion, audioUrl, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
+import { assetVersion, audioFileVersion, audioUrl, bumpContentRevision, contentRevision, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -27,15 +27,59 @@ test("media urls stay on this app", () => {
     `/media/images/Echoes%20of%20the%20Storm.webp?v=${v}&w=${HOME_CARD_WIDTH}`,
   );
   assert.equal(imageUrl("Echoes of the Storm.webp", 99), `/media/images/Echoes%20of%20the%20Storm.webp?v=${v}`);
-  assert.equal(
+  assert.match(
     audioUrl("Echoes of the Storm (Job 5).mp3"),
-    `/media/songs/Echoes%20of%20the%20Storm%20(Job%205).mp3?v=${v}`,
+    new RegExp(`^/media/songs/Echoes%20of%20the%20Storm%20\\(Job%205\\)\\.mp3\\?v=${v}(-\\d+)?$`),
   );
   assert.equal(imageUrl(""), "");
   assert.equal(audioUrl(""), "");
   assert.equal(parseImageWidth("720"), 720);
   assert.equal(parseImageWidth("360"), LIST_THUMB_WIDTH);
   assert.equal(parseImageWidth("99"), undefined);
+});
+
+test("audioUrl stamps the file mtime so a replaced MP3 cannot reuse an immutable URL", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-audio-v-"));
+  const previous = process.env.MUSIC_DATA_DIR;
+  process.env.MUSIC_DATA_DIR = root;
+  try {
+    const songs = path.join(root, "songs");
+    fs.mkdirSync(songs, { recursive: true });
+    const name = "Revised.mp3";
+    const full = path.join(songs, name);
+    fs.writeFileSync(full, Buffer.concat([mpegFrame(CBR192, 627), mpegFrame(CBR192, 627)]));
+    const first = audioUrl(name);
+    assert.match(first, new RegExp(`^/media/songs/Revised\\.mp3\\?v=${assetVersion()}-\\d+$`));
+    const firstStamp = audioFileVersion(name);
+    const later = new Date(Date.now() + 2000);
+    fs.utimesSync(full, later, later);
+    assert.notEqual(audioFileVersion(name), firstStamp);
+    assert.notEqual(audioUrl(name), first);
+    assert.equal(removeSongFile(name), true);
+    assert.equal(fs.existsSync(full), false);
+  } finally {
+    if (previous === undefined) delete process.env.MUSIC_DATA_DIR;
+    else process.env.MUSIC_DATA_DIR = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("contentRevision bumps when catalog media changes", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-rev-"));
+  const previous = process.env.MUSIC_DATA_DIR;
+  process.env.MUSIC_DATA_DIR = root;
+  try {
+    assert.equal(contentRevision(), "0");
+    const first = bumpContentRevision();
+    assert.equal(contentRevision(), first);
+    const second = bumpContentRevision();
+    assert.notEqual(second, first);
+    assert.equal(contentRevision(), second);
+  } finally {
+    if (previous === undefined) delete process.env.MUSIC_DATA_DIR;
+    else process.env.MUSIC_DATA_DIR = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("trackDownloadName keeps the live MP3 filename", () => {
