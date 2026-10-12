@@ -1,3 +1,4 @@
+import { clearAlbumClientCache } from "./albumCache";
 import { clearHomeClientCache } from "./homeCache";
 
 const BUILD_PARAM = "_spodazo";
@@ -13,13 +14,28 @@ function appOrigin(): string {
   return "https://spodazomusic.com";
 }
 
+export type AppVersionInfo = {
+  build?: string;
+  catalog?: string;
+};
+
+/** Combine deploy build + catalog stamp so song/lyric edits refresh PWAs without a redeploy. */
+export function versionRevision(info: AppVersionInfo | string): string {
+  if (typeof info === "string") return info;
+  const build = String(info.build || "").trim();
+  const catalog = String(info.catalog || "0").trim() || "0";
+  if (!build) return "";
+  return `${build}:${catalog}`;
+}
+
 export function shouldApplyUpdate(current: string, next: string): boolean {
   return Boolean(current && next && current !== next);
 }
 
 export function buildReloadUrl(href: string, build: string): string {
   const url = new URL(href, appOrigin());
-  url.searchParams.set(BUILD_PARAM, build.slice(0, 16) || String(Date.now()));
+  const stamp = build.includes(":") ? build.split(":")[0] : build;
+  url.searchParams.set(BUILD_PARAM, stamp.slice(0, 16) || String(Date.now()));
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
@@ -77,77 +93,78 @@ function dropBuildFromAddress() {
   if (next !== current) window.history.replaceState(window.history.state, "", next);
 }
 
-export async function applyAppUpdate(build: string): Promise<void> {
-  writeStoredRevision(build);
+export async function applyAppUpdate(revision: string): Promise<void> {
+  writeStoredRevision(revision);
   clearHomeClientCache();
+  clearAlbumClientCache();
   await clearStaleAppCaches();
-  window.location.replace(buildReloadUrl(window.location.href, build));
+  window.location.replace(buildReloadUrl(window.location.href, revision));
 }
 
 export function watchAppUpdates() {
   let current = "";
-  let pendingBuild = "";
+  let pendingRevision = "";
   let applying = false;
 
   dropBuildFromAddress();
 
-  async function apply(build: string, force = false) {
+  async function apply(revision: string, force = false) {
     if (applying) return;
     if (!force && isListening()) {
-      pendingBuild = build;
+      pendingRevision = revision;
       return;
     }
     applying = true;
-    await applyAppUpdate(build);
+    await applyAppUpdate(revision);
   }
 
   async function check(forceStaleReload = false) {
     try {
       const res = await fetch("/api/version", NO_STORE);
       if (!res.ok) return;
-      const body = (await res.json()) as { build?: string };
-      const build = String(body.build || "");
-      if (!build) return;
+      const body = (await res.json()) as AppVersionInfo;
+      const revision = versionRevision(body);
+      if (!revision) return;
       if (!current) {
         const stored = readStoredRevision();
-        if (stored && shouldApplyUpdate(stored, build)) {
-          await apply(build, true);
+        if (stored && shouldApplyUpdate(stored, revision)) {
+          await apply(revision, true);
           return;
         }
-        current = build;
-        writeStoredRevision(build);
+        current = revision;
+        writeStoredRevision(revision);
         return;
       }
-      if (!shouldApplyUpdate(current, build)) return;
-      await apply(build, forceStaleReload);
+      if (!shouldApplyUpdate(current, revision)) return;
+      await apply(revision, forceStaleReload);
     } catch {
       /* offline */
     }
   }
 
   function flushPending() {
-    if (!pendingBuild || isListening()) return;
-    void apply(pendingBuild);
+    if (!pendingRevision || isListening()) return;
+    void apply(pendingRevision);
   }
 
   void check(true);
   window.setInterval(() => {
-    if (pendingBuild) flushPending();
+    if (pendingRevision) flushPending();
     else void check();
   }, CHECK_MS);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
-      if (pendingBuild) flushPending();
+      if (pendingRevision) flushPending();
       else void check();
     }
   });
   window.addEventListener("pageshow", (event) => {
     if (event.persisted) void check(true);
-    else if (pendingBuild) flushPending();
+    else if (pendingRevision) flushPending();
     else void check();
   });
   window.addEventListener("focus", () => {
-    if (pendingBuild) flushPending();
+    if (pendingRevision) flushPending();
     else void check();
   });
 }

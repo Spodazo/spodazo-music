@@ -5,6 +5,7 @@ import {
   readStoredRevision,
   shouldApplyUpdate,
   stripBuildParam,
+  versionRevision,
   writeStoredRevision,
 } from "./appUpdate";
 
@@ -14,9 +15,24 @@ test("shouldApplyUpdate waits for two different builds", () => {
   assert.equal(shouldApplyUpdate("abc", "def"), true);
 });
 
+test("versionRevision changes when songs or lyrics change without a deploy", () => {
+  assert.equal(versionRevision({ build: "deploy1", catalog: "100" }), "deploy1:100");
+  assert.equal(versionRevision({ build: "deploy1", catalog: "100" }), versionRevision({ build: "deploy1", catalog: "100" }));
+  assert.notEqual(
+    versionRevision({ build: "deploy1", catalog: "100" }),
+    versionRevision({ build: "deploy1", catalog: "200" }),
+  );
+  assert.equal(shouldApplyUpdate("deploy1:100", "deploy1:200"), true);
+  assert.equal(versionRevision({ build: "", catalog: "1" }), "");
+});
+
 test("buildReloadUrl stamps the build and keeps the song hash", () => {
   assert.equal(
     buildReloadUrl("https://spodazomusic.com/echoes-of-storms#armor-of-god", "railwaysha1234567890"),
+    "/echoes-of-storms?_spodazo=railwaysha123456#armor-of-god",
+  );
+  assert.equal(
+    buildReloadUrl("https://spodazomusic.com/echoes-of-storms#armor-of-god", "railwaysha1234567890:99"),
     "/echoes-of-storms?_spodazo=railwaysha123456#armor-of-god",
   );
 });

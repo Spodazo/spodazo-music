@@ -1,5 +1,10 @@
 import type { AlbumListItem, Curator, PlayerSetup, PublicAlbum, Track } from "@shared/types";
 
+const NO_STORE: RequestInit = {
+  cache: "no-store",
+  headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+};
+
 async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
@@ -9,7 +14,7 @@ async function parse<T>(res: Response): Promise<T> {
 }
 
 export function fetchPlayerSetup(): Promise<PlayerSetup> {
-  return fetch("/api/player-setup").then((res) => parse<PlayerSetup>(res));
+  return fetch("/api/player-setup", NO_STORE).then((res) => parse<PlayerSetup>(res));
 }
 
 export function updatePlayerSetup(form: FormData): Promise<PlayerSetup> {
@@ -20,11 +25,11 @@ export function updatePlayerSetup(form: FormData): Promise<PlayerSetup> {
 }
 
 export function fetchAlbums(): Promise<AlbumListItem[]> {
-  return fetch("/api/albums").then((res) => parse<AlbumListItem[]>(res));
+  return fetch("/api/albums", NO_STORE).then((res) => parse<AlbumListItem[]>(res));
 }
 
 export function fetchAlbum(slug: string): Promise<PublicAlbum> {
-  return fetch(`/api/albums/${encodeURIComponent(slug)}`).then((res) => parse<PublicAlbum>(res));
+  return fetch(`/api/albums/${encodeURIComponent(slug)}`, NO_STORE).then((res) => parse<PublicAlbum>(res));
 }
 
 export function adminMe(): Promise<{ admin: boolean }> {

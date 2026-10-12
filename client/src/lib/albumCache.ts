@@ -53,6 +53,22 @@ export function writeCachedAlbum(album: PublicAlbum) {
   }
 }
 
+/** Drop every cached album so replaced songs/lyrics cannot keep playing from localStorage. */
+export function clearAlbumClientCache() {
+  try {
+    const store = storage();
+    if (!store) return;
+    const keys: string[] = [];
+    for (let i = 0; i < store.length; i += 1) {
+      const key = store.key(i);
+      if (key?.startsWith(ALBUM_CACHE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) store.removeItem(key);
+  } catch {
+    /* private mode */
+  }
+}
+
 function keepStableImageUrls(prev: PublicAlbum | null, next: PublicAlbum): PublicAlbum {
   if (!prev || prev.id !== next.id) return next;
   const prevTracks = new Map(prev.tracks.map((track) => [track.id, track]));
