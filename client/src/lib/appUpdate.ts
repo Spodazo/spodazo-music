@@ -39,6 +39,22 @@ export function isCodeUpdate(current: string, next: string): boolean {
   return Boolean(from && to && from !== to);
 }
 
+/**
+ * Hold a reload only while a song is actually playing.
+ * Visibility does not matter — an open PWA must cache-bust on deploys and
+ * song add/replace. Deploy/code updates skip the hold so a stuck pause-loop
+ * cannot trap old JS.
+ */
+export function shouldHoldAppUpdate(
+  currentRevision: string,
+  nextRevision: string,
+  listening: boolean,
+): boolean {
+  if (!currentRevision || !nextRevision) return false;
+  if (isCodeUpdate(currentRevision, nextRevision)) return false;
+  return listening;
+}
+
 export function buildReloadUrl(href: string, build: string): string {
   const url = new URL(href, appOrigin());
   const stamp = build.includes(":") ? build.split(":")[0] : build;
@@ -123,10 +139,10 @@ export function watchAppUpdates() {
     await applyAppUpdate(revision);
   }
 
-  /** Queue updates while the user is on the page; never yank a pause into a full reload. */
+  /** Cache-bust + reload on every deploy and catalog change; wait only if audio is playing. */
   async function applyWhenIdle(revision: string) {
     if (applying) return;
-    if (isListening() || (typeof document !== "undefined" && !document.hidden)) {
+    if (shouldHoldAppUpdate(current, revision, isListening())) {
       pendingRevision = revision;
       return;
     }
@@ -159,9 +175,18 @@ export function watchAppUpdates() {
   }
 
   function flushPending() {
-    if (!pendingRevision || isListening()) return;
-    if (typeof document !== "undefined" && !document.hidden) return;
+    if (!pendingRevision) return;
+    if (shouldHoldAppUpdate(current, pendingRevision, isListening())) return;
     void reloadNow(pendingRevision);
+  }
+
+  let pauseFlushTimer = 0;
+  function schedulePauseFlush() {
+    if (pauseFlushTimer) window.clearTimeout(pauseFlushTimer);
+    pauseFlushTimer = window.setTimeout(() => {
+      pauseFlushTimer = 0;
+      flushPending();
+    }, 400);
   }
 
   void check();
@@ -173,6 +198,13 @@ export function watchAppUpdates() {
     if (document.hidden) flushPending();
     else void check();
   });
+  document.addEventListener(
+    "pause",
+    (event) => {
+      if (event.target instanceof HTMLMediaElement) schedulePauseFlush();
+    },
+    true,
+  );
   window.addEventListener("pageshow", () => {
     if (pendingRevision) flushPending();
     else void check();
