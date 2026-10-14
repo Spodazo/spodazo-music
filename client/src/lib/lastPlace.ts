@@ -104,6 +104,11 @@ export function restoreLastPlace(currentPath: string, standalone = standaloneApp
   return restoreLastPlaceFromStorage(currentPath, standalone);
 }
 
+/** Hash restore must not steal the player after the user already opened a song. */
+export function shouldApplyHashRestore(activeIndex: number | null, hasCurrentUrl: boolean): boolean {
+  return activeIndex === null || !hasCurrentUrl;
+}
+
 /** Test helper — reset the in-memory gate (simulates a new document load in the same tab). */
 export function resetSessionRestoreGateForTests() {
   sessionRestoreAllowed = undefined;

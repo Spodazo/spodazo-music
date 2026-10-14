@@ -8,6 +8,7 @@ import {
   readLastPlace,
   resetSessionRestoreGateForTests,
   restoreLastPlace,
+  shouldApplyHashRestore,
   writeLastPlace,
 } from "./lastPlace";
 
@@ -97,6 +98,12 @@ test("a cache-bust reload keeps the open song instead of jumping to the album li
   markRestoreAfterAppUpdate();
   assert.equal(persistedSessionRestoreAllowed(), true);
   assert.equal(restoreLastPlace("/", true), "/echoes-of-storms");
+});
+
+test("hash restore does not steal a song the user already started", () => {
+  assert.equal(shouldApplyHashRestore(null, false), true);
+  assert.equal(shouldApplyHashRestore(0, false), true);
+  assert.equal(shouldApplyHashRestore(3, true), false);
 });
 
 test("choosing the album list keeps the next launch on home", () => {
