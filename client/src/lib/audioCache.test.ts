@@ -23,6 +23,7 @@ import {
   resetOutputRouteStateForTests,
   restoreMobileOutput,
   ROUTE_CHANGE_DEBOUNCE_MS,
+  ROUTE_SETTLE_TICK_MS,
   setOutputLevel,
   settleRoutePlayback,
   startBackgroundPlaybackGuard,
@@ -1295,6 +1296,29 @@ test("route settle keeps native playback unmuted while Bluetooth finishes connec
     assert.equal(audio.volume, 0.8);
     assert.equal(audio.paused, false);
     assert.equal(isNativeOutputOnly(), true);
+  } finally {
+    stop();
+    restoreUa();
+    resetOutputRouteStateForTests();
+  }
+});
+
+test("route settle does not fight the user after playback has started", async () => {
+  const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.paused = true;
+  releaseOutputForRouteChange(null);
+  const stop = settleRoutePlayback(
+    () => audio,
+    () => true,
+    () => 0.8,
+  );
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(audio.paused, false);
+    audio.paused = true;
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_SETTLE_TICK_MS + 40));
+    assert.equal(audio.paused, true);
   } finally {
     stop();
     restoreUa();

@@ -5,6 +5,8 @@
  * Bluetooth with a live WebAudio graph must retire the shared AudioContext, remount, and play natively.
  * Car stereos often flap A2DP/HFP (repeated devicechange). Remount only while a graph is attached;
  * once native, settle/heal the same element — tearing it down again reloads the MP3 and stutters.
+ * Route settle may kick play a few times while the new device comes up, then must stop — never keep
+ * calling play() after playback has started or the user cannot pause and the song stutters.
  * Keep native-only until the next user tap so nothing reattaches a silent WebAudio graph on the new device.
  * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
@@ -510,8 +512,9 @@ export function startBackgroundPlaybackGuard(
 }
 
 /**
- * After a Bluetooth remount, keep re-asserting unmuted native playback while the new
- * output route finishes coming online. Does not create an AudioContext.
+ * After a Bluetooth remount, keep the element unmuted while the new output route comes up.
+ * May kick play a few times if the route dropped us, but once playback has been heard,
+ * a user pause must stick — repeated play() here made mobile Safari impossible to pause.
  */
 export function settleRoutePlayback(
   getAudio: () => HTMLAudioElement | null,
@@ -521,6 +524,9 @@ export function settleRoutePlayback(
   if (!isMobilePlayback()) return () => {};
   const gen = ++routeSettleGen;
   const started = performance.now();
+  let sawPlaying = false;
+  let playKicks = 0;
+  const maxPlayKicks = 3;
   const tick = () => {
     if (gen !== routeSettleGen) return;
     if (!shouldKeepPlaying()) return;
@@ -532,7 +538,20 @@ export function settleRoutePlayback(
     const volume = Math.max(0, Math.min(1, getVolume()));
     if (!graphs.has(audio)) audio.volume = volume;
     else setOutput(audio, volume);
-    if (audio.paused && !audio.ended) void audio.play().catch(() => undefined);
+    if (!audio.paused) {
+      sawPlaying = true;
+      return;
+    }
+    if (audio.ended || sawPlaying || playKicks >= maxPlayKicks) return;
+    playKicks += 1;
+    void audio
+      .play()
+      .then(() => {
+        if (gen !== routeSettleGen) return;
+        const live = getAudio();
+        if (live && !live.paused) sawPlaying = true;
+      })
+      .catch(() => undefined);
   };
   tick();
   const id = window.setInterval(() => {
