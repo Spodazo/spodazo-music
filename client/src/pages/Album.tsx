@@ -173,6 +173,8 @@ export default function AlbumPage() {
   const resumeTimeRef = useRef(0);
   const userVolRef = useRef(0.85);
   const wantPlayingRef = useRef(false);
+  const wantPlayAtRef = useRef(0);
+  const PLAY_START_RESUME_MS = 1500;
   const activeRef = useRef<number | null>(null);
   /** Per session: user closed the sing-along sheet for this track id. */
   const restoredRef = useRef("");
@@ -434,6 +436,7 @@ export default function AlbumPage() {
       return;
     }
     wantPlayingRef.current = true;
+    wantPlayAtRef.current = performance.now();
     void playSong(audio, url, pending.time, true, userVolRef.current, pending.keepAudible)
       .then(() => {
         // Route-change remounts play natively until the next tap; keep element unmuted at user volume.
@@ -492,16 +495,19 @@ export default function AlbumPage() {
       // After `ended` there is no tap. Keep the live MediaElementSource — releasing it on this
       // element cannot reattach (once per element) and auto-advance stays silent.
       wantPlayingRef.current = true;
+      wantPlayAtRef.current = performance.now();
       const force = Boolean(audio.src) && (pipelineIsDead(audio) || !sameSong(audio, url));
       return playSong(audio, url, 0, force, userVolRef.current, true);
     }
     if (shouldRebuildOutput(audio, url)) {
       wantPlayingRef.current = true;
+      wantPlayAtRef.current = performance.now();
       rebuildAudio(0, true, true);
       return Promise.resolve();
     }
     unlockAudio(audio);
     wantPlayingRef.current = true;
+    wantPlayAtRef.current = performance.now();
     const force = Boolean(audio.src) && pipelineIsDead(audio);
     return playSong(audio, url, 0, force, userVolRef.current, false);
   }
@@ -575,6 +581,7 @@ export default function AlbumPage() {
     const url = album.tracks[index]?.audioUrl;
     if (!audio || !url) return;
     wantPlayingRef.current = true;
+    wantPlayAtRef.current = performance.now();
     // keepAudible: join an existing first-tap context only — creating one on restore stays silent.
     void playSong(audio, url, resume, true, userVolRef.current, true)
       .then(() => {
@@ -853,6 +860,7 @@ export default function AlbumPage() {
       restoreMobileOutput(audio, userVolRef.current);
       const fromStart = resumeTime < 0.2;
       wantPlayingRef.current = true;
+      wantPlayAtRef.current = performance.now();
       const play = fromStart
         ? startPlay()
         : pipelineIsDead(audio)
@@ -931,9 +939,10 @@ export default function AlbumPage() {
             (Number.isFinite(audio.duration) &&
               audio.duration > 0 &&
               audio.currentTime >= audio.duration - 0.35));
-        // Safari often fires pause during play() startup. Resume only if the user
-        // still wants music — togglePlay sets wantPlaying false before pause().
-        if (wantPlayingRef.current && audio && !rerouteRef.current && !atEnd) {
+        // Safari fires pause during play() startup. Resume only in that first
+        // window — mid-song pause→play is the stutter loop.
+        const starting = performance.now() - wantPlayAtRef.current < PLAY_START_RESUME_MS;
+        if (wantPlayingRef.current && starting && audio && !rerouteRef.current && !atEnd) {
           restoreMobileOutput(audio, userVolRef.current);
           void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
           return;

@@ -63,7 +63,7 @@ export function shouldReroutePlayback(
 ): boolean {
   if (!audio) return false;
   if (reason === "visibility") return false;
-  if (reason === "devicechange") return graphs.has(audio);
+  if (reason === "devicechange") return false;
   if (reason === "interruptionend") {
     // Books (and other PWAs) flash the system session; that is not a phone call or dead pipeline.
     return false;
@@ -440,16 +440,19 @@ export function watchPlaybackRoute(
   };
   const onDeviceChange = () => {
     if (!isMobilePlayback()) return;
+    // Stay on this element. Remounting reloads the MP3 and stutters like a bad link.
     nativeOutputOnly = true;
-    notePlayingBeforeInterrupt();
-    // WebAudio cannot follow a new Bluetooth device — remount once onto the native element.
-    // Further flaps must not remount: each rebuild reloads the stream and sounds like a bad link.
-    if (anyWatcherNeedsRouteRemount()) {
-      routeChangePending = true;
-      requestPlaybackReroute();
-      return;
+    routeChangePending = false;
+    for (const item of routeWatchers) {
+      const audio = item.getAudio();
+      if (!audio || audio.ended) continue;
+      setPlaybackSession();
+      audio.muted = false;
+      gateOpen = true;
+      const volume = Math.max(0, Math.min(1, item.getVolume()));
+      if (!graphs.has(audio)) audio.volume = volume;
+      else setOutput(audio, volume);
     }
-    softSettleNativeRoutes();
   };
 
   const session = audioSession();
@@ -507,9 +510,8 @@ export function startBackgroundPlaybackGuard(
 }
 
 /**
- * After a Bluetooth remount, keep the element unmuted while the new output route comes up.
- * May kick play a few times if the route dropped us, but once playback has been heard,
- * a user pause must stick — repeated play() here made mobile Safari impossible to pause.
+ * After a Bluetooth remount, keep the element unmuted. Does not call play() —
+ * restarting the stream here is what sounded like a broken connection.
  */
 export function settleRoutePlayback(
   getAudio: () => HTMLAudioElement | null,
@@ -519,34 +521,17 @@ export function settleRoutePlayback(
   if (!isMobilePlayback()) return () => {};
   const gen = ++routeSettleGen;
   const started = performance.now();
-  let sawPlaying = false;
-  let playKicks = 0;
-  const maxPlayKicks = 3;
   const tick = () => {
     if (gen !== routeSettleGen) return;
     if (!shouldKeepPlaying()) return;
     const audio = getAudio();
-    if (!audio) return;
+    if (!audio || audio.paused) return;
     setPlaybackSession();
     audio.muted = false;
     gateOpen = true;
     const volume = Math.max(0, Math.min(1, getVolume()));
     if (!graphs.has(audio)) audio.volume = volume;
     else setOutput(audio, volume);
-    if (!audio.paused) {
-      sawPlaying = true;
-      return;
-    }
-    if (audio.ended || sawPlaying || playKicks >= maxPlayKicks) return;
-    playKicks += 1;
-    void audio
-      .play()
-      .then(() => {
-        if (gen !== routeSettleGen) return;
-        const live = getAudio();
-        if (live && !live.paused) sawPlaying = true;
-      })
-      .catch(() => undefined);
   };
   tick();
   const id = window.setInterval(() => {
