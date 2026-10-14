@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   buildReloadUrl,
@@ -81,4 +82,15 @@ test("a loaded or just-started song is never yanked by a full-page reload", () =
   assert.equal(shouldHoldAppUpdate(true, 8000), true);
   assert.equal(shouldHoldAppUpdate(false, 400), true);
   assert.equal(shouldHoldAppUpdate(false, 6000), false);
+});
+
+test("a deploy cache-busts every PWA even while a song is playing", () => {
+  const src = readFileSync(new URL("./appUpdate.ts", import.meta.url), "utf8");
+  const apply = src.slice(src.indexOf("async function applyWhenIdle"), src.indexOf("async function check"));
+  assert.match(apply, /mode === "catalog"/);
+  assert.match(apply, /await reloadNow\(revision\)/);
+  assert.doesNotMatch(apply, /isBusy/);
+  assert.doesNotMatch(apply, /pendingRevision = revision/);
+  assert.equal(updateApplyMode("deploy1:100", "deploy2:100"), "reload");
+  assert.equal(updateApplyMode("deploy1:100", "deploy1:200"), "catalog");
 });

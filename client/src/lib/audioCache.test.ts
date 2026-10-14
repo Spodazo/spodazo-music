@@ -195,6 +195,34 @@ test("mobile playSong mutes only for the short opener, then unmutes", async () =
   }
 });
 
+test("mobile opener unmutes even if Safari pauses during the hold", async () => {
+  const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  const audio = fakeAudio();
+  try {
+    const started = playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 0.85);
+    await started;
+    assert.equal(audio.muted, true);
+    audio.paused = true;
+    await new Promise((resolve) => setTimeout(resolve, MOBILE_HEADER_HOLD_MS + 20));
+    assert.equal(audio.muted, false);
+    assert.equal(audio.volume, 0.85);
+    assert.equal(audio.paused, true);
+    setOutputLevel(audio as unknown as HTMLAudioElement, 0.7);
+    assert.equal(audio.volume, 0.7);
+  } finally {
+    restore();
+  }
+});
+
+test("openStartGate never play()s after the opener timeout", () => {
+  const src = readFileSync(new URL("./audioCache.ts", import.meta.url), "utf8");
+  const gate = src.slice(src.indexOf("async function openStartGate"), src.indexOf("export function playSong"));
+  assert.match(gate, /audio\.muted = false/);
+  assert.match(gate, /gateOpen = true/);
+  assert.match(gate, /if \(audio\.paused\)/);
+  assert.doesNotMatch(gate, /audio\.play\(/);
+});
+
 test("playback helpers never prefetch, blob-play, or wait on the playhead", () => {
   const src = readFileSync(new URL("./audioCache.ts", import.meta.url), "utf8");
   assert.doesNotMatch(src, /createObjectURL/);
@@ -1035,6 +1063,7 @@ test("Album heals playing-but-silent and tears down when leaving an album", () =
   assert.match(src, /Retire the shared context/);
   assert.match(src, /settleRoutePlayback/);
   assert.match(src, /playSong\(audio, url, resume, pipelineIsDead\(audio\), userVolRef\.current, true\)/);
+  assert.match(src, /if \(isMobilePlayback\(\) \|\| isNativeOutputOnly\(\)\) return;/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
   assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
   assert.match(src, /PLAY_START_RESUME_MS/);
@@ -1288,6 +1317,9 @@ test("devicechange does not remount or close the live context", async () => {
     assert.equal(created[0].closed, false);
     assert.equal(isNativeOutputOnly(), true);
     assert.equal(audio.paused, false);
+    assert.equal(audio.muted, false);
+    assert.equal(audio.volume, 0.8);
+    assert.equal(attachOutput(audio), null);
   } finally {
     stop();
     stub.restore();

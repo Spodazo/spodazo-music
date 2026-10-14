@@ -49,12 +49,12 @@ export function updateApplyMode(current: string, next: string): UpdateApplyMode 
   return isCodeUpdate(current, next) ? "reload" : "catalog";
 }
 
-/** Safari pause-during-play() and the first seconds of audio must not trigger a reload. */
+/** Used only to delay a leftover pending reload — deploys themselves never wait. */
 export const UPDATE_PLAY_HOLD_MS = 5000;
 
 /**
- * Hold a full-page reload while the player has a song loaded, is playing,
- * or just started. Song add/replace must never use a reload — only a catalog refresh.
+ * True while a song is loaded or just started. Catalog refresh ignores this.
+ * Deploy/code updates also ignore this — every PWA must cache-bust immediately.
  */
 export function shouldHoldAppUpdate(playerOpen: boolean, msSincePlay = Number.POSITIVE_INFINITY): boolean {
   return playerOpen || msSincePlay < UPDATE_PLAY_HOLD_MS;
@@ -176,7 +176,7 @@ export function watchAppUpdates() {
     applyCatalogRefresh();
   }
 
-  /** Deploy: full reload only if the player is not open. Song edits: refetch, never reload. */
+  /** Deploy: reload every PWA now. Song edits: refetch, never reload. */
   async function applyWhenIdle(from: string, revision: string) {
     if (applying) return;
     const mode = updateApplyMode(from, revision);
@@ -185,10 +185,6 @@ export function watchAppUpdates() {
       return;
     }
     if (mode !== "reload") return;
-    if (isBusy()) {
-      pendingRevision = revision;
-      return;
-    }
     await reloadNow(revision);
   }
 

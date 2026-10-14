@@ -446,12 +446,13 @@ export function watchPlaybackRoute(
     for (const item of routeWatchers) {
       const audio = item.getAudio();
       if (!audio || audio.ended) continue;
+      // A live WebAudio graph cannot follow a new Bluetooth route after a reboot
+      // or AirPods/car reconnect — the playhead keeps moving and speakers stay silent.
+      if (graphs.has(audio)) releaseOutput(audio);
       setPlaybackSession();
       audio.muted = false;
       gateOpen = true;
-      const volume = Math.max(0, Math.min(1, item.getVolume()));
-      if (!graphs.has(audio)) audio.volume = volume;
-      else setOutput(audio, volume);
+      audio.volume = Math.max(0, Math.min(1, item.getVolume()));
     }
   };
 
@@ -680,9 +681,16 @@ function waitMs(ms: number): Promise<void> {
 
 async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume: number, gen: number) {
   await waitMs(MOBILE_HEADER_HOLD_MS);
-  if (gen !== playGen || !sameSong(audio, url) || audio.paused) return;
+  if (gen !== playGen || !sameSong(audio, url)) return;
+  // Safari often pauses during the opener after a reboot or a cold audio session.
+  // Leaving muted/gain 0 is the "playhead moves, speakers silent" bug — unmute
+  // even if paused. Do not play() after this timeout (Safari drops the gesture).
   audio.muted = false;
   gateOpen = true;
+  if (audio.paused) {
+    setOutput(audio, targetVolume);
+    return;
+  }
   fadeOutput(audio, targetVolume, MOBILE_HEADER_FADE_MS, gen);
 }
 
