@@ -921,12 +921,23 @@ export default function AlbumPage() {
       }}
       onEnded={onEnded}
       onPlay={() => {
-        wantPlayingRef.current = true;
         setPlaying(true);
       }}
       onPause={() => {
-        // A pause event is a pause. Re-calling play() here (an older background-heal)
-        // fought Control Center / in-app pause and stuttered on every buffer stall.
+        const audio = audioRef.current;
+        const atEnd =
+          audio &&
+          (audio.ended ||
+            (Number.isFinite(audio.duration) &&
+              audio.duration > 0 &&
+              audio.currentTime >= audio.duration - 0.35));
+        // Safari often fires pause during play() startup. Resume only if the user
+        // still wants music — togglePlay sets wantPlaying false before pause().
+        if (wantPlayingRef.current && audio && !rerouteRef.current && !atEnd) {
+          restoreMobileOutput(audio, userVolRef.current);
+          void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+          return;
+        }
         setPlaying(false);
       }}
     />

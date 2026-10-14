@@ -152,10 +152,6 @@ export function watchAppUpdates() {
         return;
       }
       if (!shouldApplyUpdate(current, revision)) return;
-      if (isCodeUpdate(current, revision)) {
-        await reloadNow(revision);
-        return;
-      }
       await applyWhenIdle(revision);
     } catch {
       /* offline */
