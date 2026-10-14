@@ -9,6 +9,7 @@ import {
   isMobilePlayback,
   isPrematureTrackEnd,
   isResumeTime,
+  trustedSongDuration,
   mediaUrl,
   attachOutput,
   ensureMobileOutputAudible,
@@ -130,7 +131,15 @@ test("a song start is not treated as a mid-song resume", () => {
 test("an ended event at one second does not count as the end of a real song", () => {
   assert.equal(isPrematureTrackEnd(1.1, 214), true);
   assert.equal(isPrematureTrackEnd(214, 214), false);
-  assert.equal(isPrematureTrackEnd(1.1, 2), false);
+  assert.equal(isPrematureTrackEnd(1.1, 2), true);
+  assert.equal(isPrematureTrackEnd(1.1, 0), true);
+  assert.equal(isPrematureTrackEnd(1.95, 2), false);
+});
+
+test("trustedSongDuration prefers the catalog length over a Safari stub duration", () => {
+  assert.equal(trustedSongDuration(1.2, 348), 348);
+  assert.equal(trustedSongDuration(214, 0), 214);
+  assert.equal(trustedSongDuration(1.2, 2), 2);
 });
 
 test("waitForAudible resolves immediately when the playhead is already past the header", async () => {
@@ -1025,7 +1034,7 @@ test("Album heals playing-but-silent and tears down when leaving an album", () =
   assert.match(src, /leaveAlbumForHome/);
   assert.match(src, /Retire the shared context/);
   assert.match(src, /settleRoutePlayback/);
-  assert.match(src, /playSong\(audio, url, resume, true, userVolRef\.current, true\)/);
+  assert.match(src, /playSong\(audio, url, resume, pipelineIsDead\(audio\), userVolRef\.current, true\)/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
   assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
   assert.match(src, /PLAY_START_RESUME_MS/);

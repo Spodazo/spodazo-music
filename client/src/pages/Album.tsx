@@ -5,9 +5,11 @@ import SdgFooter from "../components/SdgFooter";
 import {
   assignSrc,
   dropLegacyAudioCaches,
+  isMobilePlayback,
   isPrematureTrackEnd,
   markOutputNeedsRebuild,
   isNativeOutputOnly,
+  trustedSongDuration,
   outputGraphIsStale,
   shouldRebuildOutput,
   pipelineIsDead,
@@ -592,14 +594,15 @@ export default function AlbumPage() {
     resumeTimeRef.current = resume;
     if (!place.playing) return;
     // After another album (or route teardown), auto-play without a tap stays silent on mobile.
-    if (isNativeOutputOnly()) return;
+    // A force-reload here also races the user's first tap and stops the song at ~1s.
+    if (isMobilePlayback() || isNativeOutputOnly()) return;
     const audio = audioRef.current;
     const url = album.tracks[index]?.audioUrl;
     if (!audio || !url) return;
     wantPlayingRef.current = true;
     wantPlayAtRef.current = performance.now();
     // keepAudible: join an existing first-tap context only — creating one on restore stays silent.
-    void playSong(audio, url, resume, true, userVolRef.current, true)
+    void playSong(audio, url, resume, pipelineIsDead(audio), userVolRef.current, true)
       .then(() => {
         setPlaying(true);
         void acquireWake();
@@ -903,7 +906,8 @@ export default function AlbumPage() {
 
   function onEnded() {
     const audio = audioRef.current;
-    const known = duration > 1 ? duration : parseDurationLabel(album?.tracks[active ?? -1]?.durationLabel);
+    const catalogSeconds = parseDurationLabel(album?.tracks[active ?? -1]?.durationLabel);
+    const known = trustedSongDuration(audio?.duration || duration, catalogSeconds);
     if (audio && isPrematureTrackEnd(audio.currentTime, known)) {
       if (wantPlayingRef.current) {
         void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
@@ -957,15 +961,16 @@ export default function AlbumPage() {
       }}
       onPause={() => {
         const audio = audioRef.current;
-        const atEnd =
-          audio &&
-          (audio.ended ||
-            (Number.isFinite(audio.duration) &&
-              audio.duration > 0 &&
-              audio.currentTime >= audio.duration - 0.35));
+        const catalogSeconds = parseDurationLabel(
+          albumRef.current?.tracks[activeRef.current ?? -1]?.durationLabel,
+        );
+        const known = trustedSongDuration(audio?.duration || 0, catalogSeconds);
+        const atEnd = Boolean(audio && known > 8 && audio.currentTime >= known - 0.35);
         // Safari fires pause during play() startup. Resume only in that first
         // window — mid-song pause→play is the stutter loop.
-        const starting = performance.now() - wantPlayAtRef.current < PLAY_START_RESUME_MS;
+        const starting =
+          performance.now() - wantPlayAtRef.current < PLAY_START_RESUME_MS &&
+          Boolean(audio && audio.currentTime < 0.3);
         if (wantPlayingRef.current && starting && audio && !rerouteRef.current && !atEnd) {
           restoreMobileOutput(audio, userVolRef.current);
           void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
