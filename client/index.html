@@ -65,6 +65,11 @@
       (function () {
         var KEY = "spodazo-music-app-rev";
         var PARAM = "_spodazo";
+        var HOLD_MS = 5000;
+        var pending = "";
+        var lastPlayAt = 0;
+        var applying = false;
+        var pauseTimer = 0;
         function revision(info) {
           if (!info || !info.build) return "";
           return String(info.build) + ":" + (String(info.catalog || "0") || "0");
@@ -84,6 +89,12 @@
             }
           } catch (e) {}
         }
+        function isBusy() {
+          var playing = Array.prototype.some.call(document.querySelectorAll("audio"), function (audio) {
+            return !audio.paused;
+          });
+          return playing || (lastPlayAt && performance.now() - lastPlayAt < HOLD_MS);
+        }
         function apply(next) {
           var from = stored();
           var fromBuild = from.split(":")[0] || "";
@@ -92,13 +103,27 @@
             save(next);
             return;
           }
+          if (!fromBuild || !toBuild || fromBuild === toBuild) {
+            save(next);
+            return;
+          }
+          if (isBusy()) {
+            pending = next;
+            return;
+          }
+          applying = true;
+          pending = "";
           save(next);
-          if (!fromBuild || !toBuild || fromBuild === toBuild) return;
           var url = new URL(location.href);
           url.searchParams.set(PARAM, toBuild.slice(0, 16));
           location.replace(url.pathname + url.search + url.hash);
         }
+        function flush() {
+          if (!pending || applying || isBusy()) return;
+          apply(pending);
+        }
         function check() {
+          if (applying) return;
           fetch("/api/version", { cache: "no-store", headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } })
             .then(function (res) { return res.ok ? res.json() : null; })
             .then(function (info) {
@@ -108,12 +133,34 @@
             .catch(function () {});
         }
         check();
-        setInterval(check, 15000);
+        setInterval(function () {
+          if (pending) flush();
+          check();
+        }, 15000);
         document.addEventListener("visibilitychange", function () {
+          if (pending) flush();
           if (!document.hidden) check();
         });
-        window.addEventListener("pageshow", check);
-        window.addEventListener("focus", check);
+        document.addEventListener("play", function (event) {
+          if (event.target instanceof HTMLMediaElement) lastPlayAt = performance.now();
+        }, true);
+        document.addEventListener("pause", function (event) {
+          if (!(event.target instanceof HTMLMediaElement)) return;
+          clearTimeout(pauseTimer);
+          var elapsed = lastPlayAt ? performance.now() - lastPlayAt : HOLD_MS;
+          pauseTimer = setTimeout(flush, Math.max(0, HOLD_MS - elapsed));
+        }, true);
+        document.addEventListener("ended", function (event) {
+          if (event.target instanceof HTMLMediaElement) flush();
+        }, true);
+        window.addEventListener("pageshow", function () {
+          if (pending) flush();
+          check();
+        });
+        window.addEventListener("focus", function () {
+          if (pending) flush();
+          check();
+        });
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

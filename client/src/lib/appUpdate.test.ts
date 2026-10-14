@@ -91,30 +91,37 @@ test("visible idle clients refresh on deploy and on song add/replace", () => {
   assert.equal(updateApplyMode("deploy1:100", "deploy1:100"), "none");
 });
 
-test("a loaded or just-started song is never yanked by a full-page reload", () => {
+test("a playing or just-started song is never yanked by a full-page reload", () => {
   assert.equal(shouldHoldAppUpdate(true), true);
   assert.equal(shouldHoldAppUpdate(true, 8000), true);
   assert.equal(shouldHoldAppUpdate(false, 400), true);
   assert.equal(shouldHoldAppUpdate(false, 6000), false);
 });
 
-test("a deploy cache-busts every PWA even while a song is playing", () => {
+test("a deploy cache-bust waits for active playback to pause or end", () => {
   const src = readFileSync(new URL("./appUpdate.ts", import.meta.url), "utf8");
   const apply = src.slice(src.indexOf("async function applyWhenIdle"), src.indexOf("async function check"));
   assert.match(apply, /mode === "catalog"/);
+  assert.match(apply, /isBusy/);
+  assert.match(apply, /pendingRevision = revision/);
   assert.match(apply, /await reloadNow\(revision\)/);
-  assert.doesNotMatch(apply, /isBusy/);
-  assert.doesNotMatch(apply, /pendingRevision/);
-  assert.doesNotMatch(src, /querySelectorAll\("audio"\)/);
+  assert.match(src, /querySelectorAll\("audio"\)/);
+  assert.match(src, /addEventListener\(\s*"play"/);
+  assert.match(src, /addEventListener\(\s*"pause"/);
+  assert.match(src, /addEventListener\(\s*"ended"/);
   assert.equal(updateApplyMode("deploy1:100", "deploy2:100"), "reload");
   assert.equal(updateApplyMode("deploy1:100", "deploy1:200"), "catalog");
 });
 
-test("the HTML page itself reloads on a deploy without waiting for a user to relaunch", () => {
+test("the HTML fallback updater also protects active playback", () => {
   const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
   assert.match(html, /spodazo-music-app-rev/);
   assert.match(html, /\/api\/version/);
   assert.match(html, /location\.replace/);
-  assert.doesNotMatch(html, /querySelectorAll\(["']audio["']\)/);
-  assert.doesNotMatch(html, /audio\.paused/);
+  assert.match(html, /querySelectorAll\(["']audio["']\)/);
+  assert.match(html, /audio\.paused/);
+  assert.match(html, /pending/);
+  assert.match(html, /addEventListener\(["']play["']/);
+  assert.match(html, /addEventListener\(["']pause["']/);
+  assert.match(html, /addEventListener\(["']ended["']/);
 });
