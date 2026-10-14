@@ -109,6 +109,20 @@ export function prefetchAlbum(slug: string): Promise<PublicAlbum> {
   return pending;
 }
 
+export function resetAlbumInflight() {
+  inflight.clear();
+}
+
+/** Bypass cache so a catalog stamp can load a replaced song without a full reload. */
+export function refreshAlbum(slug: string): Promise<PublicAlbum> {
+  inflight.delete(slug);
+  return fetchAlbum(slug)
+    .then(cacheAlbumFromNetwork)
+    .finally(() => {
+      inflight.delete(slug);
+    });
+}
+
 export function prefetchAlbums(slugs: string[]) {
   for (const slug of slugs) {
     if (slug) void prefetchAlbum(slug);

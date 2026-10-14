@@ -5,6 +5,7 @@ import SdgFooter from "../components/SdgFooter";
 import {
   assignSrc,
   dropLegacyAudioCaches,
+  isPrematureTrackEnd,
   markOutputNeedsRebuild,
   isNativeOutputOnly,
   outputGraphIsStale,
@@ -23,10 +24,11 @@ import {
   startBackgroundPlaybackGuard,
   settleRoutePlayback,
 } from "../lib/audioCache";
-import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum } from "../lib/albumCache";
+import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum, refreshAlbum } from "../lib/albumCache";
+import { CATALOG_REFRESH_EVENT } from "../lib/appUpdate";
 import { persistedSessionRestoreAllowed, readLastPlace, writeLastPlace } from "../lib/lastPlace";
 import { fetchPlayerSetup } from "../lib/api";
-import { totalListeningLabel } from "../lib/listeningTime";
+import { parseDurationLabel, totalListeningLabel } from "../lib/listeningTime";
 import { lyricMaxTravel, lyricPadPixels, lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
@@ -233,6 +235,17 @@ export default function AlbumPage() {
     fetchPlayerSetup()
       .then(setSetup)
       .catch(() => undefined);
+    const onCatalog = () => {
+      void refreshAlbum(slug)
+        .then((data) => {
+          setAlbum(data);
+          applyPalette(data.color);
+          document.title = `${data.title} — ${data.artists}`;
+        })
+        .catch(() => undefined);
+    };
+    window.addEventListener(CATALOG_REFRESH_EVENT, onCatalog);
+    return () => window.removeEventListener(CATALOG_REFRESH_EVENT, onCatalog);
   }, [slug]);
 
   const track = useMemo(
@@ -886,6 +899,14 @@ export default function AlbumPage() {
   }, [repeatOne]);
 
   function onEnded() {
+    const audio = audioRef.current;
+    const known = duration > 1 ? duration : parseDurationLabel(album?.tracks[active ?? -1]?.durationLabel);
+    if (audio && isPrematureTrackEnd(audio.currentTime, known)) {
+      if (wantPlayingRef.current) {
+        void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+      }
+      return;
+    }
     if (repeatOne) return;
     if (!album || active === null) return;
     const onLastTrack = active >= album.tracks.length - 1;

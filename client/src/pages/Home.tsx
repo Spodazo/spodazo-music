@@ -9,7 +9,9 @@ import {
   loadHomeSetup,
   readCachedAlbums,
   readCachedSetup,
+  refreshHome,
 } from "../lib/homeCache";
+import { CATALOG_REFRESH_EVENT } from "../lib/appUpdate";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { writeLastPlace } from "../lib/lastPlace";
@@ -113,16 +115,25 @@ export default function HomePage() {
 
   useEffect(() => {
     writeLastPlace({ path: "/" });
-    loadHomeAlbums()
-      .then(setAlbums)
-      .catch((err: Error) => setError(err.message));
-    loadHomeSetup()
-      .then((next) => {
-        setSetup(next);
-        applyPalette(next.collectionColor);
-        document.title = next.appName;
-      })
-      .catch(() => undefined);
+    const load = () => {
+      loadHomeAlbums()
+        .then(setAlbums)
+        .catch((err: Error) => setError(err.message));
+      loadHomeSetup()
+        .then((next) => {
+          setSetup(next);
+          applyPalette(next.collectionColor);
+          document.title = next.appName;
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const onCatalog = () => {
+      refreshHome();
+      load();
+    };
+    window.addEventListener(CATALOG_REFRESH_EVENT, onCatalog);
+    return () => window.removeEventListener(CATALOG_REFRESH_EVENT, onCatalog);
   }, []);
 
   return (

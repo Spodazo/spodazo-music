@@ -137,6 +137,16 @@ export function loadHomeSetup(): Promise<PlayerSetup> {
   return setupInFlight;
 }
 
+export function resetHomeInflight() {
+  albumsInFlight = null;
+  setupInFlight = null;
+}
+
+export function refreshHome() {
+  resetHomeInflight();
+  prefetchHome();
+}
+
 export function prefetchHome() {
   void loadHomeAlbums()
     .then((albums) => {
