@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildReloadUrl,
+  isCodeUpdate,
   readStoredRevision,
   shouldApplyUpdate,
   stripBuildParam,
@@ -23,6 +24,8 @@ test("versionRevision changes when songs or lyrics change without a deploy", () 
     versionRevision({ build: "deploy1", catalog: "200" }),
   );
   assert.equal(shouldApplyUpdate("deploy1:100", "deploy1:200"), true);
+  assert.equal(isCodeUpdate("deploy1:100", "deploy1:200"), false);
+  assert.equal(isCodeUpdate("deploy1:100", "deploy2:100"), true);
   assert.equal(versionRevision({ build: "", catalog: "1" }), "");
 });
 
