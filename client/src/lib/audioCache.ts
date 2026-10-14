@@ -618,6 +618,16 @@ export function pipelineIsDead(audio: HTMLAudioElement): boolean {
   return Boolean(audio.error) || audio.readyState < HAVE_CURRENT_DATA;
 }
 
+/** Safari sometimes fires `ended` ~1s in on a stub decode. Do not skip to the next song. */
+export function isPrematureTrackEnd(currentTime: number, knownDuration: number): boolean {
+  return (
+    Number.isFinite(knownDuration) &&
+    knownDuration > 8 &&
+    Number.isFinite(currentTime) &&
+    currentTime < 3
+  );
+}
+
 export function assignSrc(audio: HTMLAudioElement, url: string, time = 0, force = false) {
   const next = mediaUrl(url, time);
   if (!force) {

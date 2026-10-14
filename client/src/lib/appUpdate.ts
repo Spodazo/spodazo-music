@@ -1,5 +1,5 @@
-import { clearAlbumClientCache } from "./albumCache";
-import { clearHomeClientCache } from "./homeCache";
+import { clearAlbumClientCache, resetAlbumInflight } from "./albumCache";
+import { clearHomeClientCache, resetHomeInflight } from "./homeCache";
 import { markRestoreAfterAppUpdate } from "./lastPlace";
 
 const BUILD_PARAM = "_spodazo";
@@ -10,6 +10,8 @@ const NO_STORE: RequestInit = {
   headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
 };
 
+export const CATALOG_REFRESH_EVENT = "spodazo-catalog-refresh";
+
 function appOrigin(): string {
   if (typeof window !== "undefined" && window.location?.origin) return window.location.origin;
   return "https://spodazomusic.com";
@@ -19,6 +21,8 @@ export type AppVersionInfo = {
   build?: string;
   catalog?: string;
 };
+
+export type UpdateApplyMode = "none" | "reload" | "catalog";
 
 /** Combine deploy build + catalog stamp so song/lyric edits refresh PWAs without a redeploy. */
 export function versionRevision(info: AppVersionInfo | string): string {
@@ -40,16 +44,20 @@ export function isCodeUpdate(current: string, next: string): boolean {
   return Boolean(from && to && from !== to);
 }
 
-/** Safari pause-during-play() and the first second of audio must not trigger a reload. */
-export const UPDATE_PLAY_HOLD_MS = 2000;
+export function updateApplyMode(current: string, next: string): UpdateApplyMode {
+  if (!shouldApplyUpdate(current, next)) return "none";
+  return isCodeUpdate(current, next) ? "reload" : "catalog";
+}
+
+/** Safari pause-during-play() and the first seconds of audio must not trigger a reload. */
+export const UPDATE_PLAY_HOLD_MS = 5000;
 
 /**
- * Hold a full-page reload while a song is playing or just started.
- * Visibility does not matter — idle clients still cache-bust on deploys
- * and song add/replace. Never yank a starting or playing song.
+ * Hold a full-page reload while the player has a song loaded, is playing,
+ * or just started. Song add/replace must never use a reload — only a catalog refresh.
  */
-export function shouldHoldAppUpdate(listening: boolean, msSincePlay = Number.POSITIVE_INFINITY): boolean {
-  return listening || msSincePlay < UPDATE_PLAY_HOLD_MS;
+export function shouldHoldAppUpdate(playerOpen: boolean, msSincePlay = Number.POSITIVE_INFINITY): boolean {
+  return playerOpen || msSincePlay < UPDATE_PLAY_HOLD_MS;
 }
 
 export function buildReloadUrl(href: string, build: string): string {
@@ -102,8 +110,12 @@ export async function clearStaleAppCaches(): Promise<void> {
   }
 }
 
-function isListening(): boolean {
-  return Array.from(document.querySelectorAll("audio")).some((el) => !el.paused);
+function playerIsOpen(): boolean {
+  return Array.from(document.querySelectorAll("audio")).some((el) => {
+    if (!el.paused) return true;
+    const src = el.currentSrc || el.getAttribute("src") || "";
+    return src.length > 0;
+  });
 }
 
 function dropBuildFromAddress() {
@@ -111,6 +123,17 @@ function dropBuildFromAddress() {
   const next = stripBuildParam(window.location.href);
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (next !== current) window.history.replaceState(window.history.state, "", next);
+}
+
+/** Drop stale listing caches and tell open pages to refetch. Does not remount audio. */
+export function applyCatalogRefresh() {
+  clearHomeClientCache();
+  clearAlbumClientCache();
+  resetAlbumInflight();
+  resetHomeInflight();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(CATALOG_REFRESH_EVENT));
+  }
 }
 
 export async function applyAppUpdate(revision: string): Promise<void> {
@@ -135,7 +158,7 @@ export function watchAppUpdates() {
   }
 
   function isBusy() {
-    return shouldHoldAppUpdate(isListening(), msSincePlay());
+    return shouldHoldAppUpdate(playerIsOpen(), msSincePlay());
   }
 
   async function reloadNow(revision: string) {
@@ -146,9 +169,22 @@ export function watchAppUpdates() {
     await applyAppUpdate(revision);
   }
 
-  /** Cache-bust + reload on every deploy and catalog change; wait if a song is starting or playing. */
-  async function applyWhenIdle(revision: string) {
+  function applyCatalog(revision: string) {
+    current = revision;
+    pendingRevision = "";
+    writeStoredRevision(revision);
+    applyCatalogRefresh();
+  }
+
+  /** Deploy: full reload only if the player is not open. Song edits: refetch, never reload. */
+  async function applyWhenIdle(from: string, revision: string) {
     if (applying) return;
+    const mode = updateApplyMode(from, revision);
+    if (mode === "catalog") {
+      applyCatalog(revision);
+      return;
+    }
+    if (mode !== "reload") return;
     if (isBusy()) {
       pendingRevision = revision;
       return;
@@ -166,7 +202,8 @@ export function watchAppUpdates() {
       if (!current) {
         const stored = readStoredRevision();
         if (stored && shouldApplyUpdate(stored, revision)) {
-          await applyWhenIdle(revision);
+          await applyWhenIdle(stored, revision);
+          if (!applying) current = revision;
           return;
         }
         current = revision;
@@ -174,7 +211,7 @@ export function watchAppUpdates() {
         return;
       }
       if (!shouldApplyUpdate(current, revision)) return;
-      await applyWhenIdle(revision);
+      await applyWhenIdle(current, revision);
     } catch {
       /* offline */
     }
@@ -183,15 +220,6 @@ export function watchAppUpdates() {
   function flushPending() {
     if (!pendingRevision || isBusy()) return;
     void reloadNow(pendingRevision);
-  }
-
-  let pauseFlushTimer = 0;
-  function schedulePauseFlush() {
-    if (pauseFlushTimer) window.clearTimeout(pauseFlushTimer);
-    pauseFlushTimer = window.setTimeout(() => {
-      pauseFlushTimer = 0;
-      flushPending();
-    }, UPDATE_PLAY_HOLD_MS);
   }
 
   void check();
@@ -207,13 +235,6 @@ export function watchAppUpdates() {
     "play",
     (event) => {
       if (event.target instanceof HTMLMediaElement) lastPlayAt = performance.now();
-    },
-    true,
-  );
-  document.addEventListener(
-    "pause",
-    (event) => {
-      if (event.target instanceof HTMLMediaElement) schedulePauseFlush();
     },
     true,
   );

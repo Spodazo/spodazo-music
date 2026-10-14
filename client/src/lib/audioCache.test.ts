@@ -7,6 +7,7 @@ import {
   MOBILE_HEADER_FADE_MS,
   MOBILE_HEADER_HOLD_MS,
   isMobilePlayback,
+  isPrematureTrackEnd,
   isResumeTime,
   mediaUrl,
   attachOutput,
@@ -124,6 +125,12 @@ test("a song start is not treated as a mid-song resume", () => {
   assert.equal(isResumeTime(0.05), false);
   assert.equal(isResumeTime(HEADER_HOLD), false);
   assert.equal(isResumeTime(12), true);
+});
+
+test("an ended event at one second does not count as the end of a real song", () => {
+  assert.equal(isPrematureTrackEnd(1.1, 214), true);
+  assert.equal(isPrematureTrackEnd(214, 214), false);
+  assert.equal(isPrematureTrackEnd(1.1, 2), false);
 });
 
 test("waitForAudible resolves immediately when the playhead is already past the header", async () => {

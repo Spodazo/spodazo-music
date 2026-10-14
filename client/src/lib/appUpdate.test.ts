@@ -7,6 +7,7 @@ import {
   shouldApplyUpdate,
   shouldHoldAppUpdate,
   stripBuildParam,
+  updateApplyMode,
   versionRevision,
   writeStoredRevision,
 } from "./appUpdate";
@@ -70,11 +71,14 @@ test("stripBuildParam removes only the update stamp", () => {
 test("visible idle clients refresh on deploy and on song add/replace", () => {
   assert.equal(shouldHoldAppUpdate(false), false);
   assert.equal(shouldHoldAppUpdate(false, 8000), false);
+  assert.equal(updateApplyMode("deploy1:100", "deploy1:200"), "catalog");
+  assert.equal(updateApplyMode("deploy1:100", "deploy2:100"), "reload");
+  assert.equal(updateApplyMode("deploy1:100", "deploy1:100"), "none");
 });
 
-test("a playing or just-started song is never yanked by a cache-bust reload", () => {
+test("a loaded or just-started song is never yanked by a full-page reload", () => {
   assert.equal(shouldHoldAppUpdate(true), true);
   assert.equal(shouldHoldAppUpdate(true, 8000), true);
   assert.equal(shouldHoldAppUpdate(false, 400), true);
-  assert.equal(shouldHoldAppUpdate(false, 2500), false);
+  assert.equal(shouldHoldAppUpdate(false, 6000), false);
 });
