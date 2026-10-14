@@ -26,7 +26,7 @@ import {
 } from "../lib/audioCache";
 import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum, refreshAlbum } from "../lib/albumCache";
 import { CATALOG_REFRESH_EVENT } from "../lib/appUpdate";
-import { persistedSessionRestoreAllowed, readLastPlace, writeLastPlace } from "../lib/lastPlace";
+import { persistedSessionRestoreAllowed, readLastPlace, shouldApplyHashRestore, writeLastPlace } from "../lib/lastPlace";
 import { fetchPlayerSetup } from "../lib/api";
 import { parseDurationLabel, totalListeningLabel } from "../lib/listeningTime";
 import { lyricMaxTravel, lyricPadPixels, lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
@@ -477,8 +477,11 @@ export default function AlbumPage() {
       if (!persistedSessionRestoreAllowed()) return;
       const hash = decodeURIComponent(location.hash.replace(/^#/, ""));
       if (!hash) return;
-      const index = album.tracks.findIndex((item) => item.slug === hash || item.key === hash);
-      if (index >= 0) openAt(index, false);
+      const catalog = albumRef.current || album;
+      const index = catalog.tracks.findIndex((item) => item.slug === hash || item.key === hash);
+      if (index < 0) return;
+      if (!shouldApplyHashRestore(activeRef.current, Boolean(currentUrlRef.current))) return;
+      openAt(index, false);
     };
     fromHash();
     window.addEventListener("hashchange", fromHash);
