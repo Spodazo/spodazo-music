@@ -618,14 +618,22 @@ export function pipelineIsDead(audio: HTMLAudioElement): boolean {
   return Boolean(audio.error) || audio.readyState < HAVE_CURRENT_DATA;
 }
 
+/** Prefer the catalog label when Safari reports a stub 1–2s duration. */
+export function trustedSongDuration(elementDuration: number, catalogSeconds: number): number {
+  const catalog = Number.isFinite(catalogSeconds) ? catalogSeconds : 0;
+  const element = Number.isFinite(elementDuration) ? elementDuration : 0;
+  if (catalog > 8) return catalog;
+  if (element > 8) return element;
+  return Math.max(catalog, element);
+}
+
 /** Safari sometimes fires `ended` ~1s in on a stub decode. Do not skip to the next song. */
 export function isPrematureTrackEnd(currentTime: number, knownDuration: number): boolean {
-  return (
-    Number.isFinite(knownDuration) &&
-    knownDuration > 8 &&
-    Number.isFinite(currentTime) &&
-    currentTime < 3
-  );
+  if (!Number.isFinite(currentTime) || currentTime >= 3) return false;
+  if (Number.isFinite(knownDuration) && knownDuration > 0 && knownDuration <= 8) {
+    return currentTime < knownDuration - 0.35;
+  }
+  return true;
 }
 
 export function assignSrc(audio: HTMLAudioElement, url: string, time = 0, force = false) {
