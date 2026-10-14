@@ -32,6 +32,13 @@ export function shouldApplyUpdate(current: string, next: string): boolean {
   return Boolean(current && next && current !== next);
 }
 
+/** Deploy/code stamp changed — phones must pick up the new JS even mid-listen. */
+export function isCodeUpdate(current: string, next: string): boolean {
+  const from = current.split(":")[0] || "";
+  const to = next.split(":")[0] || "";
+  return Boolean(from && to && from !== to);
+}
+
 export function buildReloadUrl(href: string, build: string): string {
   const url = new URL(href, appOrigin());
   const stamp = build.includes(":") ? build.split(":")[0] : build;
@@ -145,6 +152,10 @@ export function watchAppUpdates() {
         return;
       }
       if (!shouldApplyUpdate(current, revision)) return;
+      if (isCodeUpdate(current, revision)) {
+        await reloadNow(revision);
+        return;
+      }
       await applyWhenIdle(revision);
     } catch {
       /* offline */

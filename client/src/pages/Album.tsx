@@ -925,21 +925,8 @@ export default function AlbumPage() {
         setPlaying(true);
       }}
       onPause={() => {
-        const audio = audioRef.current;
-        const atEnd =
-          audio &&
-          (audio.ended ||
-            (Number.isFinite(audio.duration) &&
-              audio.duration > 0 &&
-              audio.currentTime >= audio.duration - 0.35));
-        if (wantPlayingRef.current && audio && !rerouteRef.current && !atEnd) {
-          restoreMobileOutput(audio, userVolRef.current);
-          void audio
-            .play()
-            .then(() => setPlaying(true))
-            .catch(() => setPlaying(false));
-          return;
-        }
+        // A pause event is a pause. Re-calling play() here (an older background-heal)
+        // fought Control Center / in-app pause and stuttered on every buffer stall.
         setPlaying(false);
       }}
     />

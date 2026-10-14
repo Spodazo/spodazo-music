@@ -480,24 +480,19 @@ export function startBackgroundPlaybackGuard(
   const heal = () => {
     if (!shouldKeepPlaying()) return;
     const audio = getAudio();
-    if (!audio) return;
+    if (!audio || audio.ended) return;
+    // A paused element is a pause (Control Center, lock screen, or the button).
+    // Never play() from this timer — that is the stutter / cannot-pause loop.
+    if (audio.paused) return;
     const volume = getVolume();
     if (nativeOutputOnly) {
-      // Stay on the element path after Bluetooth — do not revive WebAudio here.
       setPlaybackSession();
       audio.muted = false;
       gateOpen = true;
       if (!graphs.has(audio)) audio.volume = Math.max(0, Math.min(1, volume));
       else setOutput(audio, volume);
-      if (audio.paused && !audio.ended) void audio.play().catch(() => undefined);
       return;
     }
-    if (audio.paused) {
-      if (audio.ended) return;
-      void resumePlaybackAfterInterrupt(audio, volume);
-      return;
-    }
-    // iOS often keeps paused=false while GainNode stays at 0 or the context is interrupted.
     ensureMobileOutputAudible(audio, volume);
   };
 
