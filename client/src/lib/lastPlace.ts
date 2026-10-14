@@ -1,5 +1,6 @@
 export const LAST_PLACE_KEY = "spodazo-last-place-v1";
 const SESSION_BOOT_KEY = "spodazo-music-session-v1";
+const RESTORE_AFTER_UPDATE_KEY = "spodazo-restore-after-update";
 
 let sessionRestoreAllowed: boolean | undefined;
 
@@ -57,10 +58,24 @@ export function readLastPlace(): LastPlace | null {
   }
 }
 
+/** A cache-bust reload must keep the open song — it is not a user refresh. */
+export function markRestoreAfterAppUpdate() {
+  try {
+    sessionStorage.setItem(RESTORE_AFTER_UPDATE_KEY, "1");
+  } catch {
+    /* private mode */
+  }
+}
+
 /** True only on the first document load in this tab session (home-screen launch). False after refresh. */
 export function persistedSessionRestoreAllowed(): boolean {
   if (sessionRestoreAllowed !== undefined) return sessionRestoreAllowed;
   try {
+    if (sessionStorage.getItem(RESTORE_AFTER_UPDATE_KEY) === "1") {
+      sessionStorage.removeItem(RESTORE_AFTER_UPDATE_KEY);
+      sessionRestoreAllowed = true;
+      return true;
+    }
     sessionRestoreAllowed = sessionStorage.getItem(SESSION_BOOT_KEY) !== "1";
     sessionStorage.setItem(SESSION_BOOT_KEY, "1");
   } catch {

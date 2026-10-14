@@ -1,5 +1,6 @@
 import { clearAlbumClientCache } from "./albumCache";
 import { clearHomeClientCache } from "./homeCache";
+import { markRestoreAfterAppUpdate } from "./lastPlace";
 
 const BUILD_PARAM = "_spodazo";
 const REVISION_KEY = "spodazo-music-app-rev";
@@ -39,20 +40,16 @@ export function isCodeUpdate(current: string, next: string): boolean {
   return Boolean(from && to && from !== to);
 }
 
+/** Safari pause-during-play() and the first second of audio must not trigger a reload. */
+export const UPDATE_PLAY_HOLD_MS = 2000;
+
 /**
- * Hold a reload only while a song is actually playing.
- * Visibility does not matter — an open PWA must cache-bust on deploys and
- * song add/replace. Deploy/code updates skip the hold so a stuck pause-loop
- * cannot trap old JS.
+ * Hold a full-page reload while a song is playing or just started.
+ * Visibility does not matter — idle clients still cache-bust on deploys
+ * and song add/replace. Never yank a starting or playing song.
  */
-export function shouldHoldAppUpdate(
-  currentRevision: string,
-  nextRevision: string,
-  listening: boolean,
-): boolean {
-  if (!currentRevision || !nextRevision) return false;
-  if (isCodeUpdate(currentRevision, nextRevision)) return false;
-  return listening;
+export function shouldHoldAppUpdate(listening: boolean, msSincePlay = Number.POSITIVE_INFINITY): boolean {
+  return listening || msSincePlay < UPDATE_PLAY_HOLD_MS;
 }
 
 export function buildReloadUrl(href: string, build: string): string {
@@ -118,6 +115,7 @@ function dropBuildFromAddress() {
 
 export async function applyAppUpdate(revision: string): Promise<void> {
   writeStoredRevision(revision);
+  markRestoreAfterAppUpdate();
   clearHomeClientCache();
   clearAlbumClientCache();
   await clearStaleAppCaches();
@@ -128,8 +126,17 @@ export function watchAppUpdates() {
   let current = "";
   let pendingRevision = "";
   let applying = false;
+  let lastPlayAt = 0;
 
   dropBuildFromAddress();
+
+  function msSincePlay() {
+    return lastPlayAt ? performance.now() - lastPlayAt : Number.POSITIVE_INFINITY;
+  }
+
+  function isBusy() {
+    return shouldHoldAppUpdate(isListening(), msSincePlay());
+  }
 
   async function reloadNow(revision: string) {
     if (applying) return;
@@ -139,10 +146,10 @@ export function watchAppUpdates() {
     await applyAppUpdate(revision);
   }
 
-  /** Cache-bust + reload on every deploy and catalog change; wait only if audio is playing. */
+  /** Cache-bust + reload on every deploy and catalog change; wait if a song is starting or playing. */
   async function applyWhenIdle(revision: string) {
     if (applying) return;
-    if (shouldHoldAppUpdate(current, revision, isListening())) {
+    if (isBusy()) {
       pendingRevision = revision;
       return;
     }
@@ -159,8 +166,7 @@ export function watchAppUpdates() {
       if (!current) {
         const stored = readStoredRevision();
         if (stored && shouldApplyUpdate(stored, revision)) {
-          // New visit / deploy mismatch — safe before the user is mid-control.
-          await reloadNow(revision);
+          await applyWhenIdle(revision);
           return;
         }
         current = revision;
@@ -175,8 +181,7 @@ export function watchAppUpdates() {
   }
 
   function flushPending() {
-    if (!pendingRevision) return;
-    if (shouldHoldAppUpdate(current, pendingRevision, isListening())) return;
+    if (!pendingRevision || isBusy()) return;
     void reloadNow(pendingRevision);
   }
 
@@ -186,7 +191,7 @@ export function watchAppUpdates() {
     pauseFlushTimer = window.setTimeout(() => {
       pauseFlushTimer = 0;
       flushPending();
-    }, 400);
+    }, UPDATE_PLAY_HOLD_MS);
   }
 
   void check();
@@ -198,6 +203,13 @@ export function watchAppUpdates() {
     if (document.hidden) flushPending();
     else void check();
   });
+  document.addEventListener(
+    "play",
+    (event) => {
+      if (event.target instanceof HTMLMediaElement) lastPlayAt = performance.now();
+    },
+    true,
+  );
   document.addEventListener(
     "pause",
     (event) => {
