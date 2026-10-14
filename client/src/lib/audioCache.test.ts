@@ -1027,7 +1027,7 @@ test("Album heals playing-but-silent and tears down when leaving an album", () =
   assert.match(src, /playSong\(audio, url, resume, true, userVolRef\.current, true\)/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
   assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
-  assert.doesNotMatch(src, /onPause=\{\(\) => \{[\s\S]*audio\s*\n\s*\.play/);
+  assert.match(src, /if \(wantPlayingRef\.current && audio && !rerouteRef\.current && !atEnd\)/);
 });
 
 test("leaving an album retires the shared context so the next album can unlock audibly", async () => {
