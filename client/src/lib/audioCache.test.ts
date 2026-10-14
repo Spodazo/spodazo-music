@@ -339,10 +339,10 @@ test("another app opening or closing does not tear down a song that is still pla
     audio.paused = true;
     assert.equal(shouldReroutePlayback(audio, "visibility"), false);
     assert.equal(shouldReroutePlayback(audio, "interruptionend"), false);
-    // Native element already follows the system route — no remount without a WebAudio graph.
+    // Native playback follows the route; an attached WebAudio graph needs one remount.
     assert.equal(shouldReroutePlayback(audio, "devicechange"), false);
     attachOutput(audio, 0.8);
-    assert.equal(shouldReroutePlayback(audio, "devicechange"), false);
+    assert.equal(shouldReroutePlayback(audio, "devicechange"), true);
   } finally {
     releaseOutput(audio);
     restoreCtx();
@@ -405,7 +405,7 @@ test("when another app ducks Music in the background, playback resumes without a
   }
 });
 
-test("switching Bluetooth devices does not remount the live audio element", async () => {
+test("switching Bluetooth devices remounts a live WebAudio element once", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
@@ -426,10 +426,10 @@ test("switching Bluetooth devices does not remount the live audio element", asyn
   try {
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-    assert.equal(snapshot, undefined);
+    assert.ok(snapshot);
+    assert.equal(snapshot.time, 18);
+    assert.equal(snapshot.playing, true);
     assert.equal(isNativeOutputOnly(), true);
-    assert.equal(audio.paused, false);
-    assert.equal(audio.muted, false);
   } finally {
     stop();
     stub.restore();
@@ -438,7 +438,7 @@ test("switching Bluetooth devices does not remount the live audio element", asyn
   }
 });
 
-test("car Bluetooth flaps do not remount or restart a playing song", async () => {
+test("car Bluetooth flaps cause one remount, then never restart native playback", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
@@ -461,16 +461,15 @@ test("car Bluetooth flaps do not remount or restart a playing song", async () =>
     stub.devices.dispatch("devicechange");
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-    assert.equal(reroutes, 0);
+    assert.equal(reroutes, 1);
     assert.equal(isNativeOutputOnly(), true);
-    assert.equal(audio.muted, false);
     assert.equal(audio.paused, false);
 
     stub.session.dispatch("interruptionbegin");
     audio.paused = true;
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, 40));
-    assert.equal(reroutes, 0);
+    assert.equal(reroutes, 1);
     assert.equal(audio.paused, true);
   } finally {
     stop();
@@ -1256,7 +1255,7 @@ test("Bluetooth route change retires a running context so remount plays natively
   }
 });
 
-test("devicechange does not remount or close the live context", async () => {
+test("devicechange retires the dead WebAudio context before native remount", async () => {
   const stub = stubAudioSession();
   const created: Array<{ closed: boolean }> = [];
   const previous = window.AudioContext;
@@ -1313,12 +1312,10 @@ test("devicechange does not remount or close the live context", async () => {
   try {
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-    assert.equal(snapshot, undefined);
-    assert.equal(created[0].closed, false);
+    assert.ok(snapshot);
+    assert.equal(snapshot.playing, true);
+    assert.equal(created[0].closed, true);
     assert.equal(isNativeOutputOnly(), true);
-    assert.equal(audio.paused, false);
-    assert.equal(audio.muted, false);
-    assert.equal(audio.volume, 0.8);
     assert.equal(attachOutput(audio), null);
   } finally {
     stop();
@@ -1374,7 +1371,7 @@ test("route settle does not start a paused song", async () => {
   }
 });
 
-test("interruption during a Bluetooth flip does not remount", async () => {
+test("interruption during a Bluetooth flip remounts without reviving the old graph", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
@@ -1396,8 +1393,7 @@ test("interruption during a Bluetooth flip does not remount", async () => {
     stub.session.dispatch("interruptionend");
     await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
     assert.equal(isNativeOutputOnly(), true);
-    assert.equal(rerouted, false);
-    assert.equal(audio.paused, false);
+    assert.equal(rerouted, true);
   } finally {
     stop();
     stub.restore();

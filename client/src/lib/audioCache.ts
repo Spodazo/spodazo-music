@@ -56,14 +56,14 @@ export type PlaybackSnapshot = {
 
 export type PlaybackRerouteReason = "visibility" | "interruptionend" | "devicechange";
 
-/** Another app opening or closing is not a dead speaker. A call pauses us. Bluetooth needs a new route only while WebAudio is attached. */
+/** Another app opening or closing is not a dead speaker. Bluetooth needs one remount only while WebAudio is attached. */
 export function shouldReroutePlayback(
   audio: HTMLAudioElement | null,
   reason: PlaybackRerouteReason,
 ): boolean {
   if (!audio) return false;
   if (reason === "visibility") return false;
-  if (reason === "devicechange") return false;
+  if (reason === "devicechange") return graphs.has(audio);
   if (reason === "interruptionend") {
     // Books (and other PWAs) flash the system session; that is not a phone call or dead pipeline.
     return false;
@@ -440,20 +440,17 @@ export function watchPlaybackRoute(
   };
   const onDeviceChange = () => {
     if (!isMobilePlayback()) return;
-    // Stay on this element. Remounting reloads the MP3 and stutters like a bad link.
+    // A MediaElementSource stays bound to the old route. Disconnecting it without
+    // replacing the element leaves Safari's playhead moving through silence.
     nativeOutputOnly = true;
-    routeChangePending = false;
-    for (const item of routeWatchers) {
-      const audio = item.getAudio();
-      if (!audio || audio.ended) continue;
-      // A live WebAudio graph cannot follow a new Bluetooth route after a reboot
-      // or AirPods/car reconnect — the playhead keeps moving and speakers stay silent.
-      if (graphs.has(audio)) releaseOutput(audio);
-      setPlaybackSession();
-      audio.muted = false;
-      gateOpen = true;
-      audio.volume = Math.max(0, Math.min(1, item.getVolume()));
+    notePlayingBeforeInterrupt();
+    if (anyWatcherNeedsRouteRemount()) {
+      routeChangePending = true;
+      requestPlaybackReroute();
+      return;
     }
+    // Once remounted natively, later A2DP/HFP flaps heal the same element.
+    softSettleNativeRoutes();
   };
 
   const session = audioSession();
