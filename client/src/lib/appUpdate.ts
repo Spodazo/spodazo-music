@@ -108,17 +108,25 @@ export function watchAppUpdates() {
 
   dropBuildFromAddress();
 
-  async function apply(revision: string, force = false) {
+  async function reloadNow(revision: string) {
     if (applying) return;
-    if (!force && isListening()) {
-      pendingRevision = revision;
-      return;
-    }
     applying = true;
+    pendingRevision = "";
+    current = revision;
     await applyAppUpdate(revision);
   }
 
-  async function check(forceStaleReload = false) {
+  /** Queue updates while the user is on the page; never yank a pause into a full reload. */
+  async function applyWhenIdle(revision: string) {
+    if (applying) return;
+    if (isListening() || (typeof document !== "undefined" && !document.hidden)) {
+      pendingRevision = revision;
+      return;
+    }
+    await reloadNow(revision);
+  }
+
+  async function check() {
     try {
       const res = await fetch("/api/version", NO_STORE);
       if (!res.ok) return;
@@ -128,7 +136,8 @@ export function watchAppUpdates() {
       if (!current) {
         const stored = readStoredRevision();
         if (stored && shouldApplyUpdate(stored, revision)) {
-          await apply(revision, true);
+          // New visit / deploy mismatch — safe before the user is mid-control.
+          await reloadNow(revision);
           return;
         }
         current = revision;
@@ -136,7 +145,7 @@ export function watchAppUpdates() {
         return;
       }
       if (!shouldApplyUpdate(current, revision)) return;
-      await apply(revision, forceStaleReload);
+      await applyWhenIdle(revision);
     } catch {
       /* offline */
     }
@@ -144,27 +153,24 @@ export function watchAppUpdates() {
 
   function flushPending() {
     if (!pendingRevision || isListening()) return;
-    void apply(pendingRevision);
+    if (typeof document !== "undefined" && !document.hidden) return;
+    void reloadNow(pendingRevision);
   }
 
-  void check(true);
+  void check();
   window.setInterval(() => {
     if (pendingRevision) flushPending();
     else void check();
   }, CHECK_MS);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) {
-      if (pendingRevision) flushPending();
-      else void check();
-    }
+    if (document.hidden) flushPending();
+    else void check();
   });
-  window.addEventListener("pageshow", (event) => {
-    if (event.persisted) void check(true);
-    else if (pendingRevision) flushPending();
+  window.addEventListener("pageshow", () => {
+    if (pendingRevision) flushPending();
     else void check();
   });
   window.addEventListener("focus", () => {
-    if (pendingRevision) flushPending();
-    else void check();
+    void check();
   });
 }
