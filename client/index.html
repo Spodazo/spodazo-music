@@ -61,6 +61,61 @@
         } catch (e) {}
       })();
     </script>
+    <script>
+      (function () {
+        var KEY = "spodazo-music-app-rev";
+        var PARAM = "_spodazo";
+        function revision(info) {
+          if (!info || !info.build) return "";
+          return String(info.build) + ":" + (String(info.catalog || "0") || "0");
+        }
+        function stored() {
+          try {
+            return sessionStorage.getItem(KEY) || localStorage.getItem(KEY) || "";
+          } catch (e) {
+            return "";
+          }
+        }
+        function save(value) {
+          try {
+            if (value) {
+              sessionStorage.setItem(KEY, value);
+              localStorage.setItem(KEY, value);
+            }
+          } catch (e) {}
+        }
+        function apply(next) {
+          var from = stored();
+          var fromBuild = from.split(":")[0] || "";
+          var toBuild = next.split(":")[0] || "";
+          if (!from || !next || from === next) {
+            save(next);
+            return;
+          }
+          save(next);
+          if (!fromBuild || !toBuild || fromBuild === toBuild) return;
+          var url = new URL(location.href);
+          url.searchParams.set(PARAM, toBuild.slice(0, 16));
+          location.replace(url.pathname + url.search + url.hash);
+        }
+        function check() {
+          fetch("/api/version", { cache: "no-store", headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } })
+            .then(function (res) { return res.ok ? res.json() : null; })
+            .then(function (info) {
+              var next = revision(info);
+              if (next) apply(next);
+            })
+            .catch(function () {});
+        }
+        check();
+        setInterval(check, 15000);
+        document.addEventListener("visibilitychange", function () {
+          if (!document.hidden) check();
+        });
+        window.addEventListener("pageshow", check);
+        window.addEventListener("focus", check);
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

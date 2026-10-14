@@ -49,12 +49,12 @@ export function updateApplyMode(current: string, next: string): UpdateApplyMode 
   return isCodeUpdate(current, next) ? "reload" : "catalog";
 }
 
-/** Safari pause-during-play() and the first seconds of audio must not trigger a reload. */
+/** Used only to delay a leftover pending reload — deploys themselves never wait. */
 export const UPDATE_PLAY_HOLD_MS = 5000;
 
 /**
- * Hold a full-page reload while the player has a song loaded, is playing,
- * or just started. Song add/replace must never use a reload — only a catalog refresh.
+ * True while a song is loaded or just started. Catalog refresh ignores this.
+ * Deploy/code updates also ignore this — every PWA must cache-bust immediately.
  */
 export function shouldHoldAppUpdate(playerOpen: boolean, msSincePlay = Number.POSITIVE_INFINITY): boolean {
   return playerOpen || msSincePlay < UPDATE_PLAY_HOLD_MS;
@@ -77,7 +77,7 @@ export function stripBuildParam(href: string): string {
 
 export function readStoredRevision(): string {
   try {
-    return sessionStorage.getItem(REVISION_KEY) || "";
+    return sessionStorage.getItem(REVISION_KEY) || localStorage.getItem(REVISION_KEY) || "";
   } catch {
     return "";
   }
@@ -85,7 +85,9 @@ export function readStoredRevision(): string {
 
 export function writeStoredRevision(build: string) {
   try {
-    if (build) sessionStorage.setItem(REVISION_KEY, build);
+    if (!build) return;
+    sessionStorage.setItem(REVISION_KEY, build);
+    localStorage.setItem(REVISION_KEY, build);
   } catch {
     /* private mode */
   }
@@ -108,14 +110,6 @@ export async function clearStaleAppCaches(): Promise<void> {
   } catch {
     /* private mode */
   }
-}
-
-function playerIsOpen(): boolean {
-  return Array.from(document.querySelectorAll("audio")).some((el) => {
-    if (!el.paused) return true;
-    const src = el.currentSrc || el.getAttribute("src") || "";
-    return src.length > 0;
-  });
 }
 
 function dropBuildFromAddress() {
@@ -147,36 +141,24 @@ export async function applyAppUpdate(revision: string): Promise<void> {
 
 export function watchAppUpdates() {
   let current = "";
-  let pendingRevision = "";
   let applying = false;
-  let lastPlayAt = 0;
 
   dropBuildFromAddress();
-
-  function msSincePlay() {
-    return lastPlayAt ? performance.now() - lastPlayAt : Number.POSITIVE_INFINITY;
-  }
-
-  function isBusy() {
-    return shouldHoldAppUpdate(playerIsOpen(), msSincePlay());
-  }
 
   async function reloadNow(revision: string) {
     if (applying) return;
     applying = true;
-    pendingRevision = "";
     current = revision;
     await applyAppUpdate(revision);
   }
 
   function applyCatalog(revision: string) {
     current = revision;
-    pendingRevision = "";
     writeStoredRevision(revision);
     applyCatalogRefresh();
   }
 
-  /** Deploy: full reload only if the player is not open. Song edits: refetch, never reload. */
+  /** Deploy: reload every open PWA now. Song edits: refetch, never reload. */
   async function applyWhenIdle(from: string, revision: string) {
     if (applying) return;
     const mode = updateApplyMode(from, revision);
@@ -185,10 +167,6 @@ export function watchAppUpdates() {
       return;
     }
     if (mode !== "reload") return;
-    if (isBusy()) {
-      pendingRevision = revision;
-      return;
-    }
     await reloadNow(revision);
   }
 
@@ -217,30 +195,15 @@ export function watchAppUpdates() {
     }
   }
 
-  function flushPending() {
-    if (!pendingRevision || isBusy()) return;
-    void reloadNow(pendingRevision);
-  }
-
   void check();
   window.setInterval(() => {
-    if (pendingRevision) flushPending();
-    else void check();
+    void check();
   }, CHECK_MS);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) flushPending();
-    else void check();
+    if (!document.hidden) void check();
   });
-  document.addEventListener(
-    "play",
-    (event) => {
-      if (event.target instanceof HTMLMediaElement) lastPlayAt = performance.now();
-    },
-    true,
-  );
   window.addEventListener("pageshow", () => {
-    if (pendingRevision) flushPending();
-    else void check();
+    void check();
   });
   window.addEventListener("focus", () => {
     void check();

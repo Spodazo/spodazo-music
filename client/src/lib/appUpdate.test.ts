@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   buildReloadUrl,
@@ -43,19 +44,33 @@ test("buildReloadUrl stamps the build and keeps the song hash", () => {
 });
 
 test("stored revision remembers the build that last ran", () => {
-  const memory = new Map<string, string>();
+  const session = new Map<string, string>();
+  const local = new Map<string, string>();
   Object.defineProperty(globalThis, "sessionStorage", {
     configurable: true,
     value: {
       getItem(key: string) {
-        return memory.get(key) ?? null;
+        return session.get(key) ?? null;
       },
       setItem(key: string, value: string) {
-        memory.set(key, value);
+        session.set(key, value);
+      },
+    },
+  });
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem(key: string) {
+        return local.get(key) ?? null;
+      },
+      setItem(key: string, value: string) {
+        local.set(key, value);
       },
     },
   });
   writeStoredRevision("build-a");
+  assert.equal(readStoredRevision(), "build-a");
+  session.clear();
   assert.equal(readStoredRevision(), "build-a");
   assert.equal(shouldApplyUpdate(readStoredRevision(), "build-b"), true);
 });
@@ -81,4 +96,25 @@ test("a loaded or just-started song is never yanked by a full-page reload", () =
   assert.equal(shouldHoldAppUpdate(true, 8000), true);
   assert.equal(shouldHoldAppUpdate(false, 400), true);
   assert.equal(shouldHoldAppUpdate(false, 6000), false);
+});
+
+test("a deploy cache-busts every PWA even while a song is playing", () => {
+  const src = readFileSync(new URL("./appUpdate.ts", import.meta.url), "utf8");
+  const apply = src.slice(src.indexOf("async function applyWhenIdle"), src.indexOf("async function check"));
+  assert.match(apply, /mode === "catalog"/);
+  assert.match(apply, /await reloadNow\(revision\)/);
+  assert.doesNotMatch(apply, /isBusy/);
+  assert.doesNotMatch(apply, /pendingRevision/);
+  assert.doesNotMatch(src, /querySelectorAll\("audio"\)/);
+  assert.equal(updateApplyMode("deploy1:100", "deploy2:100"), "reload");
+  assert.equal(updateApplyMode("deploy1:100", "deploy1:200"), "catalog");
+});
+
+test("the HTML page itself reloads on a deploy without waiting for a user to relaunch", () => {
+  const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+  assert.match(html, /spodazo-music-app-rev/);
+  assert.match(html, /\/api\/version/);
+  assert.match(html, /location\.replace/);
+  assert.doesNotMatch(html, /querySelectorAll\(["']audio["']\)/);
+  assert.doesNotMatch(html, /audio\.paused/);
 });
