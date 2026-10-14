@@ -298,7 +298,7 @@ test("another app opening or closing does not tear down a song that is still pla
     // Native element already follows the system route — no remount without a WebAudio graph.
     assert.equal(shouldReroutePlayback(audio, "devicechange"), false);
     attachOutput(audio, 0.8);
-    assert.equal(shouldReroutePlayback(audio, "devicechange"), true);
+    assert.equal(shouldReroutePlayback(audio, "devicechange"), false);
   } finally {
     releaseOutput(audio);
     restoreCtx();
@@ -361,13 +361,14 @@ test("when another app ducks Music in the background, playback resumes without a
   }
 });
 
-test("switching Bluetooth devices asks the player to rebuild the live audio element", async () => {
+test("switching Bluetooth devices does not remount the live audio element", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
   audio.src = "/media/songs/a.mp3";
   audio.currentTime = 18;
   audio.paused = false;
+  audio.muted = false;
   attachOutput(audio, 0.8);
   let snapshot: PlaybackSnapshot | undefined;
   const stop = watchPlaybackRoute(
@@ -376,14 +377,15 @@ test("switching Bluetooth devices asks the player to rebuild the live audio elem
       snapshot = next;
       releaseOutputForRouteChange(audio);
     },
+    () => 0.8,
   );
   try {
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-    assert.ok(snapshot);
-    assert.equal(snapshot.time, 18);
-    assert.equal(snapshot.playing, true);
+    assert.equal(snapshot, undefined);
     assert.equal(isNativeOutputOnly(), true);
+    assert.equal(audio.paused, false);
+    assert.equal(audio.muted, false);
   } finally {
     stop();
     stub.restore();
@@ -392,7 +394,7 @@ test("switching Bluetooth devices asks the player to rebuild the live audio elem
   }
 });
 
-test("car Bluetooth flaps after native remount settle without rebuilding the element", async () => {
+test("car Bluetooth flaps do not remount or restart a playing song", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
@@ -413,27 +415,19 @@ test("car Bluetooth flaps after native remount settle without rebuilding the ele
   );
   try {
     stub.devices.dispatch("devicechange");
-    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-    assert.equal(reroutes, 1);
-    assert.equal(isNativeOutputOnly(), true);
-
-    // Head unit keeps flipping A2DP/HFP — must not tear down and reload the song again.
-    stub.devices.dispatch("devicechange");
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-    assert.equal(reroutes, 1);
+    assert.equal(reroutes, 0);
     assert.equal(isNativeOutputOnly(), true);
     assert.equal(audio.muted, false);
-    assert.equal(audio.volume, 0.8);
     assert.equal(audio.paused, false);
 
-    // Flaps often pause the element after interruptionbegin; settle should resume without remounting.
     stub.session.dispatch("interruptionbegin");
     audio.paused = true;
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, 40));
-    assert.equal(reroutes, 1);
-    assert.equal(audio.paused, false);
+    assert.equal(reroutes, 0);
+    assert.equal(audio.paused, true);
   } finally {
     stop();
     stub.restore();
@@ -1027,7 +1021,8 @@ test("Album heals playing-but-silent and tears down when leaving an album", () =
   assert.match(src, /playSong\(audio, url, resume, true, userVolRef\.current, true\)/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
   assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
-  assert.match(src, /if \(wantPlayingRef\.current && audio && !rerouteRef\.current && !atEnd\)/);
+  assert.match(src, /PLAY_START_RESUME_MS/);
+  assert.match(src, /starting && audio && !rerouteRef\.current && !atEnd/);
 });
 
 test("leaving an album retires the shared context so the next album can unlock audibly", async () => {
@@ -1216,7 +1211,7 @@ test("Bluetooth route change retires a running context so remount plays natively
   }
 });
 
-test("devicechange rebuild path retires the shared context before remounting", async () => {
+test("devicechange does not remount or close the live context", async () => {
   const stub = stubAudioSession();
   const created: Array<{ closed: boolean }> = [];
   const previous = window.AudioContext;
@@ -1273,10 +1268,10 @@ test("devicechange rebuild path retires the shared context before remounting", a
   try {
     stub.devices.dispatch("devicechange");
     await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
-    assert.ok(snapshot);
-    assert.equal(snapshot.playing, true);
-    assert.equal(created[0].closed, true);
+    assert.equal(snapshot, undefined);
+    assert.equal(created[0].closed, false);
     assert.equal(isNativeOutputOnly(), true);
+    assert.equal(audio.paused, false);
   } finally {
     stop();
     stub.restore();
@@ -1286,10 +1281,10 @@ test("devicechange rebuild path retires the shared context before remounting", a
   }
 });
 
-test("route settle keeps native playback unmuted while Bluetooth finishes connecting", async () => {
+test("route settle keeps a playing element unmuted without calling play", async () => {
   const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
   const audio = fakeAudio() as unknown as HTMLAudioElement;
-  audio.paused = true;
+  audio.paused = false;
   audio.muted = true;
   audio.volume = 0;
   releaseOutputForRouteChange(null);
@@ -1311,7 +1306,7 @@ test("route settle keeps native playback unmuted while Bluetooth finishes connec
   }
 });
 
-test("route settle does not fight the user after playback has started", async () => {
+test("route settle does not start a paused song", async () => {
   const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
   const audio = fakeAudio() as unknown as HTMLAudioElement;
   audio.paused = true;
@@ -1322,9 +1317,6 @@ test("route settle does not fight the user after playback has started", async ()
     () => 0.8,
   );
   try {
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.equal(audio.paused, false);
-    audio.paused = true;
     await new Promise((resolve) => setTimeout(resolve, ROUTE_SETTLE_TICK_MS + 40));
     assert.equal(audio.paused, true);
   } finally {
@@ -1334,7 +1326,7 @@ test("route settle does not fight the user after playback has started", async ()
   }
 });
 
-test("interruption during a Bluetooth flip does not revive the old WebAudio graph", async () => {
+test("interruption during a Bluetooth flip does not remount", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
@@ -1354,12 +1346,10 @@ test("interruption during a Bluetooth flip does not revive the old WebAudio grap
     stub.devices.dispatch("devicechange");
     stub.session.dispatch("interruptionbegin");
     stub.session.dispatch("interruptionend");
-    await new Promise((resolve) => setTimeout(resolve, 80));
-    // Remount is still debounced — interruption must not clear native-only early.
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
     assert.equal(isNativeOutputOnly(), true);
     assert.equal(rerouted, false);
-    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS));
-    assert.equal(rerouted, true);
+    assert.equal(audio.paused, false);
   } finally {
     stop();
     stub.restore();
