@@ -68,17 +68,13 @@ test("stripBuildParam removes only the update stamp", () => {
 });
 
 test("visible idle clients refresh on deploy and on song add/replace", () => {
-  assert.equal(shouldHoldAppUpdate("deploy1:100", "deploy1:200", false), false);
-  assert.equal(shouldHoldAppUpdate("deploy1:100", "deploy2:100", false), false);
-  assert.equal(shouldHoldAppUpdate("deploy1:100", "deploy2:200", true), false);
+  assert.equal(shouldHoldAppUpdate(false), false);
+  assert.equal(shouldHoldAppUpdate(false, 8000), false);
 });
 
-test("song add/replace waits only while audio is actually playing", () => {
-  assert.equal(shouldHoldAppUpdate("deploy1:100", "deploy1:200", true), true);
-  assert.equal(shouldHoldAppUpdate("deploy1:100", "deploy1:200", false), false);
-});
-
-test("deploy updates never wait — stuck players must drop old JS", () => {
-  assert.equal(shouldHoldAppUpdate("deploy1:100", "deploy2:100", true), false);
-  assert.equal(shouldHoldAppUpdate("", "deploy2:100", true), false);
+test("a playing or just-started song is never yanked by a cache-bust reload", () => {
+  assert.equal(shouldHoldAppUpdate(true), true);
+  assert.equal(shouldHoldAppUpdate(true, 8000), true);
+  assert.equal(shouldHoldAppUpdate(false, 400), true);
+  assert.equal(shouldHoldAppUpdate(false, 2500), false);
 });

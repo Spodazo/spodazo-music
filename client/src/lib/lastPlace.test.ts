@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   isRestorablePath,
   LAST_PLACE_KEY,
+  markRestoreAfterAppUpdate,
   persistedSessionRestoreAllowed,
   readLastPlace,
   resetSessionRestoreGateForTests,
@@ -85,6 +86,17 @@ test("a refresh in the same tab session does not jump back to the last album", (
   resetSessionRestoreGateForTests();
   assert.equal(persistedSessionRestoreAllowed(), false);
   assert.equal(restoreLastPlace("/", true), "/");
+});
+
+test("a cache-bust reload keeps the open song instead of jumping to the album list", () => {
+  freshSession();
+  writeLastPlace({ path: "/echoes-of-storms", playing: true, trackId: "t1", time: 12 });
+  assert.equal(persistedSessionRestoreAllowed(), true);
+  sessionMemory.set("spodazo-music-session-v1", "1");
+  resetSessionRestoreGateForTests();
+  markRestoreAfterAppUpdate();
+  assert.equal(persistedSessionRestoreAllowed(), true);
+  assert.equal(restoreLastPlace("/", true), "/echoes-of-storms");
 });
 
 test("choosing the album list keeps the next launch on home", () => {
