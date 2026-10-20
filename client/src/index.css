@@ -1333,6 +1333,10 @@ button.t-play-icon {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.lyrics-heading {
+  font-weight: 700;
+  color: var(--text);
+}
 
 .btn-close {
   grid-column: 3;

@@ -13,6 +13,7 @@ import PDFDocument from "pdfkit";
 import { PDFDocument as PDFLibDocument, PDFName, PDFArray } from "pdf-lib";
 import QRCode from "qrcode";
 import sharp from "sharp";
+import { lyricSectionLabel } from "../shared/lyrics";
 import type { PublicAlbum, PublicTrack } from "../shared/types";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -68,8 +69,6 @@ const SCRIPTURE_REF_LINE = new RegExp(
   `^${BOOK}(?:\\s+\\d+)?(?:\\s*[:.]\\s*[\\d\\s,\\-–—]+)?$`,
   "i",
 );
-const SECTION_LINE =
-  /^\[?\s*((?:Verse|Chorus|Refrain|Bridge|Spoken Word|Instrumental)\b[^\]\n]*)\]?\s*$/i;
 
 /** Song list on Page 2.pdf (points, top-left origin). */
 const SONG_LINK_BOXES: { n: number; x: number; y: number; w: number; h: number }[] = [
@@ -275,13 +274,10 @@ function parseLyrics(raw: string): LyricBlock[] {
   for (const line of text.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed || /^[-–—"'“”]+$/.test(trimmed) || !/[A-Za-z0-9]/.test(trimmed)) continue;
-    const section = trimmed.match(SECTION_LINE);
+    const section = lyricSectionLabel(trimmed);
     if (section) {
       if (blocks.length) blocks.push({ kind: "blank", text: "" });
-      blocks.push({
-        kind: "section",
-        text: section[1].replace(/\s+/g, " ").replace(/^\[|\]$/g, "").trim(),
-      });
+      blocks.push({ kind: "section", text: section });
       continue;
     }
     blocks.push({ kind: "line", text: trimmed });
@@ -400,7 +396,7 @@ function measureOneBlock(doc: PdfDoc, block: LyricBlock, size: number, width: nu
   const gap = lyricLineGap(size);
   if (block.kind === "blank") return size * 0.7;
   if (block.kind === "section") {
-    doc.font("Playfair").fontSize(size);
+    doc.font("Playfair-Bold").fontSize(size);
     return doc.heightOfString(block.text, { width, lineGap: 1 }) + size * 0.35;
   }
   doc.font("Montserrat-Light").fontSize(size);
@@ -424,7 +420,7 @@ function paintLyrics(doc: PdfDoc, blocks: LyricBlock[], size: number, x: number,
       continue;
     }
     if (block.kind === "section") {
-      doc.font("Playfair").fontSize(size).fillColor(INK).text(block.text, x, cursor, { width, lineGap: 1 });
+      doc.font("Playfair-Bold").fontSize(size).fillColor(INK).text(block.text, x, cursor, { width, lineGap: 1 });
       cursor = doc.y + size * 0.35;
     } else {
       doc.font("Montserrat-Light").fontSize(size).fillColor(INK).text(block.text, x, cursor, { width, lineGap: gap });

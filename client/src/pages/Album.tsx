@@ -33,6 +33,7 @@ import { fetchPlayerSetup } from "../lib/api";
 import { parseDurationLabel, totalListeningLabel } from "../lib/listeningTime";
 import { lyricMaxTravel, lyricPadPixels, lyricScrollAt, songLengthSeconds } from "../lib/lyricScroll";
 import { copyText, songShareUrl } from "../lib/shareLink";
+import { lyricLines } from "@shared/lyrics";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import { imageIsHot, LIST_THUMB_WIDTH, revealLoadedImage, withImageWidth } from "../lib/images";
@@ -51,6 +52,20 @@ function pad(n: number): string {
 
 function introductionBody(text: string): string {
   return text.replace(/^\s*Introduction\s*\r?\n+/i, "").trim();
+}
+
+function LyricsText({ text }: { text: string }) {
+  const lines = lyricLines(text);
+  return (
+    <div className="lyrics-text">
+      {lines.map((line, index) => (
+        <span key={index}>
+          {index > 0 ? "\n" : null}
+          {line.heading ? <strong className="lyrics-heading">{line.text}</strong> : line.text}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function trackHasLyrics(track: { lyrics: string; instrumental?: boolean } | null): boolean {
@@ -1323,9 +1338,7 @@ export default function AlbumPage() {
                 {track.lyrics.trim() || !track.instrumental ? (
                   <>
                     <div className="lyrics-label">Lyrics</div>
-                    <div className="lyrics-text">
-                      {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
-                    </div>
+                    <LyricsText text={track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")} />
                   </>
                 ) : null}
               </div>
@@ -1355,9 +1368,7 @@ export default function AlbumPage() {
                       {track.lyrics.trim() || !track.instrumental ? (
                         <>
                           <div className="lyrics-label">Lyrics</div>
-                          <div className="lyrics-text">
-                            {track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")}
-                          </div>
+                          <LyricsText text={track.lyrics || (track.instrumental ? "" : "Lyrics can be added in Admin.")} />
                         </>
                       ) : null}
                       <div className="lyrics-scroll-pad" aria-hidden="true" />
