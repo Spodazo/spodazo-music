@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import {
+  isSyncFolderName,
   isTempMusicFileName,
   normalizeSyncName,
   stableSnapshots,
@@ -67,35 +68,101 @@ async function sha256File(full: string): Promise<string> {
   });
 }
 
-async function snapshot(dir: string): Promise<FileSnap[]> {
-  const names = await fs.readdir(dir);
-  const snaps: FileSnap[] = [];
-  for (const raw of names) {
-    const name = normalizeSyncName(raw);
-    if (!isTempMusicFileName(name)) continue;
-    const stat = await fs.stat(path.join(dir, raw));
-    if (!stat.isFile()) continue;
-    snaps.push({ name, size: stat.size, mtimeMs: stat.mtimeMs });
-  }
-  snaps.sort((a, b) => a.name.localeCompare(b.name));
-  return snaps;
+type TreeSnap = { files: FileSnap[]; folders: string[] };
+
+function insideRoot(rootReal: string, real: string): boolean {
+  return real === rootReal || real.startsWith(rootReal + path.sep);
 }
 
-async function readFinishedFiles(dir: string, settleMs: number): Promise<TempMusicFile[] | "busy"> {
-  const first = await snapshot(dir);
+async function snapshotTree(dir: string): Promise<TreeSnap> {
+  const rootReal = await fs.realpath(dir);
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files: FileSnap[] = [];
+  const folders: string[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith(".")) continue;
+    const full = path.join(dir, entry.name);
+    let real = full;
+    let stat: Awaited<ReturnType<typeof fs.stat>>;
+    try {
+      real = await fs.realpath(full);
+      stat = await fs.stat(full);
+    } catch {
+      continue;
+    }
+    if (!insideRoot(rootReal, real)) continue;
+    const display = entry.name.normalize("NFC");
+    if (stat.isDirectory()) {
+      if (!isSyncFolderName(display)) continue;
+      folders.push(display);
+      const children = await fs.readdir(full, { withFileTypes: true });
+      for (const child of children) {
+        if (child.name.startsWith(".")) continue;
+        const childName = normalizeSyncName(child.name);
+        if (!isTempMusicFileName(childName)) continue;
+        const childFull = path.join(full, child.name);
+        let childReal = childFull;
+        let childStat: Awaited<ReturnType<typeof fs.stat>>;
+        try {
+          childReal = await fs.realpath(childFull);
+          childStat = await fs.stat(childFull);
+        } catch {
+          continue;
+        }
+        if (!childStat.isFile() || !insideRoot(rootReal, childReal)) continue;
+        files.push({ name: `${display}/${childName}`, size: childStat.size, mtimeMs: childStat.mtimeMs });
+      }
+      continue;
+    }
+    if (!stat.isFile()) continue;
+    const fileName = normalizeSyncName(entry.name);
+    if (!isTempMusicFileName(fileName)) continue;
+    files.push({ name: fileName, size: stat.size, mtimeMs: stat.mtimeMs });
+  }
+  files.sort((a, b) => compareNames(a.name, b.name));
+  folders.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }));
+  return { files, folders };
+}
+
+function compareNames(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function sameFolders(first: string[], second: string[]): boolean {
+  if (first.length !== second.length) return false;
+  const a = [...first].sort(compareNames);
+  const b = [...second].sort(compareNames);
+  return a.every((name, index) => name === b[index]);
+}
+
+function fileInside(root: string, rel: string): string | null {
+  const parts = rel.split("/");
+  if (parts.some((part) => !part || part === "." || part === "..")) return null;
+  const full = path.resolve(root, ...parts);
+  const base = path.resolve(root);
+  if (full !== base && !full.startsWith(base + path.sep)) return null;
+  return full;
+}
+
+async function readFinishedFiles(
+  dir: string,
+  settleMs: number,
+): Promise<{ files: TempMusicFile[]; folders: string[] } | "busy"> {
+  const first = await snapshotTree(dir);
   await new Promise((resolve) => setTimeout(resolve, settleMs));
-  const second = await snapshot(dir);
-  const stable = stableSnapshots(first, second);
-  if (!stable.ready) return "busy";
+  const second = await snapshotTree(dir);
+  const stable = stableSnapshots(first.files, second.files);
+  if (!stable.ready || !sameFolders(first.folders, second.folders)) return "busy";
   const files: TempMusicFile[] = [];
   for (const snap of stable.files) {
-    const full = path.join(dir, snap.name);
+    const full = fileInside(dir, snap.name);
+    if (!full) return "busy";
     const sha256 = await sha256File(full);
     const after = await fs.stat(full);
     if (after.size !== snap.size || after.mtimeMs !== snap.mtimeMs) return "busy";
     files.push({ name: snap.name, size: snap.size, sha256 });
   }
-  return files;
+  return { files, folders: second.folders };
 }
 
 export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResult> {
@@ -105,8 +172,9 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
   } catch {
     return { ok: false, skipped: "missing-folder" };
   }
-  const files = await readFinishedFiles(config.folder, config.settleMs ?? 500);
-  if (files === "busy") return { ok: false, skipped: "busy" };
+  const scanned = await readFinishedFiles(config.folder, config.settleMs ?? 500);
+  if (scanned === "busy") return { ok: false, skipped: "busy" };
+  const { files, folders } = scanned;
   const headers = {
     Authorization: `Bearer ${config.token}`,
     "Content-Type": "application/json",
@@ -116,7 +184,7 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
     planRes = await fetch(`${config.api}/api/sync/temp-music/plan`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ files }),
+      body: JSON.stringify({ files, folders }),
       signal: AbortSignal.timeout(20000),
     });
   } catch {
@@ -130,9 +198,11 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
   for (const name of plan.upload || []) {
     const file = byName.get(name);
     if (!file) return { ok: false, skipped: "busy" };
-    const bytes = await fs.readFile(path.join(config.folder, name));
+    const full = fileInside(config.folder, name);
+    if (!full) return { ok: false, skipped: "busy" };
+    const bytes = await fs.readFile(full);
     const body = new FormData();
-    body.append("audio", new Blob([bytes], { type: "audio/mpeg" }), name);
+    body.append("audio", new Blob([bytes], { type: "audio/mpeg" }), path.basename(name));
     let res: Response;
     try {
       res = await fetch(
@@ -156,7 +226,7 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
     pruneRes = await fetch(`${config.api}/api/sync/temp-music/prune`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ confirm: "mirror", files }),
+      body: JSON.stringify({ confirm: "mirror", files, folders }),
       signal: AbortSignal.timeout(20000),
     });
   } catch {

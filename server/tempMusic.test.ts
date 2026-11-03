@@ -193,6 +193,43 @@ test("Desktop folder syncs into a private Temp Music album", async () => {
       headers: { Cookie: cookie },
     });
     assert.equal(adminAudio.status, 200);
+
+    const christmas = path.join(folder, "Christmas 2026");
+    fs.mkdirSync(christmas);
+    const emptyFolder = await syncTempMusicFolder(config);
+    assert.equal(emptyFolder.ok, true);
+    const created = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      albums: { slug: string; title: string; hidden: boolean; tracks: { name: string }[] }[];
+    };
+    const christmasAlbum = created.albums.find((album) => album.title === "Christmas 2026");
+    assert.ok(christmasAlbum);
+    assert.equal(christmasAlbum.slug, "temp-christmas-2026");
+    assert.equal(christmasAlbum.hidden, true);
+    assert.equal(christmasAlbum.tracks.length, 0);
+    assert.equal((await fetch(`${api}/api/albums/temp-christmas-2026`)).status, 404);
+
+    fs.renameSync(path.join(folder, "Private.mp3"), path.join(christmas, "Private.mp3"));
+    const moved = await syncTempMusicFolder(config);
+    assert.equal(moved.ok, true);
+    const afterMove = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      tracks: { name: string }[];
+      albums: { title: string; tracks: { title: string; lyrics: string; name: string; file: string }[] }[];
+    };
+    assert.equal(afterMove.tracks.some((track) => track.name === "Private.mp3"), false);
+    const christmasSongs = afterMove.albums.find((album) => album.title === "Christmas 2026")?.tracks || [];
+    assert.equal(christmasSongs.length, 1);
+    assert.equal(christmasSongs[0].name, "Christmas 2026/Private.mp3");
+    assert.equal(christmasSongs[0].title, "Private");
+    const movedAudio = await fetch(`${api}/media/songs/${encodeURIComponent(christmasSongs[0].file)}`);
+    assert.equal(movedAudio.status, 404);
+
+    fs.rmSync(christmas, { recursive: true });
+    const dropped = await syncTempMusicFolder(config);
+    assert.equal(dropped.ok, true);
+    const gone = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      albums: { title: string }[];
+    };
+    assert.equal(gone.albums.some((album) => album.title === "Christmas 2026"), false);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
     resetStoreForTests();

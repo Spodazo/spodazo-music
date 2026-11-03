@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
-import { TEMP_MUSIC_SLUG } from "../shared/tempMusic";
+import { isSyncAlbumSlug } from "../shared/tempMusic";
 import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
@@ -410,8 +410,8 @@ export function registerRoutes(app: Express): void {
       res.status(400).json({ error: "Title and slug are required" });
       return;
     }
-    if (fields.slug === TEMP_MUSIC_SLUG) {
-      res.status(400).json({ error: "Temp Music is created automatically" });
+    if (isSyncAlbumSlug(fields.slug)) {
+      res.status(400).json({ error: "Desktop folders create these albums automatically" });
       return;
     }
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
@@ -435,8 +435,8 @@ export function registerRoutes(app: Express): void {
     }
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const fields = albumFields(req.body, true);
-    if (current.slug === TEMP_MUSIC_SLUG) {
-      fields.slug = TEMP_MUSIC_SLUG;
+    if (isSyncAlbumSlug(current.slug)) {
+      fields.slug = current.slug;
       fields.hidden = true;
     }
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
@@ -454,8 +454,8 @@ export function registerRoutes(app: Express): void {
   app.delete("/api/admin/albums/:id", requireAdmin, async (req, res) => {
     const store = await getStore();
     const current = await store.getAlbumById(req.params.id);
-    if (current?.slug === TEMP_MUSIC_SLUG) {
-      res.status(400).json({ error: "Temp Music stays available for the Desktop folder" });
+    if (current && isSyncAlbumSlug(current.slug)) {
+      res.status(400).json({ error: "Remove the Desktop folder to take this album off the app" });
       return;
     }
     const ok = await store.deleteAlbum(req.params.id);
@@ -603,7 +603,7 @@ export function registerRoutes(app: Express): void {
     const store = await getStore();
     const current = await store.getAlbumById(req.params.id);
     const hidden =
-      current?.slug === TEMP_MUSIC_SLUG || req.body?.hidden === true || req.body?.hidden === "true";
+      (current ? isSyncAlbumSlug(current.slug) : false) || req.body?.hidden === true || req.body?.hidden === "true";
     const updated = await store.updateAlbum(req.params.id, { hidden });
     if (!updated) {
       res.status(404).json({ error: "Album not found" });

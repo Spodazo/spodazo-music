@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import { PALETTES, paletteById } from "@shared/palettes";
 import { DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, publicCurator } from "@shared/seed-data";
-import { TEMP_MUSIC_SLUG } from "@shared/tempMusic";
+import { isSyncAlbumSlug, TEMP_MUSIC_SLUG } from "@shared/tempMusic";
 import type { AlbumListItem, Curator, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import {
   adminLogin,
@@ -1260,7 +1260,7 @@ function AlbumForm({
             name="slug"
             defaultValue={album?.slug}
             placeholder="echoes"
-            readOnly={album?.slug === TEMP_MUSIC_SLUG}
+            readOnly={album ? isSyncAlbumSlug(album.slug) : false}
           />
         </div>
         <div>
@@ -1286,11 +1286,11 @@ function AlbumForm({
           name="hidden"
           type="checkbox"
           value="true"
-          defaultChecked={album ? album.hidden || album.slug === TEMP_MUSIC_SLUG : true}
-          disabled={album?.slug === TEMP_MUSIC_SLUG}
+          defaultChecked={album ? album.hidden || isSyncAlbumSlug(album.slug) : true}
+          disabled={album ? isSyncAlbumSlug(album.slug) : false}
         />{" "}
         Hide from the public site. You can still play it while signed in as admin.
-        {album?.slug === TEMP_MUSIC_SLUG ? " Temp Music stays hidden." : ""}
+        {album && isSyncAlbumSlug(album.slug) ? " This album stays hidden." : ""}
       </label>
       <div className="form-actions">
         <button type="submit">{album ? "Save album" : "Create album"}</button>
@@ -1299,7 +1299,7 @@ function AlbumForm({
             Cancel
           </button>
         ) : null}
-        {album && onDeleted && album.slug !== TEMP_MUSIC_SLUG ? (
+        {album && onDeleted && !isSyncAlbumSlug(album.slug) ? (
           <button
             type="button"
             className="danger"
@@ -1448,8 +1448,10 @@ function TrackAdmin({
       </div>
       <p className="hint">
         {album.slug === TEMP_MUSIC_SLUG
-          ? "Songs in the Desktop folder “Temp Music” sync here. Replacing a file keeps its lyrics. "
-          : ""}
+          ? "Songs in the Desktop folder “Temp Music” sync here. A subfolder becomes its own album. Replacing a file keeps its lyrics. "
+          : isSyncAlbumSlug(album.slug)
+            ? `This album is the “${album.title}” folder inside Temp Music on the Desktop. `
+            : ""}
         Drag the handle to reorder songs. Play a track here, or download the live MP3 to keep a copy.
       </p>
       {rows.map((track, index) => (

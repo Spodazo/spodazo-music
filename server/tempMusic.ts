@@ -6,17 +6,21 @@ import multer from "multer";
 import { titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import {
   compareSyncNames,
+  isSyncAlbumSlug,
   planTempMusicSync,
+  syncAlbumSlug,
+  syncPathFolder,
   TEMP_MUSIC_MAX_BYTES,
   TEMP_MUSIC_SLUG,
   TEMP_MUSIC_TITLE,
   validateSyncFiles,
+  validateSyncFolders,
   type TempMusicFile,
 } from "../shared/tempMusic";
 import type { Album } from "../shared/types";
 import { bumpContentRevision, removeSongFile, shouldStripAudioUpload, stripUploadedSong } from "./media";
 import { dataDir, ensureDataDirs, songsDir, uniqueFileName } from "./paths";
-import { getStore } from "./storage";
+import { getStore, type MusicStore } from "./storage";
 
 const TOKEN_FILE = "temp-music-sync.token";
 const STATE_FILE = "temp-music-sync.json";
@@ -29,6 +33,7 @@ type SyncEntry = {
 
 type SyncState = {
   files: Record<string, SyncEntry>;
+  albums: Record<string, string>;
 };
 
 let chain: Promise<void> = Promise.resolve();
@@ -81,15 +86,22 @@ function statePath(): string {
 
 function readState(): SyncState {
   try {
-    const raw = JSON.parse(fs.readFileSync(statePath(), "utf8")) as { files?: Record<string, SyncEntry> };
+    const raw = JSON.parse(fs.readFileSync(statePath(), "utf8")) as {
+      files?: Record<string, SyncEntry>;
+      albums?: Record<string, string>;
+    };
     const files: Record<string, SyncEntry> = {};
     for (const [name, entry] of Object.entries(raw.files || {})) {
       if (!entry || typeof entry.trackId !== "string" || typeof entry.sha256 !== "string") continue;
       files[name] = { trackId: entry.trackId, sha256: entry.sha256, size: Number(entry.size) || 0 };
     }
-    return { files };
+    const albums: Record<string, string> = {};
+    for (const [folder, albumId] of Object.entries(raw.albums || {})) {
+      if (typeof albumId === "string" && albumId) albums[folder] = albumId;
+    }
+    return { files, albums };
   } catch {
-    return { files: {} };
+    return { files: {}, albums: {} };
   }
 }
 
@@ -101,23 +113,37 @@ function writeState(state: SyncState): void {
   fs.renameSync(tmp, full);
 }
 
-async function ensureTempMusicAlbumUnlocked(): Promise<Album> {
+async function ensureSyncAlbum(folderName: string): Promise<Album> {
   const store = await getStore();
-  const existing = await store.getAlbumBySlug(TEMP_MUSIC_SLUG);
+  const slug = syncAlbumSlug(folderName);
+  const title = folderName || TEMP_MUSIC_TITLE;
+  const existing = await store.getAlbumBySlug(slug);
   if (existing) {
-    if (!existing.hidden) await store.updateAlbum(existing.id, { hidden: true });
-    return { ...existing, hidden: true };
+    const patch: { hidden?: boolean; title?: string } = {};
+    if (!existing.hidden) patch.hidden = true;
+    if (existing.title !== title) patch.title = title;
+    if (Object.keys(patch).length) {
+      const updated = await store.updateAlbum(existing.id, patch);
+      return updated ? { ...updated, hidden: true } : { ...existing, hidden: true, title };
+    }
+    return existing;
   }
   const list = await store.listAlbums();
   const sortOrder = list.reduce((max, album) => Math.max(max, album.sortOrder), 0) + 1;
   return store.createAlbum({
-    slug: TEMP_MUSIC_SLUG,
-    title: TEMP_MUSIC_TITLE,
-    tagline: "Private drafts. Only visible while signed in as admin.",
+    slug,
+    title,
+    tagline: folderName
+      ? "Private folder from Temp Music. Only visible while signed in as admin."
+      : "Private drafts. Only visible while signed in as admin.",
     artists: "",
     hidden: true,
     sortOrder,
   });
+}
+
+async function ensureTempMusicAlbumUnlocked(): Promise<Album> {
+  return ensureSyncAlbum("");
 }
 
 export function ensureTempMusicAlbum(): Promise<Album> {
@@ -126,9 +152,15 @@ export function ensureTempMusicAlbum(): Promise<Album> {
 
 export async function songFileIsPrivate(filename: string): Promise<boolean> {
   if (!filename) return false;
-  const album = await (await getStore()).getAlbumBySlug(TEMP_MUSIC_SLUG);
-  if (!album) return false;
-  return [...album.tracks, ...album.archivedTracks].some((track) => track.file === filename);
+  const store = await getStore();
+  const list = await store.listAlbums();
+  for (const item of list) {
+    if (!isSyncAlbumSlug(item.slug)) continue;
+    const album = await store.getAlbumById(item.id);
+    if (!album) continue;
+    if ([...album.tracks, ...album.archivedTracks].some((track) => track.file === filename)) return true;
+  }
+  return false;
 }
 
 function requireSync(req: Request, res: Response): boolean {
@@ -137,13 +169,24 @@ function requireSync(req: Request, res: Response): boolean {
   return false;
 }
 
-function desiredFromBody(body: unknown): TempMusicFile[] | { error: string } {
-  const files = body && typeof body === "object" ? (body as { files?: unknown }).files : undefined;
-  return validateSyncFiles(files);
+function desiredFromBody(body: unknown): { files: TempMusicFile[]; folders: string[] } | { error: string } {
+  const record = body && typeof body === "object" ? (body as { files?: unknown; folders?: unknown }) : {};
+  const files = validateSyncFiles(record.files);
+  if ("error" in files) return files;
+  const folders = validateSyncFolders(record.folders);
+  if ("error" in folders) return folders;
+  const names = new Set(folders);
+  for (const file of files) {
+    const folder = syncPathFolder(file.name);
+    if (folder) names.add(folder);
+  }
+  return { files, folders: [...names] };
 }
 
-async function orderAlbum(albumId: string, state: SyncState): Promise<void> {
-  const names = Object.keys(state.files).sort(compareSyncNames);
+async function orderAlbum(albumId: string, folderName: string, state: SyncState): Promise<void> {
+  const names = Object.keys(state.files)
+    .filter((name) => syncPathFolder(name) === folderName)
+    .sort(compareSyncNames);
   const ids = names.map((name) => state.files[name]?.trackId).filter((id): id is string => Boolean(id));
   if (!ids.length) return;
   await (await getStore()).reorderTracks(albumId, ids);
@@ -187,30 +230,63 @@ const syncUpload = multer({
   limits: { fileSize: TEMP_MUSIC_MAX_BYTES },
 });
 
+function trackStatus(
+  track: {
+    id: string;
+    n: number;
+    title: string;
+    scripture: string;
+    lyrics: string;
+    img: string;
+    file: string;
+  },
+  sync?: { name: string; sha256: string; size: number },
+) {
+  return {
+    id: track.id,
+    n: track.n,
+    title: track.title,
+    scripture: track.scripture,
+    lyrics: track.lyrics,
+    img: track.img,
+    file: track.file,
+    name: sync?.name || "",
+    sha256: sync?.sha256 || "",
+    size: sync?.size || 0,
+  };
+}
+
 async function statusPayload() {
   const store = await getStore();
-  const album = await store.getAlbumBySlug(TEMP_MUSIC_SLUG);
   const state = readState();
   const byId = new Map(Object.entries(state.files).map(([name, entry]) => [entry.trackId, { name, ...entry }]));
+  const list = (await store.listAlbums()).filter((album) => isSyncAlbumSlug(album.slug));
+  const albums = [];
+  for (const item of list) {
+    const album = await store.getAlbumById(item.id);
+    if (!album) continue;
+    albums.push({
+      slug: album.slug,
+      title: album.title,
+      hidden: album.hidden,
+      tracks: album.tracks.map((track) => trackStatus(track, byId.get(track.id))),
+    });
+  }
+  const root = albums.find((album) => album.slug === TEMP_MUSIC_SLUG);
   return {
     slug: TEMP_MUSIC_SLUG,
-    hidden: Boolean(album?.hidden),
-    tracks: (album?.tracks || []).map((track) => {
-      const sync = byId.get(track.id);
-      return {
-        id: track.id,
-        n: track.n,
-        title: track.title,
-        scripture: track.scripture,
-        lyrics: track.lyrics,
-        img: track.img,
-        file: track.file,
-        name: sync?.name || "",
-        sha256: sync?.sha256 || "",
-        size: sync?.size || 0,
-      };
-    }),
+    hidden: root?.hidden ?? true,
+    tracks: root?.tracks || [],
+    albums,
   };
+}
+
+async function movedTrack(store: MusicStore, state: SyncState, incoming: TempMusicFile) {
+  const donor = Object.entries(state.files).find(
+    ([name, entry]) => name !== incoming.name && entry.sha256 === incoming.sha256 && entry.size === incoming.size,
+  );
+  if (!donor) return null;
+  return store.getTrackById(donor[1].trackId);
 }
 
 export function registerTempMusicRoutes(app: Express): void {
@@ -228,14 +304,18 @@ export function registerTempMusicRoutes(app: Express): void {
       return;
     }
     const plan = await withTempMusicLock(async () => {
-      await ensureTempMusicAlbumUnlocked();
       const state = readState();
       const store = await getStore();
-      const album = await store.getAlbumBySlug(TEMP_MUSIC_SLUG);
-      const next = planTempMusicSync(state.files, desired);
+      for (const folder of ["", ...desired.folders]) {
+        const album = await ensureSyncAlbum(folder);
+        state.albums[folder] = album.id;
+      }
+      writeState(state);
+      const next = planTempMusicSync(state.files, desired.files);
       for (const name of [...next.unchanged]) {
         const entry = state.files[name];
         const track = entry ? await store.getTrackById(entry.trackId) : null;
+        const album = await store.getAlbumBySlug(syncAlbumSlug(syncPathFolder(name)));
         if (!track || track.albumId !== album?.id) {
           next.unchanged = next.unchanged.filter((item) => item !== name);
           next.upload.push(name);
@@ -270,7 +350,8 @@ export function registerTempMusicRoutes(app: Express): void {
     }
     try {
       const saved = await withTempMusicLock(async () => {
-        const album = await ensureTempMusicAlbumUnlocked();
+        const folderName = syncPathFolder(incoming.name);
+        const album = await ensureSyncAlbum(folderName);
         const store = await getStore();
         const state = readState();
         const previous = state.files[incoming.name];
@@ -287,7 +368,10 @@ export function registerTempMusicRoutes(app: Express): void {
           const used = new Set(
             [...(current?.tracks || []), ...(current?.archivedTracks || [])].map((track) => track.slug).filter(Boolean),
           );
-          const { title, scripture } = titleFromAudioFile(incoming.name);
+          const moved = await movedTrack(store, state, incoming);
+          const fromFile = titleFromAudioFile(incoming.name);
+          const title = moved?.title || fromFile.title;
+          const scripture = moved?.scripture || fromFile.scripture;
           const slug = uniqueSlug(title, used);
           const created = await store.createTrack({
             albumId: album.id,
@@ -295,18 +379,19 @@ export function registerTempMusicRoutes(app: Express): void {
             title,
             scripture,
             file: file.filename,
-            img: "",
+            img: moved?.img || "",
             key: slug,
-            lyrics: "",
-            introduction: "",
-            instrumental: false,
+            lyrics: moved?.lyrics || "",
+            introduction: moved?.introduction || "",
+            instrumental: Boolean(moved?.instrumental),
             slug,
           });
           trackId = created.id;
         }
         state.files[incoming.name] = { trackId, sha256: incoming.sha256, size: incoming.size };
+        state.albums[folderName] = album.id;
         writeState(state);
-        await orderAlbum(album.id, state);
+        await orderAlbum(album.id, folderName, state);
         bumpContentRevision();
         return { name: incoming.name, trackId, replaced };
       });
@@ -330,17 +415,22 @@ export function registerTempMusicRoutes(app: Express): void {
       return;
     }
     const result = await withTempMusicLock(async () => {
-      const album = await ensureTempMusicAlbumUnlocked();
       const store = await getStore();
       const state = readState();
-      for (const file of desired) {
+      const folderNames = new Set(["", ...desired.folders]);
+      for (const folder of folderNames) {
+        const album = await ensureSyncAlbum(folder);
+        state.albums[folder] = album.id;
+      }
+      for (const file of desired.files) {
         const entry = state.files[file.name];
         const track = entry ? await store.getTrackById(entry.trackId) : null;
-        if (!entry || entry.sha256 !== file.sha256 || entry.size !== file.size || !track || track.albumId !== album.id) {
+        const albumId = state.albums[syncPathFolder(file.name)];
+        if (!entry || entry.sha256 !== file.sha256 || entry.size !== file.size || !track || track.albumId !== albumId) {
           return { error: "Upload the new songs before removing anything", status: 409 as const };
         }
       }
-      const keep = new Set(desired.map((file) => file.name));
+      const keep = new Set(desired.files.map((file) => file.name));
       const removed: string[] = [];
       for (const name of Object.keys(state.files)) {
         if (keep.has(name)) continue;
@@ -353,16 +443,29 @@ export function registerTempMusicRoutes(app: Express): void {
         }
         removed.push(name);
       }
-      const live = await store.getAlbumById(album.id);
-      const syncedIds = new Set(Object.values(state.files).map((entry) => entry.trackId));
-      for (const track of [...(live?.tracks || []), ...(live?.archivedTracks || [])]) {
-        if (syncedIds.has(track.id)) continue;
-        await store.deleteTrack(track.id);
-        if (track.file) removeSongFile(track.file);
-        removed.push(track.title);
+      for (const [folder, albumId] of Object.entries(state.albums)) {
+        const live = await store.getAlbumById(albumId);
+        const syncedIds = new Set(
+          Object.entries(state.files)
+            .filter(([name]) => syncPathFolder(name) === folder)
+            .map(([, entry]) => entry.trackId),
+        );
+        for (const track of [...(live?.tracks || []), ...(live?.archivedTracks || [])]) {
+          if (syncedIds.has(track.id)) continue;
+          await store.deleteTrack(track.id);
+          if (track.file) removeSongFile(track.file);
+          removed.push(track.title);
+        }
+        if (folder && !folderNames.has(folder)) {
+          if (live) await store.deleteAlbum(live.id);
+          delete state.albums[folder];
+          removed.push(folder);
+        }
       }
       writeState(state);
-      await orderAlbum(album.id, state);
+      for (const [folder, albumId] of Object.entries(state.albums)) {
+        await orderAlbum(albumId, folder, state);
+      }
       if (removed.length) bumpContentRevision();
       return { removed };
     });

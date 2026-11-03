@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   planTempMusicSync,
   stableSnapshots,
+  syncAlbumSlug,
   validateSyncFiles,
 } from "./tempMusic";
 
@@ -27,13 +28,23 @@ test("Temp Music sync plan uploads, replaces, and names removals", () => {
   assert.deepEqual(again.remove, ["Gone.mp3"]);
 });
 
-test("Temp Music sync refuses paths and half-written files", () => {
-  const nested = validateSyncFiles([{ name: "../Secret.mp3", size: 1200, sha256: HASH }]);
+test("a subfolder path becomes its own album song", () => {
+  const nested = validateSyncFiles([{ name: "Christmas 2026/Carol.mp3", size: 1200, sha256: HASH }]);
   assert.ok(Array.isArray(nested));
   if (!Array.isArray(nested)) return;
-  assert.equal(nested[0].name, "Secret.mp3");
+  assert.equal(nested[0].name, "Christmas 2026/Carol.mp3");
+  assert.equal(syncAlbumSlug("Christmas 2026"), "temp-christmas-2026");
+});
+
+test("Temp Music sync refuses paths and half-written files", () => {
+  assert.deepEqual(validateSyncFiles([{ name: "../Secret.mp3", size: 1200, sha256: HASH }]), {
+    error: "Only MP3 files in Temp Music or one of its folders can sync",
+  });
+  assert.deepEqual(validateSyncFiles([{ name: "Christmas 2026/Disc/Carol.mp3", size: 1200, sha256: HASH }]), {
+    error: "Only MP3 files in Temp Music or one of its folders can sync",
+  });
   assert.deepEqual(validateSyncFiles([{ name: "notes.txt", size: 1200, sha256: HASH }]), {
-    error: "Only MP3 files can sync to Temp Music",
+    error: "Only MP3 files in Temp Music or one of its folders can sync",
   });
   assert.equal(
     stableSnapshots(
