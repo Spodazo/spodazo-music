@@ -18,7 +18,9 @@
     "export:song-pdfs": "tsx script/export-song-pdfs.ts",
     "export:song-qrs": "tsx script/export-song-qrs.ts",
     "export:btmv-songbook": "tsx script/export-btmv-songbook.ts",
-    "export:echoes-songbook": "tsx script/export-echoes-songbook.ts"
+    "export:echoes-songbook": "tsx script/export-echoes-songbook.ts",
+    "temp-music:sync": "tsx script/temp-music-sync.ts",
+    "temp-music:install": "bash scripts/install-temp-music-sync.sh"
   },
   "dependencies": {
     "connect-pg-simple": "^10.0.0",

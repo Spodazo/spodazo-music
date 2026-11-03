@@ -87,7 +87,7 @@ export function cacheAlbumsFromNetwork(next: AlbumListItem[]): AlbumListItem[] {
     }
     return album;
   });
-  writeCachedAlbums(merged);
+  writeCachedAlbums(merged.filter((album) => !album.hidden));
   return merged;
 }
 

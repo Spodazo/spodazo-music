@@ -99,6 +99,19 @@ test("home cache keeps last-known image URLs when only the deploy stamp changes"
   assert.ok(memory.get(HOME_ALBUMS_KEY));
 });
 
+test("home cache does not keep a hidden album after the admin leaves", () => {
+  memory.clear();
+  const shown = cacheAlbumsFromNetwork([
+    album({}),
+    album({ id: "temp", slug: "temp-music", title: "Temp Music", hidden: true, trackCount: 1 }),
+  ]);
+  assert.equal(shown.length, 2);
+  assert.equal(shown[1].hidden, true);
+  const stored = readCachedAlbums();
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].id, "echoes");
+});
+
 test("home cache replaces image URLs when the cover file changes", () => {
   memory.clear();
   cacheAlbumsFromNetwork([album({})]);

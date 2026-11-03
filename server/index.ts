@@ -8,6 +8,7 @@ import { convertStoredImages, prepareFaviconSet, stripStoredSongs, warmHomeCardI
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore, remapImageFilenames } from "./storage";
+import { ensureTempMusicAlbum } from "./tempMusic";
 
 process.on("unhandledRejection", (reason) => {
   console.error("[fatal] unhandledRejection:", reason);
@@ -30,6 +31,11 @@ registerRoutes(app);
 async function start() {
   await ensureSessionTable();
   await getStore();
+  try {
+    await ensureTempMusicAlbum();
+  } catch (err) {
+    console.error("[temp-music] could not prepare the private album:", err);
+  }
   try {
     await remapImageFilenames(await convertStoredImages());
   } catch (err) {

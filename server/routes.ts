@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
+import { TEMP_MUSIC_SLUG } from "../shared/tempMusic";
 import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
@@ -10,6 +11,7 @@ import { currentIconStamp } from "./htmlIcons";
 import { assetVersion, bumpContentRevision, contentRevision, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, mp3DataOffset, parseImageWidth, prepareFaviconSet, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
+import { registerTempMusicRoutes, songFileIsPrivate } from "./tempMusic";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -119,6 +121,8 @@ function trackFields(body: Request["body"], albumId?: string) {
 }
 
 export function registerRoutes(app: Express): void {
+  registerTempMusicRoutes(app);
+
   app.get("/api/version", (_req, res) => {
     res.set(NO_STORE_HEADERS);
     res.json({
@@ -406,6 +410,10 @@ export function registerRoutes(app: Express): void {
       res.status(400).json({ error: "Title and slug are required" });
       return;
     }
+    if (fields.slug === TEMP_MUSIC_SLUG) {
+      res.status(400).json({ error: "Temp Music is created automatically" });
+      return;
+    }
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
     if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
     if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
@@ -420,8 +428,17 @@ export function registerRoutes(app: Express): void {
     { name: "artist", maxCount: 1 },
   ]), async (req, res) => {
     const store = await getStore();
+    const current = await store.getAlbumById(req.params.id);
+    if (!current) {
+      res.status(404).json({ error: "Album not found" });
+      return;
+    }
     const files = req.files as Record<string, Express.Multer.File[]> | undefined;
     const fields = albumFields(req.body, true);
+    if (current.slug === TEMP_MUSIC_SLUG) {
+      fields.slug = TEMP_MUSIC_SLUG;
+      fields.hidden = true;
+    }
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
     if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
     if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
@@ -436,6 +453,11 @@ export function registerRoutes(app: Express): void {
 
   app.delete("/api/admin/albums/:id", requireAdmin, async (req, res) => {
     const store = await getStore();
+    const current = await store.getAlbumById(req.params.id);
+    if (current?.slug === TEMP_MUSIC_SLUG) {
+      res.status(400).json({ error: "Temp Music stays available for the Desktop folder" });
+      return;
+    }
     const ok = await store.deleteAlbum(req.params.id);
     if (!ok) {
       res.status(404).json({ error: "Album not found" });
@@ -579,7 +601,9 @@ export function registerRoutes(app: Express): void {
 
   app.post("/api/admin/albums/:id/visibility", requireAdmin, async (req, res) => {
     const store = await getStore();
-    const hidden = req.body?.hidden === true || req.body?.hidden === "true";
+    const current = await store.getAlbumById(req.params.id);
+    const hidden =
+      current?.slug === TEMP_MUSIC_SLUG || req.body?.hidden === true || req.body?.hidden === "true";
     const updated = await store.updateAlbum(req.params.id, { hidden });
     if (!updated) {
       res.status(404).json({ error: "Album not found" });
@@ -618,10 +642,10 @@ export function registerRoutes(app: Express): void {
     }
   });
 
-  app.get("/media/songs/:file", (req, res) => {
+  app.get("/media/songs/:file", async (req, res) => {
     const file = path.basename(decodeURIComponent(req.params.file));
     const full = path.join(songsDir(), file);
-    if (!fs.existsSync(full)) {
+    if (!fs.existsSync(full) || ((await songFileIsPrivate(file)) && !req.session?.admin)) {
       res.status(404).end();
       return;
     }
