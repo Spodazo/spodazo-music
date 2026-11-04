@@ -564,7 +564,6 @@ export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGr
       analyser.smoothingTimeConstant = 0.45;
       source.connect(analyser);
       analyser.connect(gain);
-      pumpAnalyser(ctx, analyser);
     } else {
       source.connect(gain);
     }
@@ -728,8 +727,10 @@ let meterCtx: AudioContext | null = null;
 let meterBins: Uint8Array | null = null;
 let meterSmooth: [number, number, number] = [0, 0, 0];
 let levelPaint: ((levels: [number, number, number]) => void) | null = null;
-const desktopTaps = new WeakMap<HTMLAudioElement, AnalyserNode>();
-const pumped = new WeakSet<AnalyserNode>();
+let liveLevels: [number, number, number] = [0, 0, 0];
+let lowState = 0;
+let midState = 0;
+const desktopTaps = new WeakMap<HTMLAudioElement, ScriptProcessorNode>();
 
 export function primePlaybackMeter() {
   if (typeof window === "undefined" || isMobilePlayback()) return;
@@ -752,48 +753,60 @@ function playingElement(): HTMLAudioElement | null {
   return null;
 }
 
-function pumpAnalyser(ctx: AudioContext, analyser: AnalyserNode) {
-  if (pumped.has(analyser) || typeof ctx.createScriptProcessor !== "function") return;
-  const processor = ctx.createScriptProcessor(2048, 1, 1);
-  const silent = ctx.createGain();
-  silent.gain.value = 0;
-  analyser.connect(processor);
-  processor.connect(silent);
-  silent.connect(ctx.destination);
-  const bins = new Uint8Array(analyser.frequencyBinCount);
-  processor.onaudioprocess = () => {
-    analyser.getByteFrequencyData(bins);
-    const levels = easeMeter(meterBands(bins));
-    levelPaint?.(levels);
-  };
-  pumped.add(analyser);
+/** Bass, middle, and top from one block of samples. Filter state carries across blocks. */
+export function sampleBands(samples: Float32Array): [number, number, number] {
+  let lowSq = 0;
+  let midSq = 0;
+  let highSq = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    const x = samples[i];
+    lowState += 0.04 * (x - lowState);
+    const rest = x - lowState;
+    midState += 0.18 * (rest - midState);
+    const high = rest - midState;
+    lowSq += lowState * lowState;
+    midSq += midState * midState;
+    highSq += high * high;
+  }
+  const count = samples.length || 1;
+  const level = (sq: number) => Math.max(0, Math.min(1, Math.sqrt(sq / count) * 3.4));
+  return [level(lowSq), level(midSq), level(highSq)];
 }
 
-function attachDesktopLevelTap(audio: HTMLAudioElement): AnalyserNode | null {
+function passThroughAndMeasure(event: AudioProcessingEvent) {
+  const input = event.inputBuffer;
+  const output = event.outputBuffer;
+  for (let channel = 0; channel < output.numberOfChannels; channel += 1) {
+    const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
+    output.getChannelData(channel).set(source);
+  }
+  liveLevels = easeMeter(sampleBands(input.getChannelData(0)));
+  levelPaint?.(liveLevels);
+}
+
+function attachDesktopLevelTap(audio: HTMLAudioElement): ScriptProcessorNode | null {
   const existing = desktopTaps.get(audio);
   if (existing) return existing;
   if (isMobilePlayback() || graphs.has(audio)) return null;
   if (!meterCtx) primePlaybackMeter();
-  if (!meterCtx) return null;
+  if (!meterCtx || typeof meterCtx.createScriptProcessor !== "function") return null;
   try {
     const source = meterCtx.createMediaElementSource(audio);
-    const analyser = meterCtx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.3;
     const gain = meterCtx.createGain();
     gain.gain.value = 1;
-    source.connect(analyser);
-    analyser.connect(gain);
+    const processor = meterCtx.createScriptProcessor(1024, 2, 2);
+    source.connect(processor);
+    processor.connect(gain);
     gain.connect(meterCtx.destination);
-    pumpAnalyser(meterCtx, analyser);
-    desktopTaps.set(audio, analyser);
-    return analyser;
+    processor.onaudioprocess = passThroughAndMeasure;
+    desktopTaps.set(audio, processor);
+    return processor;
   } catch {
     return desktopTaps.get(audio) || null;
   }
 }
 
-function desktopAnalyser(audio: HTMLAudioElement): AnalyserNode | null {
+function desktopAnalyser(audio: HTMLAudioElement): ScriptProcessorNode | null {
   return desktopTaps.get(audio) || attachDesktopLevelTap(audio);
 }
 
@@ -826,7 +839,8 @@ export function watchPlaybackMeter(paint: (levels: [number, number, number]) => 
 export function playbackMeterLevels(): [number, number, number] {
   const audio = playingElement();
   if (!audio) return easeMeter([0, 0, 0]);
-  const analyser = outputAnalyser(audio) || desktopAnalyser(audio);
+  if (desktopTaps.has(audio) || desktopAnalyser(audio)) return liveLevels;
+  const analyser = outputAnalyser(audio);
   if (!analyser) return easeMeter([0, 0, 0]);
   if (!meterBins || meterBins.length !== analyser.frequencyBinCount) {
     meterBins = new Uint8Array(analyser.frequencyBinCount);
