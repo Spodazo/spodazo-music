@@ -1454,7 +1454,7 @@ function TrackAdmin({
       </div>
       <p className="hint">
         {album.slug === TEMP_MUSIC_SLUG
-          ? "Songs in the Desktop folder “Temp Music” sync here. A subfolder becomes its own album. Replacing a file keeps its lyrics. "
+          ? "Songs in the Desktop folder “Temp Music” sync here. A subfolder becomes its own album. Drag to set the order — the folder will not change it. "
           : isSyncAlbumSlug(album.slug)
             ? `This album is the “${album.title}” folder inside Temp Music on the Desktop. `
             : ""}

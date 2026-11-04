@@ -5,7 +5,6 @@ import type { Express, Request, Response } from "express";
 import multer from "multer";
 import { titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import {
-  compareSyncNames,
   isSyncAlbumSlug,
   planTempMusicSync,
   syncAlbumSlug,
@@ -189,15 +188,6 @@ function desiredFromBody(body: unknown): { files: TempMusicFile[]; folders: stri
     if (folder) names.add(folder);
   }
   return { files, folders: [...names] };
-}
-
-async function orderAlbum(albumId: string, folderName: string, state: SyncState): Promise<void> {
-  const names = Object.keys(state.files)
-    .filter((name) => syncPathFolder(name) === folderName)
-    .sort(compareSyncNames);
-  const ids = names.map((name) => state.files[name]?.trackId).filter((id): id is string => Boolean(id));
-  if (!ids.length) return;
-  await (await getStore()).reorderTracks(albumId, ids);
 }
 
 const disk = multer.diskStorage({
@@ -432,9 +422,14 @@ export function registerTempMusicRoutes(app: Express): void {
           const title = fromFile.title;
           const scripture = fromFile.scripture;
           const slug = uniqueSlug(title, used);
+          let n = (current?.tracks.length || 0) + 1;
+          if (moved && moved.albumId === album.id) {
+            n = moved.n;
+            await store.updateTrack(moved.id, { n: (current?.tracks.length || 0) + 1 });
+          }
           const created = await store.createTrack({
             albumId: album.id,
-            n: (current?.tracks.length || 0) + 1,
+            n,
             title,
             scripture,
             file: file.filename,
@@ -457,7 +452,6 @@ export function registerTempMusicRoutes(app: Express): void {
         };
         state.albums[folderName] = album.id;
         writeState(state);
-        await orderAlbum(album.id, folderName, state);
         bumpContentRevision();
         return { name: incoming.name, trackId, replaced };
       });
@@ -529,9 +523,6 @@ export function registerTempMusicRoutes(app: Express): void {
         }
       }
       writeState(state);
-      for (const [folder, albumId] of Object.entries(state.albums)) {
-        await orderAlbum(albumId, folder, state);
-      }
       if (removed.length) bumpContentRevision();
       return { removed };
     });

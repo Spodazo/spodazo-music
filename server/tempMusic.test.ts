@@ -99,6 +99,20 @@ test("Desktop folder syncs into a private Temp Music album", async () => {
     assert.equal((await fetch(`${api}/media/songs/${encodeURIComponent(privateFile)}`)).status, 404);
 
     const store = await getStore();
+    const tempAlbum = await store.getAlbumBySlug(TEMP_MUSIC_SLUG);
+    assert.ok(tempAlbum);
+    await store.reorderTracks(tempAlbum.id, [status.tracks[1].id, status.tracks[0].id]);
+    const keptOrder = await syncTempMusicFolder(config);
+    assert.equal(keptOrder.ok, true);
+    const ordered = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      tracks: { id: string }[];
+    };
+    assert.deepEqual(
+      ordered.tracks.map((track) => track.id),
+      [status.tracks[1].id, status.tracks[0].id],
+    );
+    await store.reorderTracks(tempAlbum.id, [status.tracks[0].id, status.tracks[1].id]);
+
     await store.updateTrack(status.tracks[0].id, { title: "Custom title", lyrics: "Keep me", img: "cover.webp" });
     fs.writeFileSync(path.join(folder, "2 Early (Psalm 1).mp3"), mp3(3));
     const replaced = await syncTempMusicFolder(config);
