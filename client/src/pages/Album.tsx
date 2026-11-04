@@ -13,7 +13,7 @@ import {
   outputGraphIsStale,
   shouldRebuildOutput,
   pipelineIsDead,
-  playbackMeterLevels,
+  watchPlaybackMeter,
   playSong,
   releaseOutput,
   releaseOutputForRouteChange,
@@ -1399,16 +1399,12 @@ function PlayingBars() {
     if (!root) return;
     const bars = [...root.querySelectorAll("i")];
     if (!bars.length) return;
-    const draw = () => {
-      const levels = playbackMeterLevels();
+    return watchPlaybackMeter((levels) => {
       bars.forEach((bar, index) => {
         const level = levels[index] || 0;
         bar.style.height = `${Math.round(3 + level * 11)}px`;
       });
-    };
-    draw();
-    const timer = window.setInterval(draw, 50);
-    return () => window.clearInterval(timer);
+    });
   }, []);
   return (
     <span ref={ref} className="t-eq" aria-hidden="true">

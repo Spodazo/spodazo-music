@@ -564,6 +564,7 @@ export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGr
       analyser.smoothingTimeConstant = 0.45;
       source.connect(analyser);
       analyser.connect(gain);
+      pumpAnalyser(ctx, analyser);
     } else {
       source.connect(gain);
     }
@@ -726,7 +727,9 @@ export function meterBands(freq: Uint8Array): [number, number, number] {
 let meterCtx: AudioContext | null = null;
 let meterBins: Uint8Array | null = null;
 let meterSmooth: [number, number, number] = [0, 0, 0];
+let levelPaint: ((levels: [number, number, number]) => void) | null = null;
 const desktopTaps = new WeakMap<HTMLAudioElement, AnalyserNode>();
+const pumped = new WeakSet<AnalyserNode>();
 
 export function primePlaybackMeter() {
   if (typeof window === "undefined" || isMobilePlayback()) return;
@@ -749,6 +752,23 @@ function playingElement(): HTMLAudioElement | null {
   return null;
 }
 
+function pumpAnalyser(ctx: AudioContext, analyser: AnalyserNode) {
+  if (pumped.has(analyser) || typeof ctx.createScriptProcessor !== "function") return;
+  const processor = ctx.createScriptProcessor(2048, 1, 1);
+  const silent = ctx.createGain();
+  silent.gain.value = 0;
+  analyser.connect(processor);
+  processor.connect(silent);
+  silent.connect(ctx.destination);
+  const bins = new Uint8Array(analyser.frequencyBinCount);
+  processor.onaudioprocess = () => {
+    analyser.getByteFrequencyData(bins);
+    const levels = easeMeter(meterBands(bins));
+    levelPaint?.(levels);
+  };
+  pumped.add(analyser);
+}
+
 function attachDesktopLevelTap(audio: HTMLAudioElement): AnalyserNode | null {
   const existing = desktopTaps.get(audio);
   if (existing) return existing;
@@ -765,6 +785,7 @@ function attachDesktopLevelTap(audio: HTMLAudioElement): AnalyserNode | null {
     source.connect(analyser);
     analyser.connect(gain);
     gain.connect(meterCtx.destination);
+    pumpAnalyser(meterCtx, analyser);
     desktopTaps.set(audio, analyser);
     return analyser;
   } catch {
@@ -783,6 +804,22 @@ function easeMeter(next: [number, number, number]): [number, number, number] {
     return prev + (target - prev) * rate;
   }) as [number, number, number];
   return meterSmooth;
+}
+
+/** Paint from the audio thread so the bars keep moving after timers are frozen. */
+export function watchPlaybackMeter(paint: (levels: [number, number, number]) => void): () => void {
+  levelPaint = paint;
+  const timer = window.setInterval(() => paint(playbackMeterLevels()), 50);
+  const onTime = (event: Event) => {
+    const target = event.target;
+    if (target instanceof HTMLMediaElement && !target.paused) paint(playbackMeterLevels());
+  };
+  if (typeof document !== "undefined") document.addEventListener("timeupdate", onTime, true);
+  return () => {
+    if (levelPaint === paint) levelPaint = null;
+    window.clearInterval(timer);
+    if (typeof document !== "undefined") document.removeEventListener("timeupdate", onTime, true);
+  };
 }
 
 /** Three bars driven by the song: bass, middle, and top. */
