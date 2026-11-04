@@ -692,14 +692,10 @@ button.portrait-cover.enlarged {
 .t-eq i {
   display: block;
   width: 3px;
+  height: 8px;
   border-radius: 1px;
   background: currentColor;
-  transform-origin: bottom;
-  will-change: transform;
 }
-.t-eq i:nth-child(1) { height: 7px; }
-.t-eq i:nth-child(2) { height: 14px; }
-.t-eq i:nth-child(3) { height: 10px; }
 .t-thumb {
   width: 44px;
   height: 44px;

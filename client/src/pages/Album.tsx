@@ -1398,18 +1398,17 @@ function PlayingBars() {
     if (!root) return;
     const bars = [...root.querySelectorAll("i")];
     if (!bars.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    let frame = 0;
     const started = performance.now();
-    const draw = (now: number) => {
-      const t = (now - started) / 1000;
+    const draw = () => {
+      const t = (performance.now() - started) / 1000;
       bars.forEach((bar, index) => {
-        const level = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * 8 + index * 1.6));
-        bar.style.transform = `scaleY(${level.toFixed(3)})`;
+        const level = 0.5 + 0.5 * Math.sin(t * 8 + index * 1.6);
+        bar.style.height = `${Math.round(3 + level * 11)}px`;
       });
-      frame = requestAnimationFrame(draw);
     };
-    frame = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(frame);
+    draw();
+    const timer = window.setInterval(draw, 50);
+    return () => window.clearInterval(timer);
   }, []);
   return (
     <span ref={ref} className="t-eq" aria-hidden="true">
