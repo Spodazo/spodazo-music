@@ -116,6 +116,33 @@ test("Desktop folder syncs into a private Temp Music album", async () => {
     assert.notEqual(after.tracks[0].file, privateFile);
     assert.equal(fs.existsSync(path.join(dir, "songs", privateFile)), false);
 
+    fs.renameSync(path.join(folder, "2 Early (Psalm 1).mp3"), path.join(folder, "Renamed Early.mp3"));
+    const renamed = await syncTempMusicFolder(config);
+    assert.equal(renamed.ok, true);
+    const renamedStatus = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      tracks: { id: string; title: string; lyrics: string; scripture: string; name: string }[];
+    };
+    const renamedTrack = renamedStatus.tracks.find((track) => track.name === "Renamed Early.mp3");
+    assert.ok(renamedTrack);
+    assert.equal(renamedTrack.title, "Renamed Early");
+    assert.equal(renamedTrack.lyrics, "Keep me");
+    assert.equal(renamedTrack.scripture, "");
+
+    const statePath = path.join(dir, "temp-music-sync.json");
+    const savedState = JSON.parse(fs.readFileSync(statePath, "utf8")) as {
+      files: Record<string, { appliedTitle?: string; appliedScripture?: string }>;
+    };
+    delete savedState.files["Renamed Early.mp3"].appliedTitle;
+    delete savedState.files["Renamed Early.mp3"].appliedScripture;
+    fs.writeFileSync(statePath, JSON.stringify(savedState));
+    await store.updateTrack(renamedTrack.id, { title: "Renamed Early 1" });
+    const healed = await syncTempMusicFolder(config);
+    assert.equal(healed.ok, true);
+    const healedStatus = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      tracks: { title: string; name: string }[];
+    };
+    assert.equal(healedStatus.tracks.find((track) => track.name === "Renamed Early.mp3")?.title, "Renamed Early");
+
     const blocked = await fetch(`${api}/api/sync/temp-music/prune`, {
       method: "POST",
       headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
@@ -131,7 +158,7 @@ test("Desktop folder syncs into a private Temp Music album", async () => {
     assert.equal(stillThere.tracks.length, 2);
 
     fs.rmSync(path.join(folder, "10 Late.mp3"));
-    fs.rmSync(path.join(folder, "2 Early (Psalm 1).mp3"));
+    fs.rmSync(path.join(folder, "Renamed Early.mp3"));
     const removed = await syncTempMusicFolder(config);
     assert.equal(removed.ok, true);
     if (!removed.ok) return;

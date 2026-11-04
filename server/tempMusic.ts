@@ -29,6 +29,8 @@ type SyncEntry = {
   trackId: string;
   sha256: string;
   size: number;
+  appliedTitle?: string;
+  appliedScripture?: string;
 };
 
 type SyncState = {
@@ -93,7 +95,13 @@ function readState(): SyncState {
     const files: Record<string, SyncEntry> = {};
     for (const [name, entry] of Object.entries(raw.files || {})) {
       if (!entry || typeof entry.trackId !== "string" || typeof entry.sha256 !== "string") continue;
-      files[name] = { trackId: entry.trackId, sha256: entry.sha256, size: Number(entry.size) || 0 };
+      files[name] = {
+        trackId: entry.trackId,
+        sha256: entry.sha256,
+        size: Number(entry.size) || 0,
+        appliedTitle: entry.appliedTitle,
+        appliedScripture: entry.appliedScripture,
+      };
     }
     const albums: Record<string, string> = {};
     for (const [folder, albumId] of Object.entries(raw.albums || {})) {
@@ -281,6 +289,46 @@ async function statusPayload() {
   };
 }
 
+async function applyFilenameTitle(
+  store: MusicStore,
+  state: SyncState,
+  name: string,
+  trackId: string,
+  albumId: string,
+): Promise<boolean> {
+  const fromFile = titleFromAudioFile(name);
+  const entry = state.files[name];
+  if (
+    entry &&
+    entry.appliedTitle === fromFile.title &&
+    (entry.appliedScripture || "") === (fromFile.scripture || "")
+  ) {
+    return false;
+  }
+  const track = await store.getTrackById(trackId);
+  if (!track) return false;
+  const changed = track.title !== fromFile.title || track.scripture !== fromFile.scripture;
+  if (changed) {
+    const album = await store.getAlbumById(albumId);
+    const used = new Set(
+      [...(album?.tracks || []), ...(album?.archivedTracks || [])]
+        .filter((item) => item.id !== trackId)
+        .map((item) => item.slug)
+        .filter(Boolean),
+    );
+    await store.updateTrack(trackId, {
+      title: fromFile.title,
+      scripture: fromFile.scripture,
+      slug: uniqueSlug(fromFile.title, used),
+    });
+  }
+  if (entry) {
+    entry.appliedTitle = fromFile.title;
+    entry.appliedScripture = fromFile.scripture;
+  }
+  return changed;
+}
+
 async function movedTrack(store: MusicStore, state: SyncState, incoming: TempMusicFile) {
   const donor = Object.entries(state.files).find(
     ([name, entry]) => name !== incoming.name && entry.sha256 === incoming.sha256 && entry.size === incoming.size,
@@ -320,6 +368,17 @@ export function registerTempMusicRoutes(app: Express): void {
           next.unchanged = next.unchanged.filter((item) => item !== name);
           next.upload.push(name);
         }
+      }
+      let renamed = false;
+      for (const name of next.unchanged) {
+        const entry = state.files[name];
+        const album = await store.getAlbumBySlug(syncAlbumSlug(syncPathFolder(name)));
+        if (!entry || !album) continue;
+        if (await applyFilenameTitle(store, state, name, entry.trackId, album.id)) renamed = true;
+      }
+      if (renamed) {
+        writeState(state);
+        bumpContentRevision();
       }
       return next;
     });
@@ -370,8 +429,8 @@ export function registerTempMusicRoutes(app: Express): void {
           );
           const moved = await movedTrack(store, state, incoming);
           const fromFile = titleFromAudioFile(incoming.name);
-          const title = moved?.title || fromFile.title;
-          const scripture = moved?.scripture || fromFile.scripture;
+          const title = fromFile.title;
+          const scripture = fromFile.scripture;
           const slug = uniqueSlug(title, used);
           const created = await store.createTrack({
             albumId: album.id,
@@ -388,7 +447,14 @@ export function registerTempMusicRoutes(app: Express): void {
           });
           trackId = created.id;
         }
-        state.files[incoming.name] = { trackId, sha256: incoming.sha256, size: incoming.size };
+        const named = titleFromAudioFile(incoming.name);
+        state.files[incoming.name] = {
+          trackId,
+          sha256: incoming.sha256,
+          size: incoming.size,
+          appliedTitle: named.title,
+          appliedScripture: named.scripture,
+        };
         state.albums[folderName] = album.id;
         writeState(state);
         await orderAlbum(album.id, folderName, state);
