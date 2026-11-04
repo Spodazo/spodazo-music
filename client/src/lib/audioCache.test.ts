@@ -190,11 +190,14 @@ test("meter bands follow bass, middle, and top energy", () => {
   assert.deepEqual(meterBands(new Uint8Array(64)), [0, 0, 0]);
 });
 
-test("desktop level meter does not take over the audio element", () => {
+test("desktop level meter stays at full volume and is not the playback graph", () => {
   const src = readFileSync(new URL("./audioCache.ts", import.meta.url), "utf8");
-  const meter = src.slice(src.indexOf("export function primePlaybackMeter"), src.indexOf("export function playSong"));
-  assert.doesNotMatch(meter, /createMediaElementSource/);
-  assert.match(meter, /captureStream|webkitCaptureStream/);
+  const meter = src.slice(src.indexOf("function attachDesktopLevelTap"), src.indexOf("function desktopAnalyser"));
+  assert.match(meter, /createMediaElementSource/);
+  assert.match(meter, /gain\.gain\.value = 1/);
+  assert.doesNotMatch(meter, /graphs\.set/);
+  assert.doesNotMatch(meter, /source\.disconnect/);
+  assert.doesNotMatch(meter, /\.close\(/);
 });
 
 test("desktop playSong starts unmuted at full volume", async () => {

@@ -724,12 +724,9 @@ export function meterBands(freq: Uint8Array): [number, number, number] {
 }
 
 let meterCtx: AudioContext | null = null;
-let meterSource: MediaStreamAudioSourceNode | null = null;
-let meterAnalyser: AnalyserNode | null = null;
 let meterBins: Uint8Array | null = null;
-let meterElement: HTMLAudioElement | null = null;
-let meterSrc = "";
 let meterSmooth: [number, number, number] = [0, 0, 0];
+const desktopTaps = new WeakMap<HTMLAudioElement, AnalyserNode>();
 
 export function primePlaybackMeter() {
   if (typeof window === "undefined" || isMobilePlayback()) return;
@@ -752,46 +749,31 @@ function playingElement(): HTMLAudioElement | null {
   return null;
 }
 
-function capturePlayingStream(audio: HTMLAudioElement): MediaStream | null {
-  const element = audio as HTMLAudioElement & {
-    captureStream?: () => MediaStream;
-    webkitCaptureStream?: () => MediaStream;
-  };
-  const capture = element.captureStream || element.webkitCaptureStream;
-  if (!capture) return null;
+function attachDesktopLevelTap(audio: HTMLAudioElement): AnalyserNode | null {
+  const existing = desktopTaps.get(audio);
+  if (existing) return existing;
+  if (isMobilePlayback() || graphs.has(audio)) return null;
+  if (!meterCtx) primePlaybackMeter();
+  if (!meterCtx) return null;
   try {
-    return capture.call(element);
+    const source = meterCtx.createMediaElementSource(audio);
+    const analyser = meterCtx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.3;
+    const gain = meterCtx.createGain();
+    gain.gain.value = 1;
+    source.connect(analyser);
+    analyser.connect(gain);
+    gain.connect(meterCtx.destination);
+    desktopTaps.set(audio, analyser);
+    return analyser;
   } catch {
-    return null;
+    return desktopTaps.get(audio) || null;
   }
 }
 
 function desktopAnalyser(audio: HTMLAudioElement): AnalyserNode | null {
-  if (!meterCtx) primePlaybackMeter();
-  if (!meterCtx) return null;
-  if (meterCtx.state === "suspended") void meterCtx.resume();
-  const src = (audio.currentSrc || audio.src || "").split("#")[0];
-  if (meterAnalyser && meterElement === audio && meterSrc === src) return meterAnalyser;
-  const stream = capturePlayingStream(audio);
-  if (!stream || stream.getAudioTracks().length === 0) return null;
-  try {
-    meterSource?.disconnect();
-  } catch {
-    /* already disconnected */
-  }
-  try {
-    meterSource = meterCtx.createMediaStreamSource(stream);
-    meterAnalyser = meterCtx.createAnalyser();
-    meterAnalyser.fftSize = 256;
-    meterAnalyser.smoothingTimeConstant = 0.35;
-    meterSource.connect(meterAnalyser);
-    meterBins = new Uint8Array(meterAnalyser.frequencyBinCount);
-    meterElement = audio;
-    meterSrc = src;
-    return meterAnalyser;
-  } catch {
-    return null;
-  }
+  return desktopTaps.get(audio) || attachDesktopLevelTap(audio);
 }
 
 function easeMeter(next: [number, number, number]): [number, number, number] {
@@ -826,7 +808,10 @@ export function playSong(
 ): Promise<void> {
   const gen = ++playGen;
   outputNeedsRebuild = false;
-  if (!isMobilePlayback()) primePlaybackMeter();
+  if (!isMobilePlayback()) {
+    primePlaybackMeter();
+    attachDesktopLevelTap(audio);
+  }
   const resume = isResumeTime(time);
   const mobile = isMobilePlayback();
   const continuation = keepAudible && mobile;
