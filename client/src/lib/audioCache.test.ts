@@ -11,6 +11,7 @@ import {
   isResumeTime,
   trustedSongDuration,
   mediaUrl,
+  meterBands,
   attachOutput,
   ensureMobileOutputAudible,
   isNativeOutputOnly,
@@ -170,6 +171,30 @@ test("the mobile opener stay shorter than a lost first note", () => {
   assert.ok(MOBILE_HEADER_HOLD_MS <= 40);
   assert.ok(MOBILE_HEADER_FADE_MS <= 40);
   assert.ok(MOBILE_HEADER_HOLD_MS + MOBILE_HEADER_FADE_MS <= 80);
+});
+
+test("meter bands follow bass, middle, and top energy", () => {
+  const freq = new Uint8Array(64);
+  freq.fill(0);
+  freq[2] = 255;
+  freq[3] = 255;
+  const bass = meterBands(freq);
+  assert.ok(bass[0] > bass[1]);
+  assert.ok(bass[0] > bass[2]);
+  freq.fill(0);
+  freq[10] = 255;
+  freq[12] = 220;
+  const mid = meterBands(freq);
+  assert.ok(mid[1] > mid[0]);
+  assert.ok(mid[1] > mid[2]);
+  assert.deepEqual(meterBands(new Uint8Array(64)), [0, 0, 0]);
+});
+
+test("desktop level meter does not take over the audio element", () => {
+  const src = readFileSync(new URL("./audioCache.ts", import.meta.url), "utf8");
+  const meter = src.slice(src.indexOf("export function primePlaybackMeter"), src.indexOf("export function playSong"));
+  assert.doesNotMatch(meter, /createMediaElementSource/);
+  assert.match(meter, /captureStream|webkitCaptureStream/);
 });
 
 test("desktop playSong starts unmuted at full volume", async () => {

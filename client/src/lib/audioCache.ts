@@ -42,6 +42,7 @@ type OutputGraph = {
   ctx: AudioContext;
   gain: GainNode;
   source: MediaElementAudioSourceNode;
+  analyser?: AnalyserNode;
 };
 
 let sharedCtx: AudioContext | null = null;
@@ -556,9 +557,18 @@ export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGr
     const source = ctx.createMediaElementSource(audio);
     const gain = ctx.createGain();
     gain.gain.value = initialGain;
-    source.connect(gain);
+    let analyser: AnalyserNode | undefined;
+    if (typeof ctx.createAnalyser === "function") {
+      analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.45;
+      source.connect(analyser);
+      analyser.connect(gain);
+    } else {
+      source.connect(gain);
+    }
     gain.connect(ctx.destination);
-    const graph = { ctx, gain, source };
+    const graph = { ctx, gain, source, analyser };
     graphs.set(audio, graph);
     return graph;
   } catch {
@@ -578,6 +588,11 @@ function setOutput(audio: HTMLAudioElement, value: number) {
     return;
   }
   audio.volume = level;
+}
+
+export function outputAnalyser(audio: HTMLAudioElement | null): AnalyserNode | null {
+  if (!audio) return null;
+  return graphs.get(audio)?.analyser || null;
 }
 
 export function setOutputLevel(audio: HTMLAudioElement | null, volume: number) {
@@ -691,6 +706,116 @@ async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume:
   fadeOutput(audio, targetVolume, MOBILE_HEADER_FADE_MS, gen);
 }
 
+/** Low, mid, and high energy from an FFT frame. Each value is 0–1. */
+export function meterBands(freq: Uint8Array): [number, number, number] {
+  const span = (from: number, to: number) => {
+    let sum = 0;
+    let count = 0;
+    const end = Math.min(freq.length, to);
+    for (let i = from; i < end; i += 1) {
+      sum += freq[i];
+      count += 1;
+    }
+    if (!count) return 0;
+    const shaped = Math.pow(Math.min(1, sum / count / 255 / 0.42), 0.65);
+    return Math.max(0, Math.min(1, shaped));
+  };
+  return [span(1, 5), span(5, 16), span(16, 48)];
+}
+
+let meterCtx: AudioContext | null = null;
+let meterSource: MediaStreamAudioSourceNode | null = null;
+let meterAnalyser: AnalyserNode | null = null;
+let meterBins: Uint8Array | null = null;
+let meterElement: HTMLAudioElement | null = null;
+let meterSrc = "";
+let meterSmooth: [number, number, number] = [0, 0, 0];
+
+export function primePlaybackMeter() {
+  if (typeof window === "undefined" || isMobilePlayback()) return;
+  const Ctor = audioContextCtor();
+  if (!Ctor) return;
+  try {
+    if (!meterCtx) meterCtx = new Ctor();
+    if (meterCtx.state === "suspended") void meterCtx.resume();
+  } catch {
+    /* the song still plays without a meter */
+  }
+}
+
+function playingElement(): HTMLAudioElement | null {
+  if (typeof document === "undefined") return null;
+  const nodes = document.querySelectorAll("audio");
+  for (const node of nodes) {
+    if (!node.paused && !node.ended) return node;
+  }
+  return null;
+}
+
+function capturePlayingStream(audio: HTMLAudioElement): MediaStream | null {
+  const element = audio as HTMLAudioElement & {
+    captureStream?: () => MediaStream;
+    webkitCaptureStream?: () => MediaStream;
+  };
+  const capture = element.captureStream || element.webkitCaptureStream;
+  if (!capture) return null;
+  try {
+    return capture.call(element);
+  } catch {
+    return null;
+  }
+}
+
+function desktopAnalyser(audio: HTMLAudioElement): AnalyserNode | null {
+  if (!meterCtx) primePlaybackMeter();
+  if (!meterCtx) return null;
+  if (meterCtx.state === "suspended") void meterCtx.resume();
+  const src = (audio.currentSrc || audio.src || "").split("#")[0];
+  if (meterAnalyser && meterElement === audio && meterSrc === src) return meterAnalyser;
+  const stream = capturePlayingStream(audio);
+  if (!stream || stream.getAudioTracks().length === 0) return null;
+  try {
+    meterSource?.disconnect();
+  } catch {
+    /* already disconnected */
+  }
+  try {
+    meterSource = meterCtx.createMediaStreamSource(stream);
+    meterAnalyser = meterCtx.createAnalyser();
+    meterAnalyser.fftSize = 256;
+    meterAnalyser.smoothingTimeConstant = 0.35;
+    meterSource.connect(meterAnalyser);
+    meterBins = new Uint8Array(meterAnalyser.frequencyBinCount);
+    meterElement = audio;
+    meterSrc = src;
+    return meterAnalyser;
+  } catch {
+    return null;
+  }
+}
+
+function easeMeter(next: [number, number, number]): [number, number, number] {
+  meterSmooth = next.map((target, index) => {
+    const prev = meterSmooth[index];
+    const rate = target > prev ? 0.72 : 0.28;
+    return prev + (target - prev) * rate;
+  }) as [number, number, number];
+  return meterSmooth;
+}
+
+/** Three bars driven by the song: bass, middle, and top. */
+export function playbackMeterLevels(): [number, number, number] {
+  const audio = playingElement();
+  if (!audio) return easeMeter([0, 0, 0]);
+  const analyser = outputAnalyser(audio) || desktopAnalyser(audio);
+  if (!analyser) return easeMeter([0, 0, 0]);
+  if (!meterBins || meterBins.length !== analyser.frequencyBinCount) {
+    meterBins = new Uint8Array(analyser.frequencyBinCount);
+  }
+  analyser.getByteFrequencyData(meterBins);
+  return easeMeter(meterBands(meterBins));
+}
+
 export function playSong(
   audio: HTMLAudioElement,
   url: string,
@@ -701,6 +826,7 @@ export function playSong(
 ): Promise<void> {
   const gen = ++playGen;
   outputNeedsRebuild = false;
+  if (!isMobilePlayback()) primePlaybackMeter();
   const resume = isResumeTime(time);
   const mobile = isMobilePlayback();
   const continuation = keepAudible && mobile;
