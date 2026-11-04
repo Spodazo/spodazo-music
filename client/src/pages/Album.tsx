@@ -1397,7 +1397,7 @@ function PlayingBars() {
     const root = ref.current;
     if (!root) return;
     const bars = [...root.querySelectorAll("i")];
-    if (!bars.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!bars.length) return;
     const started = performance.now();
     const draw = () => {
       const t = (performance.now() - started) / 1000;
