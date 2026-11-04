@@ -1764,7 +1764,20 @@ button.t-play-icon {
   object-fit: cover;
   display: block;
 }
-.album-cover-empty { background: var(--bg3, #1b1b1b); }
+.album-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px 16px;
+  background: var(--bg3, #1b1b1b);
+  text-align: center;
+}
+.album-cover-name {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.25;
+}
 .admin .album-cover-tile.selected {
   outline: 2px solid var(--amber);
   outline-offset: 3px;

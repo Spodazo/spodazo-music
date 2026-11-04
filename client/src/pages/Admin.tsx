@@ -1356,7 +1356,13 @@ function AlbumCoverRow({
                 aria-label={album.title}
                 onClick={() => void onSelect(album.slug)}
               >
-                {coverUrl ? <img src={coverUrl} alt="" /> : <span className="album-cover-empty" />}
+                {coverUrl ? (
+                  <img src={coverUrl} alt="" />
+                ) : (
+                  <span className="album-cover-empty">
+                    <span className="album-cover-name">{album.title}</span>
+                  </span>
+                )}
                 {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
               </button>
               <button type="button" className="album-cover-edit" onClick={() => void onEdit(album.slug)}>
