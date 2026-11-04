@@ -1391,6 +1391,35 @@ export default function AlbumPage() {
   );
 }
 
+function PlayingBars() {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+    const bars = [...root.querySelectorAll("i")];
+    if (!bars.length || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    const started = performance.now();
+    const draw = (now: number) => {
+      const t = (now - started) / 1000;
+      bars.forEach((bar, index) => {
+        const level = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * 8 + index * 1.6));
+        bar.style.transform = `scaleY(${level.toFixed(3)})`;
+      });
+      frame = requestAnimationFrame(draw);
+    };
+    frame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return (
+    <span ref={ref} className="t-eq" aria-hidden="true">
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
 function TrackRow({
   track,
   albumSlug,
@@ -1443,9 +1472,7 @@ function TrackRow({
       onClick={onOpen}
     >
       {isPlaying ? (
-        <span className="t-eq" aria-hidden="true">
-          <i /><i /><i />
-        </span>
+        <PlayingBars />
       ) : (
         <span className="t-num">{pad(track.n)}</span>
       )}
