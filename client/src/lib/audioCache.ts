@@ -567,7 +567,7 @@ export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGr
     } else {
       source.connect(gain);
     }
-    gain.connect(ctx.destination);
+    connectMeasuredOutput(ctx, gain);
     const graph = { ctx, gain, source, analyser };
     graphs.set(audio, graph);
     return graph;
@@ -771,6 +771,20 @@ export function sampleBands(samples: Float32Array): [number, number, number] {
   const count = samples.length || 1;
   const level = (sq: number) => Math.max(0, Math.min(1, Math.sqrt(sq / count) * 3.4));
   return [level(lowSq), level(midSq), level(highSq)];
+}
+
+const keptProcessors: ScriptProcessorNode[] = [];
+
+function connectMeasuredOutput(ctx: AudioContext, gain: GainNode) {
+  if (typeof ctx.createScriptProcessor !== "function") {
+    gain.connect(ctx.destination);
+    return;
+  }
+  const processor = ctx.createScriptProcessor(1024, 2, 2);
+  gain.connect(processor);
+  processor.connect(ctx.destination);
+  processor.onaudioprocess = passThroughAndMeasure;
+  keptProcessors.push(processor);
 }
 
 function passThroughAndMeasure(event: AudioProcessingEvent) {
