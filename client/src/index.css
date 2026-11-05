@@ -685,12 +685,9 @@ button.portrait-cover.enlarged {
   align-items: flex-end;
   justify-content: flex-end;
   gap: 0.6mm;
-  height: 12mm;
+  height: 44px;
   opacity: 1;
   color: var(--amber);
-}
-.t-eq.mobile {
-  height: 12mm;
 }
 .t-eq i {
   display: block;
@@ -2202,6 +2199,7 @@ button.t-play-icon {
   .t-actions .t-again svg { width: 18px; height: 18px; }
   .t-dur { font-size: 0.65rem; }
   .t-thumb { width: 36px; height: 36px; }
+  .t-eq { height: 36px; }
   .t-title { font-size: 0.78rem; white-space: normal; }
   .t-subtitle { font-size: 0.58rem; }
   .site-footer { padding: 10px 12px; }

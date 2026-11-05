@@ -1407,7 +1407,7 @@ function PlayingBars() {
     });
   }, []);
   return (
-    <span ref={ref} className={`t-eq${isMobilePlayback() ? " mobile" : ""}`} aria-hidden="true">
+    <span ref={ref} className="t-eq" aria-hidden="true">
       <i />
       <i />
       <i />
