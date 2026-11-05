@@ -728,7 +728,11 @@ let meterBins: Uint8Array | null = null;
 let meterSmooth: [number, number, number] = [0, 0, 0];
 let levelPaint: ((levels: [number, number, number]) => void) | null = null;
 let liveLevels: [number, number, number] = [0, 0, 0];
+let shownLevels: [number, number, number] = [0, 0, 0];
 let lastLevelPaint = 0;
+const BAND_AVERAGE = 16;
+const bandHistory: number[][] = [[], [], []];
+let bandCursor = 0;
 let lowState = 0;
 let midState = 0;
 const desktopTaps = new WeakMap<HTMLAudioElement, ScriptProcessorNode>();
@@ -795,11 +799,36 @@ function passThroughAndMeasure(event: AudioProcessingEvent) {
     const source = input.getChannelData(Math.min(channel, input.numberOfChannels - 1));
     output.getChannelData(channel).set(source);
   }
-  liveLevels = easeMeter(sampleBands(input.getChannelData(0)));
-  const now = typeof performance !== "undefined" ? performance.now() : 0;
-  if (!levelPaint || now - lastLevelPaint < 90) return;
+  liveLevels = averagedBands(sampleBands(input.getChannelData(0)));
+  publishLevels(typeof performance !== "undefined" ? performance.now() : 0);
+}
+
+/** Several audio slices averaged together, so a single loud moment cannot strobe the bars. */
+function averagedBands(raw: [number, number, number]): [number, number, number] {
+  const averaged = [0, 0, 0] as [number, number, number];
+  for (let band = 0; band < 3; band += 1) {
+    const history = bandHistory[band];
+    history[bandCursor % BAND_AVERAGE] = raw[band];
+    const count = Math.min(BAND_AVERAGE, history.length);
+    let sum = 0;
+    for (let i = 0; i < count; i += 1) sum += history[i] || 0;
+    averaged[band] = sum / count;
+  }
+  bandCursor += 1;
+  return averaged;
+}
+
+/** One paint about 8 times a second, and never a jump of more than a couple of pixels. */
+function publishLevels(now: number) {
+  if (!levelPaint || now - lastLevelPaint < 130) return;
   lastLevelPaint = now;
-  levelPaint(liveLevels);
+  shownLevels = liveLevels.map((target, index) => {
+    const prev = shownLevels[index];
+    const delta = target - prev;
+    const step = Math.max(-0.16, Math.min(0.16, delta));
+    return prev + step;
+  }) as [number, number, number];
+  levelPaint(shownLevels);
 }
 
 function attachDesktopLevelTap(audio: HTMLAudioElement): ScriptProcessorNode | null {
@@ -837,19 +866,11 @@ function easeMeter(next: [number, number, number]): [number, number, number] {
   return meterSmooth;
 }
 
-/** Paint from the audio thread so the bars keep moving after timers are frozen. */
+/** Paint from the audio callback. A timer here fights that callback and makes the bars strobe. */
 export function watchPlaybackMeter(paint: (levels: [number, number, number]) => void): () => void {
   levelPaint = paint;
-  const timer = window.setInterval(() => paint(liveLevels), 90);
-  const onTime = (event: Event) => {
-    const target = event.target;
-    if (target instanceof HTMLMediaElement && !target.paused) paint(playbackMeterLevels());
-  };
-  if (typeof document !== "undefined") document.addEventListener("timeupdate", onTime, true);
   return () => {
     if (levelPaint === paint) levelPaint = null;
-    window.clearInterval(timer);
-    if (typeof document !== "undefined") document.removeEventListener("timeupdate", onTime, true);
   };
 }
 
