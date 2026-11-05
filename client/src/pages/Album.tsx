@@ -1400,9 +1400,12 @@ function PlayingBars() {
     const bars = [...root.querySelectorAll("i")];
     if (!bars.length) return;
     return watchPlaybackMeter((levels) => {
+      const cover = root.parentElement?.querySelector(".t-thumb");
+      const span = cover instanceof HTMLElement && cover.clientHeight > 0 ? cover.clientHeight : root.clientHeight;
+      if (span > 0) root.style.height = `${span}px`;
       bars.forEach((bar, index) => {
         const level = Math.min(1, (levels[index] || 0) * 2.2);
-        bar.style.height = `${Math.round(15 + level * 85)}%`;
+        bar.style.height = `${Math.max(4, Math.round(span * (0.15 + level * 0.85)))}px`;
       });
     });
   }, []);
