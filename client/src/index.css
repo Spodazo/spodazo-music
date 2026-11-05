@@ -685,12 +685,12 @@ button.portrait-cover.enlarged {
   align-items: flex-end;
   justify-content: flex-end;
   gap: 0.6mm;
-  height: 6mm;
+  height: 12mm;
   opacity: 1;
   color: var(--amber);
 }
 .t-eq.mobile {
-  height: 4mm;
+  height: 8mm;
 }
 .t-eq i {
   display: block;
