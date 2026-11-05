@@ -1402,7 +1402,7 @@ function PlayingBars() {
     return watchPlaybackMeter((levels) => {
       bars.forEach((bar, index) => {
         const level = Math.min(1, (levels[index] || 0) * 2.2);
-        bar.style.transform = `scaleY(${0.15 + level * 0.85})`;
+        bar.style.height = `${Math.round(15 + level * 85)}%`;
       });
     });
   }, []);
@@ -1466,6 +1466,7 @@ function TrackRow({
       onPointerDown={onWarm}
       onClick={onOpen}
     >
+      <div className="t-lead">
       {isPlaying ? (
         <PlayingBars />
       ) : (
@@ -1508,6 +1509,7 @@ function TrackRow({
           ) : null}
         </div>
       )}
+      </div>
       <div className="t-info">
         <div className="t-title">
           {track.title}
