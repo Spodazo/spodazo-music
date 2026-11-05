@@ -1401,13 +1401,13 @@ function PlayingBars() {
     if (!bars.length) return;
     return watchPlaybackMeter((levels) => {
       bars.forEach((bar, index) => {
-        const level = levels[index] || 0;
-        bar.style.height = `${Math.round(3 + level * 11)}px`;
+        const level = Math.min(1, (levels[index] || 0) * 2.2);
+        bar.style.transform = `scaleY(${0.15 + level * 0.85})`;
       });
     });
   }, []);
   return (
-    <span ref={ref} className="t-eq" aria-hidden="true">
+    <span ref={ref} className={`t-eq${isMobilePlayback() ? " mobile" : ""}`} aria-hidden="true">
       <i />
       <i />
       <i />

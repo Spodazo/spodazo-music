@@ -684,17 +684,22 @@ button.portrait-cover.enlarged {
   display: flex;
   align-items: flex-end;
   justify-content: flex-end;
-  gap: 2px;
-  height: 14px;
+  gap: 0.6mm;
+  height: 6mm;
   opacity: 1;
   color: var(--amber);
 }
+.t-eq.mobile {
+  height: 4mm;
+}
 .t-eq i {
   display: block;
-  width: 3px;
-  height: 8px;
-  border-radius: 1px;
+  width: 0.7mm;
+  height: 100%;
+  border-radius: 0.3mm;
   background: currentColor;
+  transform: scaleY(0.15);
+  transform-origin: bottom center;
 }
 .t-thumb {
   width: 44px;
