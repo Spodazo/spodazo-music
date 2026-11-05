@@ -728,6 +728,7 @@ let meterBins: Uint8Array | null = null;
 let meterSmooth: [number, number, number] = [0, 0, 0];
 let levelPaint: ((levels: [number, number, number]) => void) | null = null;
 let liveLevels: [number, number, number] = [0, 0, 0];
+let lastLevelPaint = 0;
 let lowState = 0;
 let midState = 0;
 const desktopTaps = new WeakMap<HTMLAudioElement, ScriptProcessorNode>();
@@ -769,7 +770,7 @@ export function sampleBands(samples: Float32Array): [number, number, number] {
     highSq += high * high;
   }
   const count = samples.length || 1;
-  const level = (sq: number) => Math.max(0, Math.min(1, Math.sqrt(sq / count) * 3.4));
+  const level = (sq: number) => Math.max(0, Math.min(1, Math.sqrt(sq / count) * 2.2));
   return [level(lowSq), level(midSq), level(highSq)];
 }
 
@@ -795,7 +796,10 @@ function passThroughAndMeasure(event: AudioProcessingEvent) {
     output.getChannelData(channel).set(source);
   }
   liveLevels = easeMeter(sampleBands(input.getChannelData(0)));
-  levelPaint?.(liveLevels);
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
+  if (!levelPaint || now - lastLevelPaint < 90) return;
+  lastLevelPaint = now;
+  levelPaint(liveLevels);
 }
 
 function attachDesktopLevelTap(audio: HTMLAudioElement): ScriptProcessorNode | null {
@@ -827,7 +831,7 @@ function desktopAnalyser(audio: HTMLAudioElement): ScriptProcessorNode | null {
 function easeMeter(next: [number, number, number]): [number, number, number] {
   meterSmooth = next.map((target, index) => {
     const prev = meterSmooth[index];
-    const rate = target > prev ? 0.72 : 0.28;
+    const rate = target > prev ? 0.28 : 0.08;
     return prev + (target - prev) * rate;
   }) as [number, number, number];
   return meterSmooth;
@@ -836,7 +840,7 @@ function easeMeter(next: [number, number, number]): [number, number, number] {
 /** Paint from the audio thread so the bars keep moving after timers are frozen. */
 export function watchPlaybackMeter(paint: (levels: [number, number, number]) => void): () => void {
   levelPaint = paint;
-  const timer = window.setInterval(() => paint(playbackMeterLevels()), 50);
+  const timer = window.setInterval(() => paint(liveLevels), 90);
   const onTime = (event: Event) => {
     const target = event.target;
     if (target instanceof HTMLMediaElement && !target.paused) paint(playbackMeterLevels());
