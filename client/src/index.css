@@ -690,7 +690,7 @@ button.portrait-cover.enlarged {
   color: var(--amber);
 }
 .t-eq.mobile {
-  height: 8mm;
+  height: 12mm;
 }
 .t-eq i {
   display: block;
