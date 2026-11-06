@@ -297,6 +297,11 @@ test("playback helpers never prefetch, blob-play, or wait on the playhead", () =
   assert.doesNotMatch(play, /audio\.muted = true/);
   assert.match(src, /interruptionend/);
   assert.match(src, /devicechange/);
+  const interrupt = src.slice(src.indexOf("const onInterruptEnd"), src.indexOf("const onDeviceChange"));
+  assert.doesNotMatch(interrupt, /resumePlaybackAfterInterrupt|\.play\(/);
+  const unlock = src.slice(src.indexOf("export function unlockAudio"), src.indexOf("export function waitForAudible"));
+  assert.doesNotMatch(play, /setPlaybackSession/);
+  assert.doesNotMatch(unlock, /setPlaybackSession/);
 });
 
 function stubAudioSession() {
@@ -385,7 +390,7 @@ test("a phone call pauses playback without rebuilding on session interruption en
     stub.session.dispatch("interruptionend");
     await new Promise((resolve) => setTimeout(resolve, 80));
     assert.equal(rerouted, false);
-    assert.equal(audio.paused, false);
+    assert.equal(audio.paused, true);
   } finally {
     stop();
     stub.restore();
@@ -463,7 +468,7 @@ test("when another app ducks Music in the background, playback resumes without a
     stub.session.dispatch("interruptionend");
     await new Promise((resolve) => setTimeout(resolve, 80));
     assert.equal(rerouted, false);
-    assert.equal(audio.paused, false);
+    assert.equal(audio.paused, true);
   } finally {
     stop();
     stub.restore();

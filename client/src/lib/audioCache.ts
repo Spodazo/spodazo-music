@@ -484,19 +484,8 @@ export function watchPlaybackRoute(
     notePlayingBeforeInterrupt();
   };
   const onInterruptEnd = () => {
-    // Bluetooth device flips also fire session interruptions. Let the debounced remount
-    // own recovery — resurrecting the old WebAudio graph here stays silent on the new device.
-    if (routeChangePending || nativeOutputOnly) {
-      sessionInterrupted = false;
-      return;
-    }
-    for (const item of routeWatchers) {
-      const audio = item.getAudio();
-      if (!audio || !resumeAfterInterrupt) continue;
-      const volume = item.getVolume();
-      if (audio.paused) void resumePlaybackAfterInterrupt(audio, volume);
-      else ensureMobileOutputAudible(audio, volume);
-    }
+    // iOS fires this when a song starts. play() here is the second start, and the phone
+    // then drops it. Desktop never has this event, and desktop playback is the one that holds.
     sessionInterrupted = false;
     resumeAfterInterrupt = false;
   };
@@ -564,7 +553,6 @@ export function startBackgroundPlaybackGuard(
     if (audio.paused) return;
     const volume = getVolume();
     if (nativeOutputOnly) {
-      setPlaybackSession();
       audio.muted = false;
       gateOpen = true;
       if (!graphs.has(audio)) audio.volume = Math.max(0, Math.min(1, volume));
@@ -601,7 +589,6 @@ export function settleRoutePlayback(
     if (!shouldKeepPlaying()) return;
     const audio = getAudio();
     if (!audio || audio.paused) return;
-    setPlaybackSession();
     audio.muted = false;
     gateOpen = true;
     const volume = Math.max(0, Math.min(1, getVolume()));
@@ -1000,7 +987,6 @@ export function playSong(
   const dead = forceReload || !sameSong(audio, url);
   if (continuation) {
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
-    setPlaybackSession();
     // Phones stay on the element. Attaching a graph here captures it, and a dead context
     // cannot be left until the phone restarts.
   } else {
@@ -1051,7 +1037,6 @@ export function setPlaybackSession() {
 
 export function unlockAudio(audio?: HTMLAudioElement | null) {
   noteUserPlay();
-  setPlaybackSession();
   if (!audio || !isMobilePlayback()) return;
   nativeOutputOnly = false;
   // Do not attach a graph. A captured element can play only through Web Audio,
