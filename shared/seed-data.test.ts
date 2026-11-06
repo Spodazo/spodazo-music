@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_PALETTE_ID, normalizePaletteId } from "./palettes";
-import { albumSetupFromPlayer, copyrightLines, creditLine, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
+import { albumSetupFromPlayer, copyrightLines, creditLine, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, ECHOES_TRACKS, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, refreshedSeedLyrics, seedLyricsForTrack, slugify, titleFromAudioFile, uniqueSlug } from "./seed-data";
 
 test("Echoes catalog has twelve unique tracks", () => {
   assert.equal(ECHOES_ALBUM.slug, "echoes");
@@ -20,6 +20,18 @@ test("Echoes catalog has twelve unique tracks", () => {
 
 test("every Echoes track has lyrics from the live player", () => {
   assert.ok(ECHOES_TRACKS.every((track) => track.lyrics.trim().length > 40));
+});
+
+test("Restored lyrics match the sung verse order", () => {
+  const lyrics = seedLyricsForTrack("track-echoes-8");
+  const pastures = lyrics.indexOf("He leads me where the pastures grow");
+  const valley = lyrics.indexOf("Even though I walk through the valley");
+  const table = lyrics.indexOf("You spread a table in my sight");
+  assert.ok(pastures > 0 && pastures < valley && valley < table);
+  assert.equal(lyrics.includes("Through valleys deep where shadows fall"), false);
+  const oldSheet = "[Verse 2]\nThrough valleys deep where shadows fall,\nI walk and have no fear;";
+  assert.equal(refreshedSeedLyrics("track-echoes-8", oldSheet), lyrics);
+  assert.equal(refreshedSeedLyrics("track-echoes-8", lyrics), null);
 });
 
 test("titleFromAudioFile uses the filename and optional scripture", () => {

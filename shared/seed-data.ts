@@ -531,16 +531,24 @@ He leads me in paths of righteousness,
 For His great name's sake always.
 
 [Verse 2]
-Through valleys deep where shadows fall,
-I walk and have no fear;
-Your rod and staff, they comfort me,
-For You are always near.
+He leads me where the pastures grow,
+Beside the waters still;
+He restores my soul and guides my steps,
+Along His righteous hill.
 
 [Chorus]
 The Lord, the Lord is my shepherd,
 I shall not want each day;
 He leads me in paths of righteousness,
 For His great name's sake always.
+
+[Bridge — Spoken Word]
+Even though I walk through the valley
+Of the shadow of death,
+I will fear no evil,
+For You are with me;
+Your rod and Your staff,
+They comfort me.
 
 [Verse 3]
 You spread a table in my sight,
@@ -554,7 +562,7 @@ I shall not want each day;
 He leads me in paths of righteousness,
 For His great name's sake always.
 
-[Bridge]
+[Verse 4]
 Surely goodness and mercy shall follow,
 Through every day I live;
 And in Your house forever more,
@@ -765,4 +773,16 @@ export const DEFAULT_CATALOG = {
 
 export function seedLyricsForTrack(id: string): string {
   return ECHOES_TRACKS.find((track) => track.id === id)?.lyrics || "";
+}
+
+const RESTORED_TRACK_ID = "track-echoes-8";
+const OUTDATED_RESTORED_LYRIC = "Through valleys deep where shadows fall";
+
+/** Replace the old Restored sheet, which skipped a sung verse and paraphrased the spoken valley. */
+export function refreshedSeedLyrics(id: string, lyrics: string): string | null {
+  if (id !== RESTORED_TRACK_ID) return null;
+  const seeded = seedLyricsForTrack(id);
+  if (!seeded || lyrics.includes("He leads me where the pastures grow")) return null;
+  if (!lyrics.includes(OUTDATED_RESTORED_LYRIC)) return null;
+  return seeded;
 }

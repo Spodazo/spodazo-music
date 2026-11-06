@@ -3,7 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { albums, curator, playerSetup, tracks } from "../shared/schema";
-import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, seedLyricsForTrack } from "../shared/seed-data";
+import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, refreshedSeedLyrics, seedLyricsForTrack } from "../shared/seed-data";
 import { normalizePaletteId } from "../shared/palettes";
 import type { Album, AlbumListItem, Curator, CuratorRecord, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, COLLECTION_COVER_WIDTH, durationLabelForFile, HOME_CARD_WIDTH, imageUrl } from "./media";
@@ -207,8 +207,9 @@ export class JsonMusicStore implements MusicStore {
     const catalog = this.read();
     let changed = false;
     for (const track of catalog.tracks) {
-      const lyrics = seedLyricsForTrack(track.id);
-      if (lyrics && !track.lyrics.trim()) {
+      const refreshed = refreshedSeedLyrics(track.id, track.lyrics);
+      const lyrics = refreshed || (track.lyrics.trim() ? "" : seedLyricsForTrack(track.id));
+      if (lyrics) {
         track.lyrics = lyrics;
         track.updatedAt = nowIso();
         changed = true;
@@ -583,8 +584,9 @@ export class PostgresMusicStore implements MusicStore {
     }
     const rows = await this.db.select({ id: tracks.id, lyrics: tracks.lyrics }).from(tracks);
     for (const row of rows) {
-      const lyrics = seedLyricsForTrack(row.id);
-      if (lyrics && !String(row.lyrics || "").trim()) {
+      const current = String(row.lyrics || "");
+      const lyrics = refreshedSeedLyrics(row.id, current) || (current.trim() ? "" : seedLyricsForTrack(row.id));
+      if (lyrics) {
         await this.db.update(tracks).set({ lyrics, updatedAt: new Date() }).where(eq(tracks.id, row.id));
       }
     }
