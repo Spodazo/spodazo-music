@@ -16,6 +16,11 @@ import {
   ensureMobileOutputAudible,
   isNativeOutputOnly,
   markOutputNeedsRebuild,
+  noteUserPlay,
+  outputRouteKey,
+  PLAYBACK_START_GUARD_MS,
+  rememberOutputRouteForTests,
+  routeChangeIsSpurious,
   outputGraphIsStale,
   outputRebuildIsPending,
   shouldRebuildOutput,
@@ -188,6 +193,24 @@ test("meter bands follow bass, middle, and top energy", () => {
   assert.ok(mid[1] > mid[0]);
   assert.ok(mid[1] > mid[2]);
   assert.deepEqual(meterBands(new Uint8Array(64)), [0, 0, 0]);
+});
+
+test("phone playback connects the gain node and does not use a ScriptProcessor", () => {
+  const src = readFileSync(new URL("./audioCache.ts", import.meta.url), "utf8");
+  const attach = src.slice(src.indexOf("export function attachOutput"), src.indexOf("function setOutput"));
+  assert.match(attach, /gain\.connect\(ctx\.destination\)/);
+  assert.doesNotMatch(attach, /createScriptProcessor/);
+  assert.doesNotMatch(attach, /keptProcessors/);
+});
+
+test("a tap's devicechange is not a new speaker unless the output changed", () => {
+  assert.equal(PLAYBACK_START_GUARD_MS, 2000);
+  assert.equal(routeChangeIsSpurious({ previous: "", next: "", sincePlay: 40 }), true);
+  assert.equal(routeChangeIsSpurious({ previous: "", next: "speaker", sincePlay: 40 }), true);
+  assert.equal(routeChangeIsSpurious({ previous: "", next: "car", sincePlay: 9000 }), false);
+  assert.equal(routeChangeIsSpurious({ previous: "speaker", next: "speaker", sincePlay: 9000 }), true);
+  assert.equal(routeChangeIsSpurious({ previous: "speaker", next: "car", sincePlay: 40 }), false);
+  assert.equal(routeChangeIsSpurious({ previous: "", next: "", sincePlay: 9000 }), false);
 });
 
 test("desktop level meter stays at full volume and is not the playback graph", () => {
@@ -433,6 +456,104 @@ test("when another app ducks Music in the background, playback resumes without a
   }
 });
 
+test("a devicechange as the song starts does not tear playback down", async () => {
+  const stub = stubAudioSession();
+  const restoreCtx = stubAudioContext();
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.src = "/media/songs/a.mp3";
+  audio.currentTime = 0.4;
+  audio.paused = false;
+  attachOutput(audio, 0.8);
+  unlockAudio(audio);
+  let reroutes = 0;
+  const stop = watchPlaybackRoute(
+    () => audio,
+    () => {
+      reroutes += 1;
+    },
+  );
+  try {
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 40));
+    assert.equal(reroutes, 0);
+    assert.equal(audio.paused, false);
+    assert.equal(isNativeOutputOnly(), false);
+  } finally {
+    stop();
+    releaseOutput(audio);
+    stub.restore();
+    restoreCtx();
+    resetOutputRouteStateForTests();
+  }
+});
+
+test("a changed output device still remounts during a tap", async () => {
+  const stub = stubAudioSession();
+  const restoreCtx = stubAudioContext();
+  const speaker = [{ kind: "audiooutput", deviceId: "spk", groupId: "g", label: "Speaker" }];
+  const car = [{ kind: "audiooutput", deviceId: "car", groupId: "g", label: "Car" }];
+  rememberOutputRouteForTests(outputRouteKey(speaker));
+  (stub.devices as { enumerateDevices?: () => Promise<typeof car> }).enumerateDevices = () => Promise.resolve(car);
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.src = "/media/songs/a.mp3";
+  audio.currentTime = 0.4;
+  audio.paused = false;
+  attachOutput(audio, 0.8);
+  noteUserPlay();
+  let reroutes = 0;
+  const stop = watchPlaybackRoute(
+    () => audio,
+    () => {
+      reroutes += 1;
+      releaseOutputForRouteChange(audio);
+    },
+  );
+  try {
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 80));
+    assert.equal(reroutes, 1);
+    assert.equal(isNativeOutputOnly(), true);
+  } finally {
+    stop();
+    stub.restore();
+    restoreCtx();
+    resetOutputRouteStateForTests();
+  }
+});
+
+test("the same output device does not remount a song that is already playing", async () => {
+  const stub = stubAudioSession();
+  const restoreCtx = stubAudioContext();
+  const speaker = [{ kind: "audiooutput", deviceId: "spk", groupId: "g", label: "Speaker" }];
+  rememberOutputRouteForTests(outputRouteKey(speaker));
+  (stub.devices as { enumerateDevices?: () => Promise<typeof speaker> }).enumerateDevices = () => Promise.resolve(speaker);
+  const audio = fakeAudio() as unknown as HTMLAudioElement;
+  audio.src = "/media/songs/a.mp3";
+  audio.currentTime = 40;
+  audio.paused = false;
+  attachOutput(audio, 0.8);
+  let reroutes = 0;
+  const stop = watchPlaybackRoute(
+    () => audio,
+    () => {
+      reroutes += 1;
+    },
+  );
+  try {
+    stub.devices.dispatch("devicechange");
+    await new Promise((resolve) => setTimeout(resolve, ROUTE_CHANGE_DEBOUNCE_MS + 80));
+    assert.equal(reroutes, 0);
+    assert.equal(isNativeOutputOnly(), false);
+    assert.equal(audio.paused, false);
+  } finally {
+    stop();
+    releaseOutput(audio);
+    stub.restore();
+    restoreCtx();
+    resetOutputRouteStateForTests();
+  }
+});
+
 test("switching Bluetooth devices remounts a live WebAudio element once", async () => {
   const stub = stubAudioSession();
   const restoreCtx = stubAudioContext();
@@ -564,7 +685,7 @@ function stubAudioContext() {
   };
 }
 
-test("a mobile song change rebuilds the output graph", () => {
+test("a mobile song change keeps the live element so play stays inside the tap", () => {
   const restoreUa = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
   const restoreCtx = stubAudioContext();
   const audio = fakeAudio() as unknown as HTMLAudioElement;
@@ -572,8 +693,9 @@ test("a mobile song change rebuilds the output graph", () => {
   try {
     attachOutput(audio);
     assert.equal(shouldRebuildOutput(audio, "/media/songs/a.mp3"), false);
-    assert.equal(shouldRebuildOutput(audio, "/media/songs/b.mp3"), true);
+    assert.equal(shouldRebuildOutput(audio, "/media/songs/b.mp3"), false);
   } finally {
+    releaseOutput(audio);
     restoreCtx();
     restoreUa();
   }

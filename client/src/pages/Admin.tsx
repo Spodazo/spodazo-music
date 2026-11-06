@@ -25,7 +25,7 @@ import {
   updateTrack,
   verifyCuratorPassword,
 } from "../lib/api";
-import { assignSrc, markOutputNeedsRebuild, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, releaseOutputForRouteChange, restoreMobileOutput, sameSong, settleRoutePlayback, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
+import { assignSrc, outputGraphIsStale, pipelineIsDead, playSong, releaseOutput, releaseOutputForRouteChange, restoreMobileOutput, sameSong, settleRoutePlayback, shouldRebuildOutput, unlockAudio, watchPlaybackRoute } from "../lib/audioCache";
 import { writeCachedSetup } from "../lib/homeCache";
 import { applyPalette } from "../lib/palette";
 import { applySiteIcons } from "../lib/siteIcons";
@@ -204,7 +204,6 @@ function useAdminPlayer() {
     } else {
       wantPlayingRef.current = false;
       if (audio.currentTime > 0.15) resumeTimeRef.current = audio.currentTime;
-      markOutputNeedsRebuild();
       audio.pause();
       setPlaying(false);
     }

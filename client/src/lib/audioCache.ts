@@ -14,6 +14,11 @@
  * Leaving an album must retire the shared AudioContext so the next album's first tap opens a fresh audible graph.
  * Keep the AudioContext the first tap resumed. A context created when the song ends stays silent until the next tap.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
+ * Do not put a ScriptProcessor in the phone graph. It runs on the main thread, the playhead jumps, and iOS
+ * then kills the audio session until the phone is restarted. The bars read an AnalyserNode instead.
+ * A song tap or a pause must play() on the same element inside the gesture. Remounting afterwards stops the song.
+ * devicechange as a tap starts the session is not a new speaker. Remount only when the output device changed,
+ * or when a song that has already been playing loses its route (car Bluetooth with no device list).
  */
 
 export const HAVE_CURRENT_DATA = 2;
@@ -29,6 +34,11 @@ export const ROUTE_CHANGE_DEBOUNCE_MS = 450;
 /** Re-assert native play/unmute while a new Bluetooth route finishes coming up. */
 export const ROUTE_SETTLE_MS = 2000;
 export const ROUTE_SETTLE_TICK_MS = 250;
+/**
+ * iOS fires devicechange when a tap activates the audio session. Ignore that window unless
+ * the output fingerprint actually changed. A later event can still be a car stereo.
+ */
+export const PLAYBACK_START_GUARD_MS = 2000;
 
 let playGen = 0;
 let gateOpen = true;
@@ -83,6 +93,8 @@ let routeTimer = 0;
 let sessionInterrupted = false;
 let resumeAfterInterrupt = false;
 let outputNeedsRebuild = false;
+let routeFingerprint = "";
+let lastUserPlayAt = 0;
 
 function audioContextCtor(): typeof AudioContext | undefined {
   return (
@@ -199,7 +211,58 @@ export function resetOutputRouteStateForTests() {
   routeSettleGen += 1;
   window.clearTimeout(routeTimer);
   routeTimer = 0;
+  routeFingerprint = "";
+  lastUserPlayAt = 0;
   stopSoftRouteSettle();
+}
+
+export function rememberOutputRouteForTests(key: string) {
+  routeFingerprint = key;
+}
+
+/** Mark a user tap so a session-activation devicechange is not treated as a new speaker. */
+export function noteUserPlay() {
+  lastUserPlayAt = typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+type RouteDevice = { kind: string; deviceId?: string; groupId?: string; label?: string };
+
+export function outputRouteKey(devices: RouteDevice[]): string {
+  return devices
+    .filter((device) => device.kind === "audiooutput")
+    .map((device) => `${device.deviceId || ""}\0${device.groupId || ""}\0${device.label || ""}`)
+    .sort()
+    .join("\n");
+}
+
+/**
+ * Same outputs, a first look at the route, or a tap with no device list: not a speaker change.
+ * Two different fingerprints always count, including during the tap (headphones just plugged in).
+ */
+export function routeChangeIsSpurious(input: { previous: string; next: string; sincePlay: number }): boolean {
+  if (input.previous && input.next) return input.previous === input.next;
+  // No baseline yet, or iOS is hiding the output list. A tap's devicechange is the
+  // session starting. After the song is underway, the same event is a new route.
+  return input.sincePlay < PLAYBACK_START_GUARD_MS;
+}
+
+function seedRouteFingerprint() {
+  if (routeFingerprint) return;
+  const enumerate = navigator.mediaDevices?.enumerateDevices;
+  if (typeof enumerate !== "function") return;
+  void enumerate
+    .call(navigator.mediaDevices)
+    .then((list) => {
+      const key = outputRouteKey(list);
+      if (key && !routeFingerprint) routeFingerprint = key;
+    })
+    .catch(() => undefined);
+}
+
+function sinceUserPlay(): number {
+  if (!lastUserPlayAt) return Number.POSITIVE_INFINITY;
+  const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+  return now - lastUserPlayAt;
 }
 
 export function playbackSnapshot(audio: HTMLAudioElement | null): PlaybackSnapshot | null {
@@ -231,15 +294,11 @@ export function outputGraphIsStale(audio: HTMLAudioElement | null): boolean {
   return state === "closed";
 }
 
-export function shouldRebuildOutput(audio: HTMLAudioElement | null, nextUrl = ""): boolean {
+export function shouldRebuildOutput(audio: HTMLAudioElement | null, _nextUrl = ""): boolean {
   if (!audio || !isMobilePlayback()) return false;
-  if (outputGraphIsStale(audio)) return true;
-  if (!nextUrl || !graphs.has(audio)) return false;
-  // warm() may attach a graph before src is set — that is not a song change. Remounting
-  // here would play() after the tap gesture and leave the first song silent.
-  const current = (audio.currentSrc || audio.src || "").split("#")[0];
-  if (!current) return false;
-  return !sameSong(audio, nextUrl);
+  // A different song stays on this element. Remounting plays from useEffect, after Safari
+  // has dropped the tap, so the playhead jumps and the new element stops.
+  return outputGraphIsStale(audio);
 }
 
 export function resumeLiveOutput(audio: HTMLAudioElement | null): boolean {
@@ -417,6 +476,7 @@ export function watchPlaybackRoute(
 ): () => void {
   const watch = { getAudio, onReroute, getVolume };
   routeWatchers.add(watch);
+  seedRouteFingerprint();
 
   const onInterruptBegin = () => {
     sessionInterrupted = true;
@@ -441,6 +501,21 @@ export function watchPlaybackRoute(
   };
   const onDeviceChange = () => {
     if (!isMobilePlayback()) return;
+    const enumerate = navigator.mediaDevices?.enumerateDevices;
+    if (typeof enumerate !== "function") {
+      applyDeviceChange("");
+      return;
+    }
+    void enumerate
+      .call(navigator.mediaDevices)
+      .then((list) => applyDeviceChange(outputRouteKey(list)))
+      .catch(() => applyDeviceChange(""));
+  };
+
+  function applyDeviceChange(next: string) {
+    const previous = routeFingerprint;
+    if (next) routeFingerprint = next;
+    if (routeChangeIsSpurious({ previous, next, sincePlay: sinceUserPlay() })) return;
     // A MediaElementSource stays bound to the old route. Disconnecting it without
     // replacing the element leaves Safari's playhead moving through silence.
     nativeOutputOnly = true;
@@ -452,7 +527,7 @@ export function watchPlaybackRoute(
     }
     // Once remounted natively, later A2DP/HFP flaps heal the same element.
     softSettleNativeRoutes();
-  };
+  }
 
   const session = audioSession();
   session?.addEventListener?.("interruptionbegin", onInterruptBegin);
@@ -567,7 +642,7 @@ export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGr
     } else {
       source.connect(gain);
     }
-    connectMeasuredOutput(ctx, gain);
+    gain.connect(ctx.destination);
     const graph = { ctx, gain, source, analyser };
     graphs.set(audio, graph);
     return graph;
@@ -778,20 +853,6 @@ export function sampleBands(samples: Float32Array): [number, number, number] {
   return [level(lowSq), level(midSq), level(highSq)];
 }
 
-const keptProcessors: ScriptProcessorNode[] = [];
-
-function connectMeasuredOutput(ctx: AudioContext, gain: GainNode) {
-  if (typeof ctx.createScriptProcessor !== "function") {
-    gain.connect(ctx.destination);
-    return;
-  }
-  const processor = ctx.createScriptProcessor(1024, 2, 2);
-  gain.connect(processor);
-  processor.connect(ctx.destination);
-  processor.onaudioprocess = passThroughAndMeasure;
-  keptProcessors.push(processor);
-}
-
 function passThroughAndMeasure(event: AudioProcessingEvent) {
   const input = event.inputBuffer;
   const output = event.outputBuffer;
@@ -866,11 +927,41 @@ function easeMeter(next: [number, number, number]): [number, number, number] {
   return meterSmooth;
 }
 
-/** Paint from the audio callback. A timer here fights that callback and makes the bars strobe. */
+function sampleAnalyser(audio: HTMLAudioElement): [number, number, number] | null {
+  const analyser = outputAnalyser(audio);
+  if (!analyser) return null;
+  if (!meterBins || meterBins.length !== analyser.frequencyBinCount) {
+    meterBins = new Uint8Array(analyser.frequencyBinCount);
+  }
+  analyser.getByteFrequencyData(meterBins);
+  return meterBands(meterBins);
+}
+
+/**
+ * Phone bars read the AnalyserNode on a paint timer. A ScriptProcessor in the playback
+ * graph blocks the audio thread, jumps the playhead, and leaves iOS silent until reboot.
+ * Desktop keeps its own full-volume tap and must not be driven by this timer.
+ */
 export function watchPlaybackMeter(paint: (levels: [number, number, number]) => void): () => void {
   levelPaint = paint;
+  if (!isMobilePlayback() || typeof requestAnimationFrame !== "function") {
+    return () => {
+      if (levelPaint === paint) levelPaint = null;
+    };
+  }
+  let raf = 0;
+  const tick = (now: number) => {
+    if (levelPaint !== paint) return;
+    const audio = playingElement();
+    const levels = audio ? sampleAnalyser(audio) : null;
+    liveLevels = averagedBands(levels || [0, 0, 0]);
+    publishLevels(now);
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
   return () => {
     if (levelPaint === paint) levelPaint = null;
+    cancelAnimationFrame(raf);
   };
 }
 
@@ -971,6 +1062,7 @@ export function setPlaybackSession() {
 }
 
 export function unlockAudio(audio?: HTMLAudioElement | null) {
+  noteUserPlay();
   setPlaybackSession();
   if (!audio || !isMobilePlayback()) return;
   // User tap after Bluetooth: allow a fresh WebAudio graph on the new route even if still playing natively.

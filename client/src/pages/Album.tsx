@@ -7,7 +7,6 @@ import {
   dropLegacyAudioCaches,
   isMobilePlayback,
   isPrematureTrackEnd,
-  markOutputNeedsRebuild,
   isNativeOutputOnly,
   trustedSongDuration,
   outputGraphIsStale,
@@ -908,7 +907,8 @@ export default function AlbumPage() {
     } else {
       wantPlayingRef.current = false;
       rememberTime();
-      markOutputNeedsRebuild();
+      // Stay on this element. Rebuilding here plays from an effect, after the tap, so the
+      // song jumps and then stops once iOS has dropped the gesture.
       audio.pause();
       setPlaying(false);
       releaseWake();
@@ -917,7 +917,6 @@ export default function AlbumPage() {
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.loop = repeatOne;
-    if (!repeatOne) markOutputNeedsRebuild();
   }, [repeatOne]);
 
   function onEnded() {
@@ -982,11 +981,10 @@ export default function AlbumPage() {
         );
         const known = trustedSongDuration(audio?.duration || 0, catalogSeconds);
         const atEnd = Boolean(audio && known > 8 && audio.currentTime >= known - 0.35);
-        // Safari fires pause during play() startup. Resume only in that first
-        // window — mid-song pause→play is the stutter loop.
-        const starting =
-          performance.now() - wantPlayAtRef.current < PLAY_START_RESUME_MS &&
-          Boolean(audio && audio.currentTime < 0.3);
+        // Safari fires pause during play() startup, sometimes after the playhead has
+        // already jumped. Resume through that whole window. A later pause stays paused
+        // so we do not restart a song the listener just stopped.
+        const starting = performance.now() - wantPlayAtRef.current < PLAY_START_RESUME_MS;
         if (wantPlayingRef.current && starting && audio && !rerouteRef.current && !atEnd) {
           restoreMobileOutput(audio, userVolRef.current);
           void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
