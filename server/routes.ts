@@ -8,7 +8,7 @@ import type { PlayerSetup } from "../shared/types";
 import { loginAdmin, logoutAdmin, requireAdmin } from "./auth";
 import { curatorPasswordMatches, curatorRecoveryError, hashPassword, MIN_PASSWORD_LENGTH } from "./password";
 import { currentIconStamp } from "./htmlIcons";
-import { assetVersion, bumpContentRevision, contentRevision, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, mp3DataOffset, parseImageWidth, prepareFaviconSet, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
+import { assetVersion, bumpContentRevision, contentRevision, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, parseImageWidth, prepareFaviconSet, preparedImagePath, removeSongFile, sendSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
 import { forgetSyncTracks, registerTempMusicRoutes, songFileIsPrivate, withTempMusicLock } from "./tempMusic";
@@ -737,14 +737,8 @@ export function registerRoutes(app: Express): void {
       res.status(404).end();
       return;
     }
-    res.sendFile(full, {
-      acceptRanges: true,
-      start: mp3DataOffset(full),
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=31536000, immutable, no-transform",
-      },
-    });
+    // Send the file from byte 0. Skipping an ID3 offset here makes Range numbers
+    // disagree with the file, and iOS then stops the song after the first chunk.
+    sendSongFile(res, full);
   });
 }

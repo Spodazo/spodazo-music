@@ -1,3 +1,4 @@
+import type { Response } from "express";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
@@ -123,6 +124,27 @@ export async function preparedImagePath(full: string, width?: number): Promise<s
     .toFile(tmp);
   fs.renameSync(tmp, dest);
   return dest;
+}
+
+/**
+ * iOS caches the first Range response for a year when this is immutable.
+ * That cached fragment is the whole song to Safari, so playback dies in about a second
+ * until the phone is restarted. Never store song bytes in a shared or device cache.
+ */
+export const SONG_RESPONSE_HEADERS = {
+  "Content-Type": "audio/mpeg",
+  "Accept-Ranges": "bytes",
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "CDN-Cache-Control": "no-store",
+  "Cloudflare-CDN-Cache-Control": "no-store",
+  Pragma: "no-cache",
+} as const;
+
+export function sendSongFile(res: Response, full: string) {
+  res.sendFile(full, {
+    acceptRanges: true,
+    headers: { ...SONG_RESPONSE_HEADERS },
+  });
 }
 
 export function audioUrl(filename: string): string {
