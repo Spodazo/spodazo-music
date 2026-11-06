@@ -1234,7 +1234,7 @@ test("Album heals playing-but-silent and tears down when leaving an album", () =
   assert.match(src, /if \(isMobilePlayback\(\) \|\| isNativeOutputOnly\(\)\) return;/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
   assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
-  const pause = src.slice(src.indexOf("onPause={() => {"), src.indexOf("onPause={() => {") + 400);
+  const pause = src.slice(src.indexOf("onPause={(event) => {"), src.indexOf("onPause={(event) => {") + 500);
   assert.match(pause, /Do not play\(\) from here/);
   assert.doesNotMatch(pause, /audio\.play\(/);
 });

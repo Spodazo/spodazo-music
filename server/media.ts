@@ -129,29 +129,45 @@ export async function preparedImagePath(full: string, width?: number): Promise<s
 }
 
 /**
- * iOS caches the first Range response for a year when this is immutable.
- * That cached fragment is the whole song to Safari, so playback dies in about a second
- * until the phone is restarted. Never store song bytes in a shared or device cache.
+ * iOS stores the first Range response and then treats that fragment as the whole song.
+ * Playback starts, the title is already on screen, and the sound dies within a second.
+ * Cloudflare also replaces a no-store header that has no numeric max-age with
+ * max-age=14400 on .mp3, which is long enough for the phone to keep the fragment.
+ * An explicit max-age=0 is the value Cloudflare leaves in place. No ETag, so a
+ * later request cannot be answered with 304 and the cached fragment.
  */
 export const SONG_RESPONSE_HEADERS = {
   "Content-Type": "audio/mpeg",
   "Accept-Ranges": "bytes",
-  "Cache-Control": "no-store, no-cache, must-revalidate",
+  "Cache-Control": "private, no-store, max-age=0, must-revalidate",
   "CDN-Cache-Control": "no-store",
   "Cloudflare-CDN-Cache-Control": "no-store",
+  Expires: "0",
   Pragma: "no-cache",
 } as const;
 
 export function sendSongFile(res: Response, full: string) {
-  res.sendFile(full, {
-    acceptRanges: true,
-    headers: { ...SONG_RESPONSE_HEADERS },
-  });
+  res.sendFile(
+    full,
+    {
+      acceptRanges: true,
+      cacheControl: false,
+      etag: false,
+      lastModified: false,
+      headers: { ...SONG_RESPONSE_HEADERS },
+    },
+    (err) => {
+      if (!err || res.headersSent) return;
+      res.status(err.statusCode || err.status || 500).end();
+    },
+  );
 }
 
 export function audioUrl(filename: string): string {
   if (!filename) return "";
-  return `/media/songs/${encodeURIComponent(filename)}?v=${audioFileVersion(filename)}`;
+  // Do not end the path in .mp3. Cloudflare treats that extension as a static file and
+  // replaces no-store with max-age=14400. iOS then keeps the first Range bytes as the song.
+  return `/media/audio/${encodeURIComponent(filename)}/play?v=${audioFileVersion(filename)}`;
 }
 
 export function removeSongFile(filename: string): boolean {

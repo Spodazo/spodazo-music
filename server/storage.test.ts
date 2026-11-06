@@ -22,7 +22,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   const byId = await store.getTrackById(echoes.tracks[0].id);
   assert.equal(byId?.title, "Echoes of the Storm");
   assert.equal(byId?.file, echoes.tracks[0].file);
-  assert.match(echoes.tracks[0].audioUrl, /^\/media\/songs\//);
+  assert.match(echoes.tracks[0].audioUrl, /^\/media\/audio\/.*\/play\?v=/);
   assert.match(echoes.heroUrl, /^\/media\/images\//);
   assert.match(echoes.thumbUrl, /Echoes%20of%20Storms\.webp/);
   assert.match(echoes.heroUrl, /Web%20Portrait/);

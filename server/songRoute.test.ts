@@ -29,8 +29,13 @@ test("a song range is the real file and is not cacheable", async () => {
     const probe = await fetch(url, { headers: { Range: "bytes=0-2" } });
     assert.equal(probe.status, 206);
     assert.equal(probe.headers.get("content-range"), `bytes 0-2/${body.length}`);
-    assert.match(probe.headers.get("cache-control") || "", /no-store/);
+    const cache = probe.headers.get("cache-control") || "";
+    assert.match(cache, /no-store/);
+    assert.match(cache, /max-age=0/);
+    assert.doesNotMatch(cache, /max-age=14400/);
     assert.equal(probe.headers.get("cdn-cache-control"), "no-store");
+    assert.equal(probe.headers.get("etag"), null);
+    assert.equal(probe.headers.get("last-modified"), null);
     assert.equal(Buffer.from(await probe.arrayBuffer()).toString(), "ID3");
 
     const tailStart = body.length - 4;

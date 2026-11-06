@@ -29,7 +29,7 @@ test("media urls stay on this app", () => {
   assert.equal(imageUrl("Echoes of the Storm.webp", 99), `/media/images/Echoes%20of%20the%20Storm.webp?v=${v}`);
   assert.match(
     audioUrl("Echoes of the Storm (Job 5).mp3"),
-    new RegExp(`^/media/songs/Echoes%20of%20the%20Storm%20\\(Job%205\\)\\.mp3\\?v=${v}(-\\d+)?$`),
+    new RegExp(`^/media/audio/Echoes%20of%20the%20Storm%20\\(Job%205\\)\\.mp3/play\\?v=${v}(-\\d+)?$`),
   );
   assert.equal(imageUrl(""), "");
   assert.equal(audioUrl(""), "");
@@ -49,7 +49,7 @@ test("audioUrl stamps the file mtime so a replaced MP3 cannot reuse an immutable
     const full = path.join(songs, name);
     fs.writeFileSync(full, Buffer.concat([mpegFrame(CBR192, 627), mpegFrame(CBR192, 627)]));
     const first = audioUrl(name);
-    assert.match(first, new RegExp(`^/media/songs/Revised\\.mp3\\?v=${assetVersion()}-\\d+$`));
+    assert.match(first, new RegExp(`^/media/audio/Revised\\.mp3/play\\?v=${assetVersion()}-\\d+$`));
     const firstStamp = audioFileVersion(name);
     const later = new Date(Date.now() + 2000);
     fs.utimesSync(full, later, later);

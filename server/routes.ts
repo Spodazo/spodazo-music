@@ -730,7 +730,7 @@ export function registerRoutes(app: Express): void {
     }
   });
 
-  app.get("/media/songs/:file", async (req, res) => {
+  async function sendPublicSong(req: Request, res: Response) {
     const file = path.basename(decodeURIComponent(req.params.file));
     const full = path.join(songsDir(), file);
     if (!fs.existsSync(full) || ((await songFileIsPrivate(file)) && !req.session?.admin)) {
@@ -740,5 +740,8 @@ export function registerRoutes(app: Express): void {
     // Send the file from byte 0. Skipping an ID3 offset here makes Range numbers
     // disagree with the file, and iOS then stops the song after the first chunk.
     sendSongFile(res, full);
-  });
+  }
+
+  app.get("/media/songs/:file", sendPublicSong);
+  app.get("/media/audio/:file/play", sendPublicSong);
 }
