@@ -266,6 +266,44 @@ export default function AlbumPage() {
     () => (album && active !== null ? album.tracks[active] : null),
     [album, active],
   );
+
+  useEffect(() => {
+    if (playing && track && album) {
+      document.title = `${track.title} — ${album.title}`;
+    }
+    const session = navigator.mediaSession;
+    if (!session || !track || !album) return;
+    const art = track.imageUrl ? new URL(track.imageUrl, window.location.origin).href : "";
+    const type = art.includes(".png") ? "image/png" : art.includes(".webp") ? "image/webp" : "image/jpeg";
+    try {
+      session.metadata = new MediaMetadata({
+        title: track.title,
+        artist: album.artists,
+        album: album.title,
+        artwork: art ? [{ src: art, sizes: "512x512", type }] : [],
+      });
+      session.playbackState = playing ? "playing" : "paused";
+      session.setActionHandler("play", () => {
+        const audio = audioRef.current;
+        if (!audio?.paused) return;
+        wantPlayingRef.current = true;
+        void audio.play();
+      });
+      session.setActionHandler("pause", () => {
+        const audio = audioRef.current;
+        if (!audio || audio.paused) return;
+        wantPlayingRef.current = false;
+        audio.pause();
+      });
+    } catch {
+      /* older browsers */
+    }
+  }, [playing, track, album]);
+
+  useEffect(() => {
+    if (active === null || !playing) return;
+    document.querySelector(`.track-row[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [active, playing]);
   const listeningTime = useMemo(
     () =>
       album
@@ -573,6 +611,7 @@ export default function AlbumPage() {
     showPlayingCover();
     load(index, autoplay, keepAudible);
     setActive(index);
+    if (autoplay) setModalOpen(true);
   }
 
   useEffect(() => {
@@ -951,6 +990,7 @@ export default function AlbumPage() {
         const time = event.currentTarget.currentTime;
         setCurrentTime(time);
         if (time > 0.15) resumeTimeRef.current = time;
+        if (!event.currentTarget.paused) setPlaying(true);
       }}
       onDurationChange={(event) => {
         const seconds = event.currentTarget.duration || 0;
@@ -963,8 +1003,10 @@ export default function AlbumPage() {
       onPlay={() => {
         setPlaying(true);
       }}
-      onPause={() => {
+      onPause={(event) => {
         // Do not play() from here. That second start is what a phone plays, then kills.
+        // A pause event while the element is still running must not hide the song.
+        if (!event.currentTarget.paused) return;
         setPlaying(false);
       }}
     />
