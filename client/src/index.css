@@ -1647,6 +1647,12 @@ button.t-play-icon {
 }
 .danger { background: #8b2e2e; color: #fff; }
 .error { color: #f0b4b4; }
+.phone-restart-note {
+  margin: 0.75rem 0 0;
+  text-align: center;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
 .admin .error { font-size: 1.2em; }
 .form-actions {
   display: flex;

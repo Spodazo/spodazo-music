@@ -169,6 +169,7 @@ export default function AlbumPage() {
   });
   const [setup, setSetup] = useState<PlayerSetup>(DEFAULT_PLAYER_SETUP);
   const [error, setError] = useState("");
+  const [phoneRestartNote, setPhoneRestartNote] = useState(false);
   const [active, setActive] = useState<number | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -520,6 +521,7 @@ export default function AlbumPage() {
       .catch(() => {
         wantPlayingRef.current = false;
         setPlaying(false);
+        markPhonePlayFailed();
       });
   }, [audioGen]);
 
@@ -553,6 +555,11 @@ export default function AlbumPage() {
   function releaseWake() {
     wakeRef.current?.release().catch(() => undefined);
     wakeRef.current = null;
+  }
+
+  function markPhonePlayFailed() {
+    if (!isMobilePlayback()) return;
+    setPhoneRestartNote(true);
   }
 
   function startPlay(keepAudible = false) {
@@ -593,7 +600,10 @@ export default function AlbumPage() {
       void startPlay(keepAudible).then(() => {
         setPlaying(true);
         window.setTimeout(() => acquireWake(), 400);
-      }).catch(() => setPlaying(false));
+      }).catch(() => {
+        setPlaying(false);
+        markPhonePlayFailed();
+      });
     } else {
       assignSrc(audio, next.audioUrl);
     }
@@ -933,7 +943,9 @@ export default function AlbumPage() {
       void play.then(() => {
         setPlaying(true);
         acquireWake();
-      }).catch(() => undefined);
+      }).catch(() => {
+        markPhonePlayFailed();
+      });
     } else {
       wantPlayingRef.current = false;
       rememberTime();
@@ -956,6 +968,7 @@ export default function AlbumPage() {
     if (audio && isPrematureTrackEnd(audio.currentTime, known)) {
       // A stub `ended` about a second in is not the end of the song. play() here is
       // outside the tap, so iOS starts the file again and then drops it.
+      markPhonePlayFailed();
       return;
     }
     if (repeatOne) return;
@@ -992,6 +1005,7 @@ export default function AlbumPage() {
         setCurrentTime(time);
         if (time > 0.15) resumeTimeRef.current = time;
         if (!event.currentTarget.paused) setPlaying(true);
+        if (time > 2) setPhoneRestartNote(false);
       }}
       onDurationChange={(event) => {
         const seconds = event.currentTarget.duration || 0;
@@ -1001,6 +1015,7 @@ export default function AlbumPage() {
         }
       }}
       onEnded={onEnded}
+      onError={() => markPhonePlayFailed()}
       onPlay={() => {
         setPlaying(true);
       }}
@@ -1137,6 +1152,11 @@ export default function AlbumPage() {
               All
             </button>
           </div>
+          {phoneRestartNote ? (
+            <p className="phone-restart-note" role="status">
+              If this keeps happening, restart your phone once.
+            </p>
+          ) : null}
           {artistUrl ? (
             <button
               type="button"
@@ -1284,6 +1304,11 @@ export default function AlbumPage() {
                 </div>
                 <span className="time">{formatTime(duration)}</span>
               </div>
+              {phoneRestartNote ? (
+                <p className="phone-restart-note" role="status">
+                  If this keeps happening, restart your phone once.
+                </p>
+              ) : null}
               <div className="controls">
                 <button className="ctrl" onClick={restartSong} title="Back to beginning" aria-label="Back to beginning">
                   <IconRestart />
