@@ -5,14 +5,14 @@ alwaysApply: true
 
 # Safari MP3 playback (do not “improve”)
 
-Desktop was always fine. The mobile start-scratch is solved. Later speed or polish work must not reopen it.
+Desktop was always fine. Phones play the element itself. A Web Audio graph on a phone wedges every browser, including Chrome, until the phone restarts.
 
 All playback goes through `playSong` / `unlockAudio` in `client/src/lib/audioCache.ts`. MP3 prep is `prepareMp3` in `server/media.ts`.
 
 ## Required behavior
 
 - Desktop: play immediately at full volume. Do not attach `createMediaElementSource`. Do not mute or hold.
-- Mobile only (`isMobilePlayback`): GainNode at 0, `muted=true`, `play()`, wait `MOBILE_HEADER_HOLD_MS` (30), unmute, fade `MOBILE_HEADER_FADE_MS` (20). Hold + fade must stay ≤ 80ms.
+- Mobile only (`isMobilePlayback`): do not create an `AudioContext` or call `createMediaElementSource`. `muted=true`, `play()` inside the tap, wait `MOBILE_HEADER_HOLD_MS` (30), unmute, fade `MOBILE_HEADER_FADE_MS` (20). Hold + fade must stay ≤ 80ms.
 - Keep Xing on VBR (Echoes). Strip Xing only on CBR.
 - Stream the file URL. Do not prefetch bytes, Cache API audio, or blob/`createObjectURL` playback.
 
@@ -24,6 +24,7 @@ All playback goes through `playSong` / `unlockAudio` in `client/src/lib/audioCac
 - Strip Xing from VBR
 - Seek to `START_OFFSET` after `play()`
 - Close or recreate the AudioContext when the next song starts (it stays silent until the next tap)
+- Call `createMediaElementSource` or `createScriptProcessor` on a phone
 - Release MediaElementSource on the same element for auto-advance (cannot reattach; next song silent)
 - Force 48 kHz `AudioContext` or unlock a different element
 - Rely on `audio.volume = 0` alone on iOS

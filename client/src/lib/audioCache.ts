@@ -1,7 +1,9 @@
 /**
  * Safari/PWA playback helpers.
- * Desktop plays immediately. Mobile only uses a short GainNode mute (see MOBILE_HEADER_*).
- * After a call, Bluetooth route change, or mobile pause, rebuild the live element — the old GainNode stays silent.
+ * Desktop plays immediately. Phones play the audio element itself — never an AudioContext.
+ * A phone AudioContext stays dead until the phone restarts, so a tap must not create one.
+ * After a call, Bluetooth route change, or mobile pause, keep the same element. Rebuilding it
+ * plays after the tap and the song stops.
  * Bluetooth with a live WebAudio graph must retire the shared AudioContext, remount, and play natively.
  * Car stereos often flap A2DP/HFP (repeated devicechange). Remount only while a graph is attached;
  * once native, settle/heal the same element — tearing it down again reloads the MP3 and stutters.
@@ -11,11 +13,10 @@
  * Auto-advance must keep the same element and MediaElementSource; releasing it cannot reattach and the next song stays silent.
  * Another app opening or closing must not pause a song that is still playing.
  * When iOS keeps the element playing but WebAudio is muted/interrupted, heal with ensureMobileOutputAudible — do not remount on visibility.
- * Leaving an album must retire the shared AudioContext so the next album's first tap opens a fresh audible graph.
- * Keep the AudioContext the first tap resumed. A context created when the song ends stays silent until the next tap.
+ * Leaving an album retires any old context. The next album plays the element natively and does not open a new one.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
- * Do not put a ScriptProcessor in the phone graph. It runs on the main thread, the playhead jumps, and iOS
- * then kills the audio session until the phone is restarted. The bars read an AnalyserNode instead.
+ * Do not put a ScriptProcessor or MediaElementSource on a phone. Both wedge iOS until a restart,
+ * and Chrome on iPhone uses the same audio engine. The opener mute is the element muted flag.
  * A song tap or a pause must play() on the same element inside the gesture. Remounting afterwards stops the song.
  * devicechange as a tap starts the session is not a new speaker. Remount only when the output device changed,
  * or when a song that has already been playing loses its route (car Bluetooth with no device list).
@@ -1000,12 +1001,8 @@ export function playSong(
   if (continuation) {
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
     setPlaybackSession();
-    // Keep an existing MediaElementSource. Releasing it on this element cannot reattach.
-    // Only join a context the first tap already started — creating one here stays silent until a later tap.
-    // After Bluetooth, nativeOutputOnly blocks attach until unlockAudio on the next tap.
-    if (!nativeOutputOnly && !graphs.has(audio) && sharedPlaybackContext()) {
-      attachOutput(audio, targetVolume);
-    }
+    // Phones stay on the element. Attaching a graph here captures it, and a dead context
+    // cannot be left until the phone restarts.
   } else {
     unlockAudio(audio);
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
@@ -1033,7 +1030,9 @@ export function playSong(
 
   gateOpen = false;
   audio.muted = true;
-  setOutput(audio, 0);
+  // Keep the listener's volume. iOS treats volume 0 as a stuck silent element.
+  // The short muted flag hides the header scratch without capturing the element.
+  setOutput(audio, targetVolume);
   return audio.play().catch(() => {
     audio.muted = false;
     return audio.play();
@@ -1065,12 +1064,10 @@ export function unlockAudio(audio?: HTMLAudioElement | null) {
   noteUserPlay();
   setPlaybackSession();
   if (!audio || !isMobilePlayback()) return;
-  // User tap after Bluetooth: allow a fresh WebAudio graph on the new route even if still playing natively.
-  const allowAttachWhilePlaying = nativeOutputOnly;
   nativeOutputOnly = false;
-  // A song already playing natively must not be pulled into a new gain node at 0 — unless this tap ends native-only mode.
-  if (!graphs.has(audio) && !audio.paused && !allowAttachWhilePlaying) return;
-  const graph = attachOutput(audio);
+  // Do not attach a graph. A captured element can play only through Web Audio,
+  // and iOS leaves that context dead until the phone restarts.
+  const graph = graphs.get(audio);
   if (!graph) return;
   const state = graph.ctx.state as string;
   if (state === "suspended" || state === "interrupted") void graph.ctx.resume();

@@ -195,12 +195,38 @@ test("meter bands follow bass, middle, and top energy", () => {
   assert.deepEqual(meterBands(new Uint8Array(64)), [0, 0, 0]);
 });
 
-test("phone playback connects the gain node and does not use a ScriptProcessor", () => {
+test("a phone tap never captures the audio element with Web Audio", () => {
   const src = readFileSync(new URL("./audioCache.ts", import.meta.url), "utf8");
-  const attach = src.slice(src.indexOf("export function attachOutput"), src.indexOf("function setOutput"));
-  assert.match(attach, /gain\.connect\(ctx\.destination\)/);
-  assert.doesNotMatch(attach, /createScriptProcessor/);
-  assert.doesNotMatch(attach, /keptProcessors/);
+  const play = src.slice(src.indexOf("export function playSong"), src.indexOf("export async function dropLegacyAudioCaches"));
+  const unlock = src.slice(src.indexOf("export function unlockAudio"), src.indexOf("export function waitForAudible"));
+  assert.doesNotMatch(play, /attachOutput\(/);
+  assert.doesNotMatch(play, /createMediaElementSource/);
+  assert.doesNotMatch(unlock, /attachOutput\(/);
+  assert.doesNotMatch(unlock, /new AudioContext|webkitAudioContext/);
+});
+
+test("a mobile tap plays without constructing an AudioContext", async () => {
+  const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  let constructed = 0;
+  const previous = window.AudioContext;
+  class FakeContext {
+    state = "running";
+    constructor() {
+      constructed += 1;
+    }
+  }
+  Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
+  const audio = fakeAudio();
+  try {
+    await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
+    assert.equal(constructed, 0);
+    assert.equal(audio.paused, false);
+    assert.equal(audio.muted, true);
+  } finally {
+    restore();
+    if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
+    else delete (window as { AudioContext?: typeof AudioContext }).AudioContext;
+  }
 });
 
 test("a tap's devicechange is not a new speaker unless the output changed", () => {
@@ -238,7 +264,7 @@ test("mobile playSong mutes only for the short opener, then unmutes", async () =
     const started = playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
     await started;
     assert.equal(audio.muted, true);
-    assert.equal(audio.volume, 0);
+    assert.equal(audio.volume, 1);
     await new Promise((resolve) => setTimeout(resolve, MOBILE_HEADER_HOLD_MS + 20));
     assert.equal(audio.muted, false);
   } finally {
@@ -895,7 +921,7 @@ test("the next mobile song reuses the live audio context instead of opening a si
     assert.equal(created.length, 1);
     assert.equal(created[0].closed, false);
     assert.equal(next.muted, false);
-    assert.ok(gains.includes(0.85));
+    assert.equal(next.volume, 0.85);
   } finally {
     restoreUa();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
@@ -1272,11 +1298,10 @@ test("leaving an album retires the shared context so the next album can unlock a
     releaseOutputForRouteChange(firstAlbum);
     assert.equal(created[0].closed, true);
 
-    // Next album's first tap must open a fresh context (not reuse the retired one).
+    // The next album's tap must not open another context. A new one stays dead on a wedged phone.
     unlockAudio(nextAlbum);
-    assert.equal(created.length, 2);
-    assert.equal(created[1].closed, false);
-    assert.ok(resumeCalls >= 1 || created[1].state === "running");
+    assert.equal(created.length, 1);
+    assert.equal(created[0].closed, true);
   } finally {
     restoreUa();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
@@ -1325,7 +1350,7 @@ test("a keepAudible remount at song start stays unmuted", async () => {
     releaseOutput(first);
     await playSong(remount, "/media/songs/a.mp3", 0.05, true, 0.85, true);
     assert.equal(remount.muted, false);
-    assert.ok(gains.includes(0.85));
+    assert.equal(remount.volume, 0.85);
   } finally {
     restoreUa();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
