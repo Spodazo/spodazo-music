@@ -52,7 +52,8 @@ cat > "$PLIST" <<EOF
   <key>ProgramArguments</key>
   <array>
     <string>${NODE}</string>
-    <string>${TSX}</string>
+    <string>--import</string>
+    <string>tsx</string>
     <string>${ROOT}/script/temp-music-sync.ts</string>
   </array>
   <key>WorkingDirectory</key>
@@ -70,6 +71,8 @@ cat > "$PLIST" <<EOF
   <true/>
   <key>KeepAlive</key>
   <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
   <key>StandardOutPath</key>
   <string>${LOG_DIR}/temp-music-sync.log</string>
   <key>StandardErrorPath</key>

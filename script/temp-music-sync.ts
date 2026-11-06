@@ -20,8 +20,11 @@ export type SyncConfig = {
 };
 
 export type SyncResult =
-  | { ok: true; added: number; updated: number; removed: number }
+  | { ok: true; added: number; updated: number; removed: number; unread?: string[] }
   | { ok: false; skipped: "missing-folder" | "busy" | "unreachable" | "rejected"; detail?: string };
+
+const READ_TIMEOUT_MS = 20000;
+const STALL_MS = 60000;
 
 export function defaultConfigPath(): string {
   return path.join(process.env.HOME || "", "Library", "Application Support", "Spodazo Music", "temp-music.json");
@@ -59,12 +62,23 @@ function logLine(line: string) {
 async function sha256File(full: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const hash = createHash("sha256");
-    createReadStream(full)
-      .on("error", reject)
-      .on("data", (chunk) => {
-        hash.update(chunk);
-      })
-      .on("end", () => resolve(hash.digest("hex")));
+    const stream = createReadStream(full);
+    let settled = false;
+    const finish = (err: Error | null, value?: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      stream.destroy();
+      if (err) reject(err);
+      else resolve(value || "");
+    };
+    const timer = setTimeout(() => {
+      finish(new Error(`timed out reading ${full}`));
+    }, READ_TIMEOUT_MS);
+    stream
+      .on("error", (err) => finish(err instanceof Error ? err : new Error(String(err))))
+      .on("data", (chunk) => hash.update(chunk))
+      .on("end", () => finish(null, hash.digest("hex")));
   });
 }
 
@@ -147,22 +161,27 @@ function fileInside(root: string, rel: string): string | null {
 async function readFinishedFiles(
   dir: string,
   settleMs: number,
-): Promise<{ files: TempMusicFile[]; folders: string[] } | "busy"> {
+): Promise<{ files: TempMusicFile[]; folders: string[]; unread: string[] } | "busy"> {
   const first = await snapshotTree(dir);
   await new Promise((resolve) => setTimeout(resolve, settleMs));
   const second = await snapshotTree(dir);
   const stable = stableSnapshots(first.files, second.files);
   if (!stable.ready || !sameFolders(first.folders, second.folders)) return "busy";
   const files: TempMusicFile[] = [];
+  const unread: string[] = [];
   for (const snap of stable.files) {
     const full = fileInside(dir, snap.name);
     if (!full) return "busy";
-    const sha256 = await sha256File(full);
-    const after = await fs.stat(full);
-    if (after.size !== snap.size || after.mtimeMs !== snap.mtimeMs) return "busy";
-    files.push({ name: snap.name, size: snap.size, sha256 });
+    try {
+      const sha256 = await sha256File(full);
+      const after = await fs.stat(full);
+      if (after.size !== snap.size || after.mtimeMs !== snap.mtimeMs) return "busy";
+      files.push({ name: snap.name, size: snap.size, sha256 });
+    } catch {
+      unread.push(snap.name);
+    }
   }
-  return { files, folders: second.folders };
+  return { files, folders: second.folders, unread };
 }
 
 export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResult> {
@@ -174,7 +193,7 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
   }
   const scanned = await readFinishedFiles(config.folder, config.settleMs ?? 500);
   if (scanned === "busy") return { ok: false, skipped: "busy" };
-  const { files, folders } = scanned;
+  const { files, folders, unread } = scanned;
   const headers = {
     Authorization: `Bearer ${config.token}`,
     "Content-Type": "application/json",
@@ -200,7 +219,7 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
     if (!file) return { ok: false, skipped: "busy" };
     const full = fileInside(config.folder, name);
     if (!full) return { ok: false, skipped: "busy" };
-    const bytes = await fs.readFile(full);
+    const bytes = await readBounded(full);
     const body = new FormData();
     body.append("audio", new Blob([bytes], { type: "audio/mpeg" }), path.basename(name));
     let res: Response;
@@ -221,6 +240,7 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
     if (res.status === 201) added += 1;
     else updated += 1;
   }
+  if (unread.length) return { ok: true, added, updated, removed: 0, unread };
   let pruneRes: Response;
   try {
     pruneRes = await fetch(`${config.api}/api/sync/temp-music/prune`, {
@@ -234,14 +254,31 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
   }
   if (!pruneRes.ok) return { ok: false, skipped: "rejected", detail: await pruneRes.text() };
   const pruned = (await pruneRes.json()) as { removed?: string[] };
-  return { ok: true, added, updated, removed: pruned.removed?.length || 0 };
+  return { ok: true, added, updated, removed: pruned.removed?.length || 0, unread };
+}
+
+async function readBounded(full: string): Promise<Buffer> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timed out reading ${full}`)), READ_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([fs.readFile(full), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function briefDetail(detail: string): string {
+  const line = detail.replace(/\s+/g, " ").trim();
+  if (line.startsWith("<!DOCTYPE") || line.startsWith("<html")) return "the music app returned an error page";
+  return line.slice(0, 180);
 }
 
 async function watchForever(): Promise<void> {
   const initial = loadSyncConfig();
   await fs.mkdir(initial.folder, { recursive: true });
   let running = false;
-  let again = false;
   let lastLog = "";
   const logOnce = (line: string) => {
     if (line === lastLog) return;
@@ -249,29 +286,34 @@ async function watchForever(): Promise<void> {
     logLine(line);
   };
   const run = async () => {
-    if (running) {
-      again = true;
-      return;
-    }
+    if (running) return;
     running = true;
+    const stall = setTimeout(() => {
+      logLine("[temp-music] sync stalled, restarting watcher");
+      process.exit(1);
+    }, STALL_MS);
     try {
-      do {
-        again = false;
-        const result = await syncTempMusicFolder(loadSyncConfig());
-        if (!result.ok) {
-          if (result.skipped === "busy") logOnce("[temp-music] waiting for a file to finish copying");
-          else if (result.skipped === "unreachable") logOnce("[temp-music] music app is not reachable");
-          else if (result.skipped === "missing-folder") logOnce("[temp-music] Desktop folder is missing");
-          else logOnce(`[temp-music] sync rejected ${result.detail || ""}`);
-          continue;
-        }
-        if (result.added || result.updated || result.removed) {
-          const line = `[temp-music] added ${result.added}, updated ${result.updated}, removed ${result.removed}`;
-          lastLog = "";
-          logLine(line);
-        }
-      } while (again);
+      let result: SyncResult;
+      try {
+        result = await syncTempMusicFolder(loadSyncConfig());
+      } catch (err) {
+        logOnce(`[temp-music] sync failed ${err instanceof Error ? err.message : "unexpected error"}`);
+        return;
+      }
+      if (!result.ok) {
+        if (result.skipped === "busy") logOnce("[temp-music] waiting for a file to finish copying");
+        else if (result.skipped === "unreachable") logOnce("[temp-music] music app is not reachable");
+        else if (result.skipped === "missing-folder") logOnce("[temp-music] Desktop folder is missing");
+        else logOnce(`[temp-music] sync rejected ${briefDetail(result.detail || "")}`);
+        return;
+      }
+      if (result.unread?.length) logOnce(`[temp-music] left in place, could not read ${result.unread.join(", ")}`);
+      if (result.added || result.updated || result.removed) {
+        lastLog = "";
+        logLine(`[temp-music] added ${result.added}, updated ${result.updated}, removed ${result.removed}`);
+      }
     } finally {
+      clearTimeout(stall);
       running = false;
     }
   };
