@@ -611,7 +611,6 @@ export default function AlbumPage() {
     showPlayingCover();
     load(index, autoplay, keepAudible);
     setActive(index);
-    if (autoplay) setModalOpen(true);
   }
 
   useEffect(() => {
