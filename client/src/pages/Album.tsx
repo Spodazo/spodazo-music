@@ -192,8 +192,6 @@ export default function AlbumPage() {
   const resumeTimeRef = useRef(0);
   const userVolRef = useRef(0.85);
   const wantPlayingRef = useRef(false);
-  const wantPlayAtRef = useRef(0);
-  const PLAY_START_RESUME_MS = 1500;
   const activeRef = useRef<number | null>(null);
   /** Per session: user closed the sing-along sheet for this track id. */
   const restoredRef = useRef("");
@@ -466,7 +464,6 @@ export default function AlbumPage() {
       return;
     }
     wantPlayingRef.current = true;
-    wantPlayAtRef.current = performance.now();
     void playSong(audio, url, pending.time, true, userVolRef.current, pending.keepAudible)
       .then(() => {
         // Route-change remounts play natively until the next tap; keep element unmuted at user volume.
@@ -528,19 +525,16 @@ export default function AlbumPage() {
       // After `ended` there is no tap. Keep the live MediaElementSource — releasing it on this
       // element cannot reattach (once per element) and auto-advance stays silent.
       wantPlayingRef.current = true;
-      wantPlayAtRef.current = performance.now();
       const force = Boolean(audio.src) && (pipelineIsDead(audio) || !sameSong(audio, url));
       return playSong(audio, url, 0, force, userVolRef.current, true);
     }
     if (shouldRebuildOutput(audio, url)) {
       wantPlayingRef.current = true;
-      wantPlayAtRef.current = performance.now();
       rebuildAudio(0, true, true);
       return Promise.resolve();
     }
     unlockAudio(audio);
     wantPlayingRef.current = true;
-    wantPlayAtRef.current = performance.now();
     const force = Boolean(audio.src) && pipelineIsDead(audio);
     return playSong(audio, url, 0, force, userVolRef.current, false);
   }
@@ -615,7 +609,6 @@ export default function AlbumPage() {
     const url = album.tracks[index]?.audioUrl;
     if (!audio || !url) return;
     wantPlayingRef.current = true;
-    wantPlayAtRef.current = performance.now();
     // keepAudible: join an existing first-tap context only — creating one on restore stays silent.
     void playSong(audio, url, resume, pipelineIsDead(audio), userVolRef.current, true)
       .then(() => {
@@ -894,7 +887,6 @@ export default function AlbumPage() {
       restoreMobileOutput(audio, userVolRef.current);
       const fromStart = resumeTime < 0.2;
       wantPlayingRef.current = true;
-      wantPlayAtRef.current = performance.now();
       const play = fromStart
         ? startPlay()
         : pipelineIsDead(audio)
@@ -924,9 +916,8 @@ export default function AlbumPage() {
     const catalogSeconds = parseDurationLabel(album?.tracks[active ?? -1]?.durationLabel);
     const known = trustedSongDuration(audio?.duration || duration, catalogSeconds);
     if (audio && isPrematureTrackEnd(audio.currentTime, known)) {
-      if (wantPlayingRef.current) {
-        void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-      }
+      // A stub `ended` about a second in is not the end of the song. play() here is
+      // outside the tap, so iOS starts the file again and then drops it.
       return;
     }
     if (repeatOne) return;
@@ -975,21 +966,7 @@ export default function AlbumPage() {
         setPlaying(true);
       }}
       onPause={() => {
-        const audio = audioRef.current;
-        const catalogSeconds = parseDurationLabel(
-          albumRef.current?.tracks[activeRef.current ?? -1]?.durationLabel,
-        );
-        const known = trustedSongDuration(audio?.duration || 0, catalogSeconds);
-        const atEnd = Boolean(audio && known > 8 && audio.currentTime >= known - 0.35);
-        // Safari fires pause during play() startup, sometimes after the playhead has
-        // already jumped. Resume through that whole window. A later pause stays paused
-        // so we do not restart a song the listener just stopped.
-        const starting = performance.now() - wantPlayAtRef.current < PLAY_START_RESUME_MS;
-        if (wantPlayingRef.current && starting && audio && !rerouteRef.current && !atEnd) {
-          restoreMobileOutput(audio, userVolRef.current);
-          void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-          return;
-        }
+        // Do not play() from here. That second start is what a phone plays, then kills.
         setPlaying(false);
       }}
     />

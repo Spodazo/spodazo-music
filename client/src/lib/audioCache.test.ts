@@ -221,7 +221,7 @@ test("a mobile tap plays without constructing an AudioContext", async () => {
     await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
     assert.equal(constructed, 0);
     assert.equal(audio.paused, false);
-    assert.equal(audio.muted, true);
+    assert.equal(audio.muted, false);
   } finally {
     restore();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
@@ -257,35 +257,21 @@ test("desktop playSong starts unmuted at full volume", async () => {
   assert.equal(audio.paused, false);
 });
 
-test("mobile playSong mutes only for the short opener, then unmutes", async () => {
+test("mobile playSong starts unmuted with one play call", async () => {
   const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
   const audio = fakeAudio();
+  let plays = 0;
+  audio.play = () => {
+    plays += 1;
+    audio.paused = false;
+    return Promise.resolve();
+  };
   try {
-    const started = playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
-    await started;
-    assert.equal(audio.muted, true);
+    await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
+    assert.equal(plays, 1);
+    assert.equal(audio.muted, false);
     assert.equal(audio.volume, 1);
-    await new Promise((resolve) => setTimeout(resolve, MOBILE_HEADER_HOLD_MS + 20));
-    assert.equal(audio.muted, false);
-  } finally {
-    restore();
-  }
-});
-
-test("mobile opener unmutes even if Safari pauses during the hold", async () => {
-  const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
-  const audio = fakeAudio();
-  try {
-    const started = playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 0.85);
-    await started;
-    assert.equal(audio.muted, true);
-    audio.paused = true;
-    await new Promise((resolve) => setTimeout(resolve, MOBILE_HEADER_HOLD_MS + 20));
-    assert.equal(audio.muted, false);
-    assert.equal(audio.volume, 0.85);
-    assert.equal(audio.paused, true);
-    setOutputLevel(audio as unknown as HTMLAudioElement, 0.7);
-    assert.equal(audio.volume, 0.7);
+    assert.equal(audio.paused, false);
   } finally {
     restore();
   }
@@ -305,8 +291,10 @@ test("playback helpers never prefetch, blob-play, or wait on the playhead", () =
   assert.doesNotMatch(src, /createObjectURL/);
   assert.doesNotMatch(src, /blob:/);
   assert.doesNotMatch(src, /caches\.open/);
-  assert.match(src, /resume \|\| !mobile \|\| keepAudible/);
   assert.match(src, /MOBILE_HEADER_HOLD_MS/);
+  const play = src.slice(src.indexOf("export function playSong"), src.indexOf("export async function dropLegacyAudioCaches"));
+  assert.doesNotMatch(play, /openStartGate/);
+  assert.doesNotMatch(play, /audio\.muted = true/);
   assert.match(src, /interruptionend/);
   assert.match(src, /devicechange/);
 });
@@ -365,7 +353,7 @@ test("restoreMobileOutput unmutes after the opener gate has closed", async () =>
   try {
     const started = playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
     await started;
-    assert.equal(audio.muted, true);
+    audio.muted = true;
     restoreMobileOutput(audio as unknown as HTMLAudioElement, 0.85);
     assert.equal(audio.muted, false);
     setOutputLevel(audio as unknown as HTMLAudioElement, 0.7);
@@ -1241,8 +1229,9 @@ test("Album heals playing-but-silent and tears down when leaving an album", () =
   assert.match(src, /if \(isMobilePlayback\(\) \|\| isNativeOutputOnly\(\)\) return;/);
   assert.match(src, /startBackgroundPlaybackGuard\(\s*\n\s*\(\) => audioRef\.current,\s*\n\s*\(\) => wantPlayingRef\.current,\s*\n\s*\(\) => userVolRef\.current,/s);
   assert.match(src, /if \(leaveForHomeRef\.current\) return;/);
-  assert.match(src, /PLAY_START_RESUME_MS/);
-  assert.match(src, /starting && audio && !rerouteRef\.current && !atEnd/);
+  const pause = src.slice(src.indexOf("onPause={() => {"), src.indexOf("onPause={() => {") + 400);
+  assert.match(pause, /Do not play\(\) from here/);
+  assert.doesNotMatch(pause, /audio\.play\(/);
 });
 
 test("leaving an album retires the shared context so the next album can unlock audibly", async () => {

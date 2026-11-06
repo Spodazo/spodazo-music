@@ -1008,37 +1008,25 @@ export function playSong(
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
   }
 
-  if (resume || !mobile || keepAudible) {
-    gateOpen = true;
-    audio.muted = false;
-    setOutput(audio, targetVolume);
-    if (dead) {
-      const fix = () => {
-        if (gen !== playGen || !sameSong(audio, url)) return;
-        if (audio.currentTime < time - 0.02) {
-          try {
-            audio.currentTime = time;
-          } catch {
-            /* Safari may still be opening the file */
-          }
-        }
-      };
-      audio.addEventListener("loadedmetadata", fix, { once: true });
-    }
-    return audio.play().then(() => undefined);
-  }
-
-  gateOpen = false;
-  audio.muted = true;
-  // Keep the listener's volume. iOS treats volume 0 as a stuck silent element.
-  // The short muted flag hides the header scratch without capturing the element.
+  // One play() for the tap. A mute, and a second play() after Safari's startup
+  // pause, is the start-stop-start-then-dead pattern on a phone.
+  gateOpen = true;
+  audio.muted = false;
   setOutput(audio, targetVolume);
-  return audio.play().catch(() => {
-    audio.muted = false;
-    return audio.play();
-  }).then(() => {
-    void openStartGate(audio, url, targetVolume, gen);
-  });
+  if (dead && resume) {
+    const fix = () => {
+      if (gen !== playGen || !sameSong(audio, url)) return;
+      if (audio.currentTime < time - 0.02) {
+        try {
+          audio.currentTime = time;
+        } catch {
+          /* Safari may still be opening the file */
+        }
+      }
+    };
+    audio.addEventListener("loadedmetadata", fix, { once: true });
+  }
+  return audio.play().then(() => undefined);
 }
 
 export async function dropLegacyAudioCaches(): Promise<void> {
@@ -1054,7 +1042,8 @@ export async function dropLegacyAudioCaches(): Promise<void> {
 export function setPlaybackSession() {
   try {
     const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
-    if (session) session.type = "playback";
+    // Setting this again while a song is starting makes iOS pause, resume, then drop it.
+    if (session && session.type !== "playback") session.type = "playback";
   } catch {
     /* older WebKit */
   }
