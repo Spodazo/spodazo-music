@@ -1,7 +1,7 @@
 /**
  * Safari/PWA playback helpers.
- * Desktop plays immediately. Phones play the audio element itself — never an AudioContext.
- * A phone AudioContext stays dead until the phone restarts, so a tap must not create one.
+ * Desktop plays immediately. A phone tap opens one audio route and calls play() together.
+ * Later songs stay on that route. A route opened after the tap stays silent until the next tap.
  * After a call, Bluetooth route change, or mobile pause, keep the same element. Rebuilding it
  * plays after the tap and the song stops.
  * Bluetooth with a live WebAudio graph must retire the shared AudioContext, remount, and play natively.
@@ -15,8 +15,8 @@
  * When iOS keeps the element playing but WebAudio is muted/interrupted, heal with ensureMobileOutputAudible — do not remount on visibility.
  * Leaving an album retires any old context. The next album plays the element natively and does not open a new one.
  * Do not prefetch, play from blob URLs, strip Xing on VBR, or lengthen the opener hold.
- * Do not put a ScriptProcessor or MediaElementSource on a phone. Both wedge iOS until a restart,
- * and Chrome on iPhone uses the same audio engine. The opener mute is the element muted flag.
+ * Do not put a ScriptProcessor on the phone route. It wedges iOS until a restart.
+ * The phone route is a gain and an analyser only. Chrome on iPhone uses the same audio engine.
  * A song tap or a pause must play() on the same element inside the gesture. Remounting afterwards stops the song.
  * devicechange as a tap starts the session is not a new speaker. Remount only when the output device changed,
  * or when a song that has already been playing loses its route (car Bluetooth with no device list).
@@ -987,8 +987,10 @@ export function playSong(
   const dead = forceReload || !sameSong(audio, url);
   if (continuation) {
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
-    // Phones stay on the element. Attaching a graph here captures it, and a dead context
-    // cannot be left until the phone restarts.
+    // Join the route the first tap opened. Creating one here stays silent until the next tap.
+    if (!nativeOutputOnly && !graphs.has(audio) && sharedPlaybackContext()) {
+      attachOutput(audio, targetVolume);
+    }
   } else {
     unlockAudio(audio);
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
@@ -1038,10 +1040,12 @@ export function setPlaybackSession() {
 export function unlockAudio(audio?: HTMLAudioElement | null) {
   noteUserPlay();
   if (!audio || !isMobilePlayback()) return;
+  const allowAttachWhilePlaying = nativeOutputOnly;
   nativeOutputOnly = false;
-  // Do not attach a graph. A captured element can play only through Web Audio,
-  // and iOS leaves that context dead until the phone restarts.
-  const graph = graphs.get(audio);
+  // A song already playing on the element stays there. The tap that ends a Bluetooth
+  // remount is allowed to open a fresh route.
+  if (!graphs.has(audio) && !audio.paused && !allowAttachWhilePlaying) return;
+  const graph = attachOutput(audio);
   if (!graph) return;
   const state = graph.ctx.state as string;
   if (state === "suspended" || state === "interrupted") void graph.ctx.resume();

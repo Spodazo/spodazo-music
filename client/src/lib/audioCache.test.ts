@@ -195,31 +195,53 @@ test("meter bands follow bass, middle, and top energy", () => {
   assert.deepEqual(meterBands(new Uint8Array(64)), [0, 0, 0]);
 });
 
-test("a phone tap never captures the audio element with Web Audio", () => {
+test("a phone tap opens one route and does not put a processor on it", () => {
   const src = readFileSync(new URL("./audioCache.ts", import.meta.url), "utf8");
   const play = src.slice(src.indexOf("export function playSong"), src.indexOf("export async function dropLegacyAudioCaches"));
   const unlock = src.slice(src.indexOf("export function unlockAudio"), src.indexOf("export function waitForAudible"));
-  assert.doesNotMatch(play, /attachOutput\(/);
-  assert.doesNotMatch(play, /createMediaElementSource/);
-  assert.doesNotMatch(unlock, /attachOutput\(/);
+  const attach = src.slice(src.indexOf("export function attachOutput"), src.indexOf("function setOutput"));
+  assert.match(unlock, /attachOutput\(audio\)/);
+  assert.match(play, /sharedPlaybackContext\(\)/);
+  assert.match(attach, /createMediaElementSource/);
+  assert.doesNotMatch(attach, /createScriptProcessor/);
   assert.doesNotMatch(unlock, /new AudioContext|webkitAudioContext/);
 });
 
-test("a mobile tap plays without constructing an AudioContext", async () => {
+test("a mobile tap opens the audio route inside the tap", async () => {
   const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
   let constructed = 0;
   const previous = window.AudioContext;
   class FakeContext {
     state = "running";
+    destination = {};
     constructor() {
       constructed += 1;
+    }
+    createMediaElementSource() {
+      return { connect() {}, disconnect() {} };
+    }
+    createGain() {
+      return {
+        gain: { value: 0, cancelScheduledValues() {}, setValueAtTime() {} },
+        connect() {},
+        disconnect() {},
+      };
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      return Promise.resolve();
     }
   }
   Object.defineProperty(window, "AudioContext", { configurable: true, value: FakeContext });
   const audio = fakeAudio();
+  audio.paused = true;
   try {
     await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
-    assert.equal(constructed, 0);
+    assert.equal(constructed, 1);
     assert.equal(audio.paused, false);
     assert.equal(audio.muted, false);
   } finally {
@@ -914,7 +936,8 @@ test("the next mobile song reuses the live audio context instead of opening a si
     assert.equal(created.length, 1);
     assert.equal(created[0].closed, false);
     assert.equal(next.muted, false);
-    assert.equal(next.volume, 0.85);
+    assert.equal(next.volume, 1);
+    assert.ok(gains.includes(0.85));
   } finally {
     restoreUa();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
@@ -1292,10 +1315,11 @@ test("leaving an album retires the shared context so the next album can unlock a
     releaseOutputForRouteChange(firstAlbum);
     assert.equal(created[0].closed, true);
 
-    // The next album's tap must not open another context. A new one stays dead on a wedged phone.
+    // The next album's tap opens a fresh route. The retired one stays closed.
     unlockAudio(nextAlbum);
-    assert.equal(created.length, 1);
+    assert.equal(created.length, 2);
     assert.equal(created[0].closed, true);
+    assert.equal(created[1].closed, false);
   } finally {
     restoreUa();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
@@ -1344,7 +1368,8 @@ test("a keepAudible remount at song start stays unmuted", async () => {
     releaseOutput(first);
     await playSong(remount, "/media/songs/a.mp3", 0.05, true, 0.85, true);
     assert.equal(remount.muted, false);
-    assert.equal(remount.volume, 0.85);
+    assert.equal(remount.volume, 1);
+    assert.ok(gains.includes(0.85));
   } finally {
     restoreUa();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
