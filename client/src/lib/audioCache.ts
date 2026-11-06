@@ -1027,7 +1027,12 @@ export async function dropLegacyAudioCaches(): Promise<void> {
   }
 }
 
+/**
+ * Phones only, once on page load. Left on "auto", iOS plays the Web Audio route as ambient
+ * sound: the silent switch mutes it and the lock screen stops it while the playhead moves.
+ */
 export function setPlaybackSession() {
+  if (!isMobilePlayback()) return;
   try {
     const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
     // Setting this again while a song is starting makes iOS pause, resume, then drop it.

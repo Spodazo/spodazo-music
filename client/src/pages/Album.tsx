@@ -19,6 +19,7 @@ import {
   restoreMobileOutput,
   sameSong,
   setOutputLevel,
+  setPlaybackSession,
   START_OFFSET,
   unlockAudio,
   watchPlaybackRoute,
@@ -412,6 +413,7 @@ export default function AlbumPage() {
   }
 
   useEffect(() => {
+    setPlaybackSession();
     void dropLegacyAudioCaches();
     const onHide = () => {
       // Albums back already wrote home — do not re-persist this album as still playing.

@@ -33,6 +33,7 @@ import {
   ROUTE_CHANGE_DEBOUNCE_MS,
   ROUTE_SETTLE_TICK_MS,
   setOutputLevel,
+  setPlaybackSession,
   settleRoutePlayback,
   startBackgroundPlaybackGuard,
   unlockAudio,
@@ -373,6 +374,68 @@ function stubAudioSession() {
     },
   };
 }
+
+function stubSessionType(ua: string, initial: string) {
+  let type = initial;
+  let writes = 0;
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: {
+      userAgent: ua,
+      platform: "",
+      maxTouchPoints: 0,
+      audioSession: {
+        get type() {
+          return type;
+        },
+        set type(next: string) {
+          writes += 1;
+          type = next;
+        },
+      },
+    },
+  });
+  return {
+    type: () => type,
+    writes: () => writes,
+    restore() {
+      if (previous) Object.defineProperty(globalThis, "navigator", previous);
+      else delete (globalThis as { navigator?: Navigator }).navigator;
+    },
+  };
+}
+
+test("a phone's Web Audio route plays as media, not as ambient sound the silent switch mutes", () => {
+  const phone = stubSessionType("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", "auto");
+  try {
+    setPlaybackSession();
+    assert.equal(phone.type(), "playback");
+    setPlaybackSession();
+    assert.equal(phone.writes(), 1);
+  } finally {
+    phone.restore();
+  }
+});
+
+test("desktop keeps its audio session untouched", () => {
+  const desktop = stubSessionType("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "auto");
+  try {
+    setPlaybackSession();
+    assert.equal(desktop.type(), "auto");
+    assert.equal(desktop.writes(), 0);
+  } finally {
+    desktop.restore();
+  }
+});
+
+test("the album page sets the phone session to playback before any tap opens the route", () => {
+  const src = readFileSync(new URL("../pages/Album.tsx", import.meta.url), "utf8");
+  const start = src.lastIndexOf("useEffect(() => {", src.indexOf("void dropLegacyAudioCaches();"));
+  const mount = src.slice(start, src.indexOf("const stopRoute = watchPlaybackRoute"));
+  assert.match(src, /setPlaybackSession,/);
+  assert.match(mount, /setPlaybackSession\(\);/);
+});
 
 test("restoreMobileOutput unmutes after the opener gate has closed", async () => {
   const restore = stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
