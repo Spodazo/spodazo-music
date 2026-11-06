@@ -1027,12 +1027,20 @@ export async function dropLegacyAudioCaches(): Promise<void> {
   }
 }
 
+function isInstalledApp(): boolean {
+  const nav = navigator as Navigator & { standalone?: boolean };
+  if (nav.standalone) return true;
+  if (typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(display-mode: standalone)").matches;
+}
+
 /**
- * Phones only, once on page load. Left on "auto", iOS plays the Web Audio route as ambient
- * sound: the silent switch mutes it and the lock screen stops it while the playhead moves.
+ * Installed phone app only, once on page load. A Safari or Chrome tab must keep the
+ * normal session: setting "playback" there stops the song from starting at all.
+ * The installed app needs "playback" or the silent switch mutes it.
  */
 export function setPlaybackSession() {
-  if (!isMobilePlayback()) return;
+  if (!isMobilePlayback() || !isInstalledApp()) return;
   try {
     const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
     // Setting this again while a song is starting makes iOS pause, resume, then drop it.

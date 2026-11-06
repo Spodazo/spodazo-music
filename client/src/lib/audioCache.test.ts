@@ -375,7 +375,7 @@ function stubAudioSession() {
   };
 }
 
-function stubSessionType(ua: string, initial: string) {
+function stubSessionType(ua: string, initial: string, standalone = false) {
   let type = initial;
   let writes = 0;
   const previous = Object.getOwnPropertyDescriptor(globalThis, "navigator");
@@ -385,6 +385,7 @@ function stubSessionType(ua: string, initial: string) {
       userAgent: ua,
       platform: "",
       maxTouchPoints: 0,
+      standalone,
       audioSession: {
         get type() {
           return type;
@@ -407,12 +408,23 @@ function stubSessionType(ua: string, initial: string) {
 }
 
 test("a phone's Web Audio route plays as media, not as ambient sound the silent switch mutes", () => {
-  const phone = stubSessionType("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", "auto");
+  const phone = stubSessionType("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", "auto", true);
   try {
     setPlaybackSession();
     assert.equal(phone.type(), "playback");
     setPlaybackSession();
     assert.equal(phone.writes(), 1);
+  } finally {
+    phone.restore();
+  }
+});
+
+test("a phone browser tab does not switch the audio session", () => {
+  const phone = stubSessionType("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", "auto", false);
+  try {
+    setPlaybackSession();
+    assert.equal(phone.type(), "auto");
+    assert.equal(phone.writes(), 0);
   } finally {
     phone.restore();
   }
