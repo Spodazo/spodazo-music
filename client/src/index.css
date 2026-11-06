@@ -1676,13 +1676,24 @@ button.t-play-icon {
 .label-short { display: none; }
 .track-admin {
   display: grid;
-  grid-template-columns: 28px 36px 56px minmax(0, 1fr) auto;
-  grid-template-areas: "handle num art info actions";
+  grid-template-columns: 22px 28px 36px 56px minmax(0, 1fr) auto;
+  grid-template-areas: "pick handle num art info actions";
   gap: 10px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
 }
+.admin .track-pick {
+  grid-area: pick;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+  line-height: 1;
+}
+.admin .track-pick input { margin: 0; width: auto; }
 .track-admin .drag-handle { grid-area: handle; }
 .track-admin-num { grid-area: num; color: var(--muted); font-variant-numeric: tabular-nums; font-size: 1.2em; }
 .track-admin img,
@@ -1923,8 +1934,8 @@ button.t-play-icon {
   font-family: "Playfair Display", serif;
 }
 .archive-row {
-  grid-template-columns: 56px minmax(0, 1fr) auto;
-  grid-template-areas: "art info actions";
+  grid-template-columns: 22px 56px minmax(0, 1fr) auto;
+  grid-template-areas: "pick art info actions";
 }
 
 .admin-player {
@@ -2421,10 +2432,10 @@ button.t-play-icon {
     box-sizing: border-box;
   }
   .track-admin {
-    grid-template-columns: 32px 40px minmax(0, 1fr);
+    grid-template-columns: 22px 32px 40px minmax(0, 1fr);
     grid-template-areas:
-      "handle art info"
-      "actions actions actions";
+      "pick handle art info"
+      "actions actions actions actions";
     gap: 8px 10px;
     padding: 12px 0;
   }
@@ -2453,10 +2464,10 @@ button.t-play-icon {
     padding: 0;
   }
   .archive-row {
-    grid-template-columns: 40px minmax(0, 1fr);
+    grid-template-columns: 22px 40px minmax(0, 1fr);
     grid-template-areas:
-      "art info"
-      "actions actions";
+      "pick art info"
+      "actions actions actions";
   }
   .form-actions {
     display: grid;

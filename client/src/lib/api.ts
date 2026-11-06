@@ -146,6 +146,17 @@ export function setTrackArchived(id: string, archived: boolean): Promise<Track> 
   }).then((res) => parse<Track>(res));
 }
 
+export function moveTracks(
+  trackIds: string[],
+  destination: { albumId?: string; albumTitle?: string },
+): Promise<{ albumId: string; albumSlug: string; albumTitle: string }> {
+  return fetch("/api/admin/tracks/move", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trackIds, ...destination }),
+  }).then((res) => parse<{ albumId: string; albumSlug: string; albumTitle: string }>(res));
+}
+
 export function reorderTracks(albumId: string, trackIds: string[]): Promise<Track[]> {
   return fetch(`/api/admin/albums/${encodeURIComponent(albumId)}/reorder`, {
     method: "POST",

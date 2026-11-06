@@ -112,6 +112,20 @@ function readState(): SyncState {
   }
 }
 
+/** Drop folder tracking for songs an admin moved off a Temp Music album. */
+export function forgetSyncTracks(trackIds: string[]): void {
+  const drop = new Set(trackIds);
+  if (!drop.size) return;
+  const state = readState();
+  let changed = false;
+  for (const [name, entry] of Object.entries(state.files)) {
+    if (!drop.has(entry.trackId)) continue;
+    delete state.files[name];
+    changed = true;
+  }
+  if (changed) writeState(state);
+}
+
 function writeState(state: SyncState): void {
   ensureDataDirs();
   const full = statePath();

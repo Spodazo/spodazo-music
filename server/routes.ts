@@ -11,7 +11,7 @@ import { currentIconStamp } from "./htmlIcons";
 import { assetVersion, bumpContentRevision, contentRevision, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, mp3DataOffset, parseImageWidth, prepareFaviconSet, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
-import { registerTempMusicRoutes, songFileIsPrivate } from "./tempMusic";
+import { forgetSyncTracks, registerTempMusicRoutes, songFileIsPrivate, withTempMusicLock } from "./tempMusic";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -589,6 +589,94 @@ export function registerRoutes(app: Express): void {
     }
     noteCatalogChange();
     res.json(updated);
+  });
+
+  app.post("/api/admin/tracks/move", requireAdmin, async (req, res) => {
+    const store = await getStore();
+    const trackIds = Array.isArray(req.body?.trackIds)
+      ? [...new Set(req.body.trackIds.map(String))].filter(Boolean)
+      : [];
+    if (!trackIds.length) {
+      res.status(400).json({ error: "Choose at least one song" });
+      return;
+    }
+    const chosen = [];
+    for (const id of trackIds) {
+      const track = await store.getTrackById(id);
+      if (!track) {
+        res.status(404).json({ error: "Song not found" });
+        return;
+      }
+      chosen.push(track);
+    }
+    const albumId = String(req.body?.albumId || "").trim();
+    const albumTitle = String(req.body?.albumTitle || "").trim();
+    if (albumId && albumTitle) {
+      res.status(400).json({ error: "Choose an existing album or a new name" });
+      return;
+    }
+    if (!albumId && !albumTitle) {
+      res.status(400).json({ error: "Choose an album" });
+      return;
+    }
+    let destination = albumId ? await store.getAlbumById(albumId) : null;
+    if (albumId && !destination) {
+      res.status(404).json({ error: "Album not found" });
+      return;
+    }
+    if (!destination) {
+      if (!slugify(albumTitle)) {
+        res.status(400).json({ error: "Enter an album name" });
+        return;
+      }
+      const used = new Set((await store.listAlbums()).map((album) => album.slug));
+      const slug = uniqueSlug(albumTitle, used);
+      if (isSyncAlbumSlug(slug)) {
+        res.status(400).json({ error: "That name is reserved for a Desktop folder album" });
+        return;
+      }
+      const created = await store.createAlbum({ slug, title: albumTitle });
+      destination = await store.getAlbumById(created.id);
+    }
+    if (!destination) {
+      res.status(404).json({ error: "Album not found" });
+      return;
+    }
+    if (isSyncAlbumSlug(destination.slug)) {
+      res.status(400).json({ error: "Desktop folder albums only receive songs from the Temp Music folder" });
+      return;
+    }
+    const moving = chosen.filter((track) => track.albumId !== destination.id);
+    if (!moving.length) {
+      res.status(400).json({ error: "Those songs are already on this album" });
+      return;
+    }
+    const usedSlugs = new Set(
+      [...destination.tracks, ...destination.archivedTracks].map((track) => track.slug).filter(Boolean),
+    );
+    let n = destination.tracks.length + 1;
+    for (const track of moving) {
+      const slug = track.slug && !usedSlugs.has(track.slug) ? track.slug : uniqueSlug(track.title || "track", usedSlugs);
+      if (track.slug && slug === track.slug) usedSlugs.add(slug);
+      const patch: { albumId: string; slug: string; n?: number } = { albumId: destination.id, slug };
+      if (!track.archived) patch.n = n++;
+      await store.updateTrack(track.id, patch);
+    }
+    for (const sourceId of new Set(moving.map((track) => track.albumId))) {
+      const source = await store.getAlbumById(sourceId);
+      if (!source) continue;
+      await store.reorderTracks(sourceId, source.tracks.map((track) => track.id));
+    }
+    await withTempMusicLock(async () => {
+      forgetSyncTracks(moving.map((track) => track.id));
+    });
+    noteCatalogChange();
+    const saved = await store.getAlbumById(destination.id);
+    res.json({
+      albumId: destination.id,
+      albumSlug: saved?.slug || destination.slug,
+      albumTitle: saved?.title || destination.title,
+    });
   });
 
   app.post("/api/admin/albums/:id/reorder", requireAdmin, async (req, res) => {

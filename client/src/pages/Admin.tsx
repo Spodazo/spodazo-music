@@ -16,6 +16,7 @@ import {
   fetchAlbum,
   fetchAlbums,
   fetchPlayerSetup,
+  moveTracks,
   reorderTracks,
   setTrackArchived,
   trackFileUrl,
@@ -645,7 +646,12 @@ export default function AdminPage() {
               }
             }}
             onPlayAll={() => player.playAlbum(selected)}
+            albums={albums}
             onChange={async () => { await loadAlbum(selected.slug); }}
+            onMoved={async (slug) => {
+              setAlbums(await fetchAlbums());
+              await loadAlbum(slug);
+            }}
           />
           <AlbumForm
             key={selected.id}
@@ -1393,30 +1399,122 @@ function TrackDownload({ track }: { track: PublicTrack }) {
   );
 }
 
+function MoveSongsDialog({
+  album,
+  albums,
+  trackIds,
+  onClose,
+  onMoved,
+}: {
+  album: PublicAlbum;
+  albums: AlbumListItem[];
+  trackIds: string[];
+  onClose: () => void;
+  onMoved: (slug: string) => Promise<void>;
+}) {
+  const choices = albums.filter((item) => item.id !== album.id && !isSyncAlbumSlug(item.slug));
+  const [albumId, setAlbumId] = useState(choices[0]?.id || "");
+  const [albumTitle, setAlbumTitle] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const makingNew = albumId === "";
+  const countLabel = trackIds.length === 1 ? "1 song" : `${trackIds.length} songs`;
+
+  return (
+    <AdminDialog title={`Move ${countLabel}`} onClose={onClose}>
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setError("");
+          setSaving(true);
+          try {
+            const saved = await moveTracks(
+              trackIds,
+              makingNew ? { albumTitle: albumTitle.trim() } : { albumId },
+            );
+            await onMoved(saved.albumSlug);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not move those songs");
+            setSaving(false);
+          }
+        }}
+      >
+        <label htmlFor="move-album">Album</label>
+        <select id="move-album" value={albumId} onChange={(event) => setAlbumId(event.target.value)}>
+          <option value="">New album</option>
+          {choices.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.title}
+            </option>
+          ))}
+        </select>
+        {makingNew ? (
+          <>
+            <label htmlFor="move-album-name">New album name</label>
+            <input
+              id="move-album-name"
+              value={albumTitle}
+              onChange={(event) => setAlbumTitle(event.target.value)}
+              required
+              autoFocus
+            />
+          </>
+        ) : null}
+        {isSyncAlbumSlug(album.slug) ? (
+          <p className="hint">
+            If a moved song is still in the Temp Music folder on your Desktop, the folder sync will add it back to this album. Take the file out of that folder if it should only live on the new album.
+          </p>
+        ) : null}
+        <div className="form-actions">
+          <button type="submit" disabled={saving || (!makingNew && !albumId)}>
+            {saving ? "Moving…" : "Move songs"}
+          </button>
+          <button type="button" className="ghost" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+        {error ? <p className="error">{error}</p> : null}
+      </form>
+    </AdminDialog>
+  );
+}
+
 function TrackAdmin({
   album,
+  albums,
   currentTrackId,
   playing,
   onWarm,
   onPlay,
   onPlayAll,
   onChange,
+  onMoved,
 }: {
   album: PublicAlbum;
+  albums: AlbumListItem[];
   currentTrackId: string | null;
   playing: boolean;
   onWarm: (trackId: string) => void;
   onPlay: (trackId: string) => void;
   onPlayAll: () => void;
   onChange: () => Promise<void>;
+  onMoved: (slug: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState<PublicTrack | null>(null);
   const [rows, setRows] = useState(album.tracks);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [moveOpen, setMoveOpen] = useState(false);
+
+  function togglePicked(id: string) {
+    setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
 
   useEffect(() => {
     setRows(album.tracks);
-  }, [album.tracks]);
+    const live = new Set([...album.tracks, ...(album.archivedTracks || [])].map((track) => track.id));
+    setPicked((current) => current.filter((id) => live.has(id)));
+  }, [album]);
 
   async function dropOn(fromId: string | null, targetId: string) {
     setDraggingId(null);
@@ -1449,6 +1547,21 @@ function TrackAdmin({
             {currentTrackId && album.tracks.some((track) => track.id === currentTrackId) && playing ? "Pause" : "Play all"}
           </button>
           <BulkTrackUpload albumId={album.id} onSaved={onChange} />
+          <button
+            type="button"
+            className="ghost"
+            disabled={!rows.length}
+            onClick={() => {
+              const ids = rows.map((track) => track.id);
+              const all = ids.every((id) => picked.includes(id));
+              setPicked(all ? picked.filter((id) => !ids.includes(id)) : [...picked.filter((id) => !ids.includes(id)), ...ids]);
+            }}
+          >
+            {rows.length && rows.every((track) => picked.includes(track.id)) ? "Clear" : "Select all"}
+          </button>
+          <button type="button" className="ghost" disabled={!picked.length} onClick={() => setMoveOpen(true)}>
+            {picked.length ? `Move ${picked.length}` : "Move"}
+          </button>
         </div>
       </div>
       <p className="hint">
@@ -1472,6 +1585,15 @@ function TrackAdmin({
             void dropOn(event.dataTransfer.getData("text/plain") || draggingId, track.id);
           }}
         >
+          <label className="track-pick">
+            <input
+              type="checkbox"
+              checked={picked.includes(track.id)}
+              aria-label={`Select ${track.title}`}
+              onChange={() => togglePicked(track.id)}
+              onClick={(event) => event.stopPropagation()}
+            />
+          </label>
           <button
             type="button"
             className="drag-handle"
@@ -1541,6 +1663,19 @@ function TrackAdmin({
         }}
         onEdit={setEditing}
       />
+      {moveOpen ? (
+        <MoveSongsDialog
+          album={album}
+          albums={albums}
+          trackIds={picked}
+          onClose={() => setMoveOpen(false)}
+          onMoved={async (slug) => {
+            setPicked([]);
+            setMoveOpen(false);
+            await onMoved(slug);
+          }}
+        />
+      ) : null}
       {editing ? (
         <AdminDialog title={`Edit ${editing.title}`} onClose={() => setEditing(null)}>
           <TrackForm
@@ -1591,6 +1726,14 @@ function ArchiveList({
           className={`track-admin archive-row${currentTrackId === track.id ? " playing" : ""}`}
           key={track.id}
         >
+          <label className="track-pick">
+            <input
+              type="checkbox"
+              checked={picked.includes(track.id)}
+              aria-label={`Select ${track.title}`}
+              onChange={() => togglePicked(track.id)}
+            />
+          </label>
           {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div className="track-admin-placeholder">No cover</div>}
           <div className="track-admin-info">
             <strong>{track.title}</strong>
