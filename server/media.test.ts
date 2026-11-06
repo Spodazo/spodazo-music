@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import sharp from "sharp";
 import test from "node:test";
-import { assetVersion, audioFileVersion, audioUrl, bumpContentRevision, contentRevision, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
+import { assetVersion, audioFileVersion, audioUrl, bumpContentRevision, contentRevision, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, mp3SampleRate, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -85,6 +85,15 @@ test("contentRevision bumps when catalog media changes", () => {
 test("trackDownloadName keeps the live MP3 filename", () => {
   assert.equal(trackDownloadName({ file: "Our Light.mp3", title: "Our Light" }), "Our Light.mp3");
   assert.equal(trackDownloadName({ file: "", title: "Our Light" }), "Our Light.mp3");
+});
+
+test("iPhone songs must be 44.1 kHz, and the live files are 48 kHz", () => {
+  const at48 = Buffer.alloc(8);
+  at48.set([0xff, 0xfb, 0xb4, 0x44]);
+  const at441 = Buffer.alloc(8);
+  at441.set([0xff, 0xfb, 0xb0, 0x44]);
+  assert.equal(mp3SampleRate(at48), 48000);
+  assert.equal(mp3SampleRate(at441), 44100);
 });
 
 test("mp3DataOffset skips an ID3v2 tag and leaves a raw MP3 alone", () => {

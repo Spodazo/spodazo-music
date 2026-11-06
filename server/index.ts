@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { htmlWithSiteIcons } from "./htmlIcons";
-import { convertStoredImages, prepareFaviconSet, stripStoredSongs, warmHomeCardImages } from "./media";
+import { convertStoredImages, prepareFaviconSet, resampleStoredSongs, stripStoredSongs, warmHomeCardImages } from "./media";
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore, remapImageFilenames } from "./storage";
@@ -25,10 +25,15 @@ app.use(sessionMiddleware());
 
 ensureDataDirs();
 syncBundledImages();
-stripStoredSongs();
 registerRoutes(app);
 
 async function start() {
+  try {
+    await resampleStoredSongs();
+    stripStoredSongs();
+  } catch (err) {
+    console.error("[media] song prepare failed:", err);
+  }
   await ensureSessionTable();
   await getStore();
   try {

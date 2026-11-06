@@ -1,6 +1,8 @@
+import { execFile } from "child_process";
 import type { Response } from "express";
 import fs from "fs";
 import path from "path";
+import { promisify } from "util";
 import sharp from "sharp";
 import { dataDir, ensureDataDirs, faviconDir, imagesDir, songsDir, uniqueFileName } from "./paths";
 
@@ -563,6 +565,81 @@ export async function prepareFaviconSet(filename: string): Promise<string[]> {
   }
   writeAtomic(path.join(destDir, "favicon.ico"), encodeIco(icoPngs));
   return [...FAVICON_PUBLIC_FILES];
+}
+
+const execFileAsync = promisify(execFile);
+const MPEG1_SAMPLE = [44100, 48000, 32000, 0];
+const MPEG2_SAMPLE = [22050, 24000, 16000, 0];
+
+/** iPhone plays 44.1 kHz MP3s and stops 48 kHz ones after the title is already on screen. */
+export function mp3SampleRate(data: Buffer): number {
+  const limit = Math.min(data.length - 4, 16384);
+  for (let i = 0; i < limit; i += 1) {
+    if (!isMpegFrame(data, i)) continue;
+    const version = (data[i + 1] >> 3) & 3;
+    const sample = (data[i + 2] >> 2) & 3;
+    return version === 3 ? MPEG1_SAMPLE[sample] : MPEG2_SAMPLE[sample];
+  }
+  return 0;
+}
+
+export function readMp3SampleRate(full: string): number {
+  const fd = fs.openSync(full, "r");
+  try {
+    const buf = Buffer.alloc(16384);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    return mp3SampleRate(buf.subarray(0, n));
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+async function ffmpegAvailable(): Promise<boolean> {
+  try {
+    await execFileAsync("ffmpeg", ["-version"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function resampleMp3ForPhone(full: string): Promise<boolean> {
+  if (readMp3SampleRate(full) !== 48000) return false;
+  const tmp = `${full}.44100.mp3`;
+  try {
+    await execFileAsync(
+      "ffmpeg",
+      ["-y", "-i", full, "-ar", "44100", "-codec:a", "libmp3lame", "-q:a", "2", "-map_metadata", "-1", tmp],
+      { timeout: 180000 },
+    );
+    fs.renameSync(tmp, full);
+    return true;
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
+}
+
+export async function resampleStoredSongs(dir = songsDir()): Promise<number> {
+  if (!fs.existsSync(dir)) return 0;
+  if (!(await ffmpegAvailable())) {
+    console.error("[media] ffmpeg is missing, so 48 kHz songs will keep dying on iPhone");
+    return 0;
+  }
+  let changed = 0;
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.toLowerCase().endsWith(".mp3")) continue;
+    const full = path.join(dir, name);
+    try {
+      if (await resampleMp3ForPhone(full)) {
+        changed += 1;
+        console.log(`[media] resampled ${name} to 44.1 kHz for iPhone`);
+      }
+    } catch (err) {
+      console.error(`[media] could not resample ${name}:`, err);
+    }
+  }
+  return changed;
 }
 
 const RASTER_IMAGE = /\.(jpe?g|png|gif|tiff?|avif|bmp)$/i;
