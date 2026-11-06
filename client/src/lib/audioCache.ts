@@ -624,7 +624,9 @@ export function attachOutput(audio: HTMLAudioElement, initialGain = 0): OutputGr
     if (typeof ctx.createAnalyser === "function") {
       analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.45;
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -10;
+      analyser.smoothingTimeConstant = 0.6;
       source.connect(analyser);
       analyser.connect(gain);
     } else {
@@ -780,8 +782,8 @@ export function meterBands(freq: Uint8Array): [number, number, number] {
       count += 1;
     }
     if (!count) return 0;
-    const shaped = Math.pow(Math.min(1, sum / count / 255 / 0.42), 0.65);
-    return Math.max(0, Math.min(1, shaped));
+    // Leave headroom. The bars are drawn at 2.2× this value, so a hot bin must not already be 1.
+    return Math.max(0, Math.min(1, sum / count / 255 / 1.8));
   };
   return [span(1, 5), span(5, 16), span(16, 48)];
 }
