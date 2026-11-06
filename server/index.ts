@@ -25,15 +25,10 @@ app.use(sessionMiddleware());
 
 ensureDataDirs();
 syncBundledImages();
+stripStoredSongs();
 registerRoutes(app);
 
 async function start() {
-  try {
-    await resampleStoredSongs();
-    stripStoredSongs();
-  } catch (err) {
-    console.error("[media] song prepare failed:", err);
-  }
   await ensureSessionTable();
   await getStore();
   try {
@@ -149,6 +144,14 @@ async function start() {
 
   app.listen(port, "0.0.0.0", () => {
     console.log(`[spodazo-music] listening on ${port}`);
+    // Do not wait for this. Rewriting every song before listen leaves the site on 502.
+    void resampleStoredSongs()
+      .then((count) => {
+        if (count) stripStoredSongs();
+      })
+      .catch((err) => {
+        console.error("[media] song resample failed:", err);
+      });
   });
 }
 
