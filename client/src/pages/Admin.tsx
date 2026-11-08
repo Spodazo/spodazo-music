@@ -1653,6 +1653,8 @@ function TrackAdmin({
       />
       <ArchiveList
         tracks={album.archivedTracks || []}
+        picked={picked}
+        onToggle={togglePicked}
         currentTrackId={currentTrackId}
         playing={playing}
         onWarm={onWarm}
@@ -1698,6 +1700,8 @@ function TrackAdmin({
 
 function ArchiveList({
   tracks,
+  picked,
+  onToggle,
   currentTrackId,
   playing,
   onWarm,
@@ -1706,6 +1710,8 @@ function ArchiveList({
   onEdit,
 }: {
   tracks: PublicTrack[];
+  picked: string[];
+  onToggle: (id: string) => void;
   currentTrackId: string | null;
   playing: boolean;
   onWarm: (trackId: string) => void;
@@ -1731,7 +1737,7 @@ function ArchiveList({
               type="checkbox"
               checked={picked.includes(track.id)}
               aria-label={`Select ${track.title}`}
-              onChange={() => togglePicked(track.id)}
+              onChange={() => onToggle(track.id)}
             />
           </label>
           {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <div className="track-admin-placeholder">No cover</div>}
