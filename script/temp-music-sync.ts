@@ -290,7 +290,7 @@ async function watchForever(): Promise<void> {
     running = true;
     const stall = setTimeout(() => {
       logLine("[temp-music] sync stalled, restarting watcher");
-      process.exit(1);
+      process.kill(process.pid, "SIGKILL");
     }, STALL_MS);
     try {
       let result: SyncResult;
