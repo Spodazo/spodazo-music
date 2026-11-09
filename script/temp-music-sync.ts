@@ -1,5 +1,5 @@
-import { createHash } from "crypto";
-import { appendFileSync, createReadStream, mkdirSync, readFileSync } from "fs";
+import { spawn } from "child_process";
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -59,27 +59,98 @@ function logLine(line: string) {
   }
 }
 
-async function sha256File(full: string): Promise<string> {
+const FILE_WORKER = `
+import { createHash } from "crypto";
+import { createReadStream } from "fs";
+const full = process.env.TEMP_MUSIC_READ_FILE || "";
+const wantBytes = process.env.TEMP_MUSIC_READ_MODE === "bytes";
+const hash = createHash("sha256");
+const chunks = [];
+const stream = createReadStream(full);
+stream.on("data", (chunk) => {
+  hash.update(chunk);
+  if (wantBytes) chunks.push(chunk);
+});
+stream.on("error", () => process.exit(1));
+stream.on("end", () => {
+  process.stdout.write(hash.digest("hex"));
+  if (wantBytes) process.stdout.write("\\n" + Buffer.concat(chunks).toString("base64"));
+});
+`;
+
+type HashRecord = { size: number; mtimeMs: number; sha256: string };
+const hashCache = new Map<string, HashRecord>();
+let cacheLoaded = false;
+
+function hashCachePath(): string {
+  return path.join(path.dirname(defaultConfigPath()), "temp-music-hashes.json");
+}
+
+function loadHashCache() {
+  if (cacheLoaded) return;
+  cacheLoaded = true;
+  if (!process.env.TEMP_MUSIC_CONFIG && !process.env.TEMP_MUSIC_LOG) return;
+  try {
+    const raw = JSON.parse(readFileSync(hashCachePath(), "utf8")) as Record<string, HashRecord>;
+    for (const [key, value] of Object.entries(raw || {})) {
+      if (value && /^[a-f0-9]{64}$/.test(value.sha256)) hashCache.set(key, value);
+    }
+  } catch {
+    /* the next changed file is hashed again */
+  }
+}
+
+function saveHashCache() {
+  if (!process.env.TEMP_MUSIC_CONFIG && !process.env.TEMP_MUSIC_LOG) return;
+  const saved: Record<string, HashRecord> = {};
+  for (const [key, value] of hashCache) saved[key] = value;
+  try {
+    mkdirSync(path.dirname(hashCachePath()), { recursive: true });
+    writeFileSync(hashCachePath(), JSON.stringify(saved));
+  } catch {
+    /* memory still has the hash for this run */
+  }
+}
+
+function readInChild(full: string, mode: "hash" | "bytes"): Promise<string> {
   return new Promise((resolve, reject) => {
-    const hash = createHash("sha256");
-    const stream = createReadStream(full);
+    const child = spawn(process.execPath, ["--input-type=module", "-e", FILE_WORKER], {
+      env: { ...process.env, TEMP_MUSIC_READ_FILE: full, TEMP_MUSIC_READ_MODE: mode },
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const chunks: Buffer[] = [];
     let settled = false;
     const finish = (err: Error | null, value?: string) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      stream.destroy();
       if (err) reject(err);
       else resolve(value || "");
     };
     const timer = setTimeout(() => {
+      child.kill("SIGKILL");
       finish(new Error(`timed out reading ${full}`));
     }, READ_TIMEOUT_MS);
-    stream
-      .on("error", (err) => finish(err instanceof Error ? err : new Error(String(err))))
-      .on("data", (chunk) => hash.update(chunk))
-      .on("end", () => finish(null, hash.digest("hex")));
+    child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
+    child.once("error", (err) => finish(err));
+    child.once("close", (code) => {
+      if (code !== 0) finish(new Error(`timed out reading ${full}`));
+      else finish(null, Buffer.concat(chunks).toString("utf8"));
+    });
   });
+}
+
+async function sha256File(full: string, size?: number, mtimeMs?: number): Promise<string> {
+  loadHashCache();
+  const cached = hashCache.get(full);
+  if (cached && cached.size === size && cached.mtimeMs === mtimeMs) return cached.sha256;
+  const sha256 = (await readInChild(full, "hash")).trim();
+  if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error(`timed out reading ${full}`);
+  if (size !== undefined && mtimeMs !== undefined) {
+    hashCache.set(full, { size, mtimeMs, sha256 });
+    saveHashCache();
+  }
+  return sha256;
 }
 
 type TreeSnap = { files: FileSnap[]; folders: string[] };
@@ -173,7 +244,7 @@ async function readFinishedFiles(
     const full = fileInside(dir, snap.name);
     if (!full) return "busy";
     try {
-      const sha256 = await sha256File(full);
+      const sha256 = await sha256File(full, snap.size, snap.mtimeMs);
       const after = await fs.stat(full);
       if (after.size !== snap.size || after.mtimeMs !== snap.mtimeMs) return "busy";
       files.push({ name: snap.name, size: snap.size, sha256 });
@@ -258,15 +329,11 @@ export async function syncTempMusicFolder(config: SyncConfig): Promise<SyncResul
 }
 
 async function readBounded(full: string): Promise<Buffer> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`timed out reading ${full}`)), READ_TIMEOUT_MS);
-  });
-  try {
-    return await Promise.race([fs.readFile(full), timeout]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  const text = await readInChild(full, "bytes");
+  const split = text.indexOf("\n");
+  const bytes = Buffer.from(split >= 0 ? text.slice(split + 1) : "", "base64");
+  if (!bytes.length) throw new Error(`timed out reading ${full}`);
+  return bytes;
 }
 
 function briefDetail(detail: string): string {
@@ -279,6 +346,8 @@ async function watchForever(): Promise<void> {
   const initial = loadSyncConfig();
   await fs.mkdir(initial.folder, { recursive: true });
   let running = false;
+  let quietUntil = 0;
+  let failures = 0;
   let lastLog = "";
   const logOnce = (line: string) => {
     if (line === lastLog) return;
@@ -286,7 +355,7 @@ async function watchForever(): Promise<void> {
     logLine(line);
   };
   const run = async () => {
-    if (running) return;
+    if (running || Date.now() < quietUntil) return;
     running = true;
     const stall = setTimeout(() => {
       logLine("[temp-music] sync stalled, restarting watcher");
@@ -298,6 +367,8 @@ async function watchForever(): Promise<void> {
         result = await syncTempMusicFolder(loadSyncConfig());
       } catch (err) {
         logOnce(`[temp-music] sync failed ${err instanceof Error ? err.message : "unexpected error"}`);
+        failures = Math.min(8, failures + 1);
+        quietUntil = Date.now() + Math.min(5 * 60 * 1000, 3000 * 2 ** failures);
         return;
       }
       if (!result.ok) {
@@ -305,8 +376,14 @@ async function watchForever(): Promise<void> {
         else if (result.skipped === "unreachable") logOnce("[temp-music] music app is not reachable");
         else if (result.skipped === "missing-folder") logOnce("[temp-music] Desktop folder is missing");
         else logOnce(`[temp-music] sync rejected ${briefDetail(result.detail || "")}`);
+        if (result.skipped === "unreachable" || result.skipped === "rejected") {
+          failures = Math.min(8, failures + 1);
+          quietUntil = Date.now() + Math.min(5 * 60 * 1000, 3000 * 2 ** failures);
+        }
         return;
       }
+      failures = 0;
+      quietUntil = 0;
       if (result.unread?.length) logOnce(`[temp-music] left in place, could not read ${result.unread.join(", ")}`);
       if (result.added || result.updated || result.removed) {
         lastLog = "";
