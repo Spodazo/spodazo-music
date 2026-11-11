@@ -32,9 +32,12 @@ type SyncEntry = {
   appliedScripture?: string;
 };
 
+type PendingMove = { trackId: string; from: string; to: string };
+
 type SyncState = {
   files: Record<string, SyncEntry>;
   albums: Record<string, string>;
+  pendingMoves: PendingMove[];
 };
 
 let chain: Promise<void> = Promise.resolve();
@@ -90,6 +93,7 @@ function readState(): SyncState {
     const raw = JSON.parse(fs.readFileSync(statePath(), "utf8")) as {
       files?: Record<string, SyncEntry>;
       albums?: Record<string, string>;
+      pendingMoves?: PendingMove[];
     };
     const files: Record<string, SyncEntry> = {};
     for (const [name, entry] of Object.entries(raw.files || {})) {
@@ -106,9 +110,12 @@ function readState(): SyncState {
     for (const [folder, albumId] of Object.entries(raw.albums || {})) {
       if (typeof albumId === "string" && albumId) albums[folder] = albumId;
     }
-    return { files, albums };
+    const pendingMoves = (raw.pendingMoves || []).filter(
+      (move) => move && typeof move.trackId === "string" && typeof move.from === "string" && typeof move.to === "string",
+    );
+    return { files, albums, pendingMoves };
   } catch {
-    return { files: {}, albums: {} };
+    return { files: {}, albums: {}, pendingMoves: [] };
   }
 }
 
@@ -123,7 +130,56 @@ export function forgetSyncTracks(trackIds: string[]): void {
     delete state.files[name];
     changed = true;
   }
+  const kept = state.pendingMoves.filter((move) => !drop.has(move.trackId));
+  if (kept.length !== state.pendingMoves.length) changed = true;
+  state.pendingMoves = kept;
   if (changed) writeState(state);
+}
+
+/** Ask the Desktop watcher to move Temp Music files into another folder album. */
+export function queueSyncMoves(trackIds: string[], destinationAlbumId: string): { ok: true } | { ok: false; error: string } {
+  const state = readState();
+  let folder: string | null = null;
+  for (const [name, id] of Object.entries(state.albums)) {
+    if (id === destinationAlbumId) folder = name;
+  }
+  if (folder === null) return { ok: false, error: "That Temp album is not connected to a Desktop folder yet" };
+  const planned: PendingMove[] = [];
+  const taken = new Set(Object.keys(state.files));
+  for (const trackId of trackIds) {
+    const fromEntry = Object.entries(state.files).find(([, entry]) => entry.trackId === trackId);
+    if (!fromEntry) return { ok: false, error: "That song is not in a Temp Music folder, so it cannot move into a folder album" };
+    const [from] = fromEntry;
+    const base = from.split("/").pop() || from;
+    const to = folder ? `${folder}/${base}` : base;
+    if (to !== from && (taken.has(to) || planned.some((move) => move.to === to))) {
+      return { ok: false, error: "That folder already has a song with this file name" };
+    }
+    taken.delete(from);
+    taken.add(to);
+    planned.push({ trackId, from, to });
+  }
+  const movingIds = new Set(trackIds);
+  state.pendingMoves = state.pendingMoves.filter((move) => !movingIds.has(move.trackId));
+  for (const move of planned) {
+    if (move.from !== move.to) state.pendingMoves.push(move);
+  }
+  writeState(state);
+  return { ok: true };
+}
+
+export function commitSyncMove(from: string, to: string): boolean {
+  const state = readState();
+  const pending = state.pendingMoves.find((move) => move.from === from && move.to === to);
+  if (!pending) return false;
+  const entry = state.files[from];
+  if (entry) {
+    delete state.files[from];
+    state.files[to] = entry;
+  }
+  state.pendingMoves = state.pendingMoves.filter((move) => move !== pending);
+  writeState(state);
+  return true;
 }
 
 function writeState(state: SyncState): void {
@@ -290,6 +346,7 @@ async function statusPayload() {
     hidden: root?.hidden ?? true,
     tracks: root?.tracks || [],
     albums,
+    pendingMoves: state.pendingMoves.map((move) => ({ from: move.from, to: move.to })),
   };
 }
 
@@ -348,6 +405,19 @@ export function registerTempMusicRoutes(app: Express): void {
     res.json(await statusPayload());
   });
 
+  app.post("/api/sync/temp-music/relocated", async (req, res) => {
+    if (!requireSync(req, res)) return;
+    const from = String(req.body?.from || "");
+    const to = String(req.body?.to || "");
+    const ok = await withTempMusicLock(async () => commitSyncMove(from, to));
+    if (!ok) {
+      res.status(404).json({ error: "That move is not waiting" });
+      return;
+    }
+    bumpContentRevision();
+    res.json({ ok: true });
+  });
+
   app.post("/api/sync/temp-music/plan", async (req, res) => {
     if (!requireSync(req, res)) return;
     const desired = desiredFromBody(req.body);
@@ -368,7 +438,8 @@ export function registerTempMusicRoutes(app: Express): void {
         const entry = state.files[name];
         const track = entry ? await store.getTrackById(entry.trackId) : null;
         const album = await store.getAlbumBySlug(syncAlbumSlug(syncPathFolder(name)));
-        if (!track || track.albumId !== album?.id) {
+        const waiting = state.pendingMoves.some((move) => move.from === name);
+        if (!track || (track.albumId !== album?.id && !waiting)) {
           next.unchanged = next.unchanged.filter((item) => item !== name);
           next.upload.push(name);
         }
@@ -500,7 +571,8 @@ export function registerTempMusicRoutes(app: Express): void {
         const entry = state.files[file.name];
         const track = entry ? await store.getTrackById(entry.trackId) : null;
         const albumId = state.albums[syncPathFolder(file.name)];
-        if (!entry || entry.sha256 !== file.sha256 || entry.size !== file.size || !track || track.albumId !== albumId) {
+        const waiting = state.pendingMoves.some((move) => move.from === file.name);
+        if (!entry || entry.sha256 !== file.sha256 || entry.size !== file.size || !track || (track.albumId !== albumId && !waiting)) {
           return { error: "Upload the new songs before removing anything", status: 409 as const };
         }
       }
@@ -524,8 +596,9 @@ export function registerTempMusicRoutes(app: Express): void {
             .filter(([name]) => syncPathFolder(name) === folder)
             .map(([, entry]) => entry.trackId),
         );
+        const waitingIds = new Set(state.pendingMoves.map((move) => move.trackId));
         for (const track of [...(live?.tracks || []), ...(live?.archivedTracks || [])]) {
-          if (syncedIds.has(track.id)) continue;
+          if (syncedIds.has(track.id) || waitingIds.has(track.id)) continue;
           await store.deleteTrack(track.id);
           if (track.file) removeSongFile(track.file);
           removed.push(track.title);

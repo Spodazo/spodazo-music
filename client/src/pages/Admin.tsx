@@ -1412,12 +1412,15 @@ function MoveSongsDialog({
   onClose: () => void;
   onMoved: (slug: string) => Promise<void>;
 }) {
-  const choices = albums.filter((item) => item.id !== album.id && !isSyncAlbumSlug(item.slug));
+  const choices = albums.filter((item) => item.id !== album.id);
   const [albumId, setAlbumId] = useState(choices[0]?.id || "");
   const [albumTitle, setAlbumTitle] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const makingNew = albumId === "";
+  const destination = albums.find((item) => item.id === albumId);
+  const destIsTemp = destination ? isSyncAlbumSlug(destination.slug) : false;
+  const sourceIsTemp = isSyncAlbumSlug(album.slug);
   const countLabel = trackIds.length === 1 ? "1 song" : `${trackIds.length} songs`;
 
   return (
@@ -1444,7 +1447,7 @@ function MoveSongsDialog({
           <option value="">New album</option>
           {choices.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.title}
+              {item.hidden ? `${item.title} (hidden)` : item.title}
             </option>
           ))}
         </select>
@@ -1460,10 +1463,14 @@ function MoveSongsDialog({
             />
           </>
         ) : null}
-        {isSyncAlbumSlug(album.slug) ? (
+        {sourceIsTemp && destIsTemp ? (
+          <p className="hint">The song file moves into that folder inside Temp Music on your Desktop.</p>
+        ) : sourceIsTemp ? (
           <p className="hint">
             If a moved song is still in the Temp Music folder on your Desktop, the folder sync will add it back to this album. Take the file out of that folder if it should only live on the new album.
           </p>
+        ) : destIsTemp ? (
+          <p className="hint">Only a song that is already in a Temp Music folder can move into a folder album.</p>
         ) : null}
         <div className="form-actions">
           <button type="submit" disabled={saving || (!makingNew && !albumId)}>

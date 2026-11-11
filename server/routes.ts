@@ -11,7 +11,7 @@ import { currentIconStamp } from "./htmlIcons";
 import { assetVersion, bumpContentRevision, contentRevision, convertUploadedImage, FAVICON_PUBLIC_FILES, faviconPublicPath, localSongPath, parseImageWidth, prepareFaviconSet, preparedImagePath, removeSongFile, sendSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripUploadedSong, trackDownloadName, warmHomeCardImages } from "./media";
 import { imagesDir, songsDir, uniqueFileName } from "./paths";
 import { getStore } from "./storage";
-import { forgetSyncTracks, registerTempMusicRoutes, songFileIsPrivate, withTempMusicLock } from "./tempMusic";
+import { forgetSyncTracks, queueSyncMoves, registerTempMusicRoutes, songFileIsPrivate, withTempMusicLock } from "./tempMusic";
 
 const NO_STORE_HEADERS = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -642,13 +642,20 @@ export function registerRoutes(app: Express): void {
       res.status(404).json({ error: "Album not found" });
       return;
     }
-    if (isSyncAlbumSlug(destination.slug)) {
-      res.status(400).json({ error: "Desktop folder albums only receive songs from the Temp Music folder" });
-      return;
-    }
     const moving = chosen.filter((track) => track.albumId !== destination.id);
     if (!moving.length) {
       res.status(400).json({ error: "Those songs are already on this album" });
+      return;
+    }
+    const queued = await withTempMusicLock(async () => {
+      if (!isSyncAlbumSlug(destination.slug)) {
+        forgetSyncTracks(moving.map((track) => track.id));
+        return { ok: true as const };
+      }
+      return queueSyncMoves(moving.map((track) => track.id), destination.id);
+    });
+    if (!queued.ok) {
+      res.status(400).json({ error: queued.error });
       return;
     }
     const usedSlugs = new Set(
@@ -667,9 +674,6 @@ export function registerRoutes(app: Express): void {
       if (!source) continue;
       await store.reorderTracks(sourceId, source.tracks.map((track) => track.id));
     }
-    await withTempMusicLock(async () => {
-      forgetSyncTracks(moving.map((track) => track.id));
-    });
     noteCatalogChange();
     const saved = await store.getAlbumById(destination.id);
     res.json({

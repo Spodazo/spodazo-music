@@ -96,12 +96,34 @@ test("admin can move songs onto an existing album or a new one", async () => {
     const collected = await store.getAlbumBySlug("collected");
     assert.deepEqual(collected?.tracks.map((track) => track.title), ["First Song"]);
 
+    fs.mkdirSync(path.join(folder, "Christmas 2026"));
     fs.writeFileSync(path.join(folder, "Folder Song.mp3"), mp3(4));
+    fs.writeFileSync(path.join(folder, "Christmas 2026", "Keep.mp3"), mp3(5));
     const synced = await syncTempMusicFolder({ api, token: TOKEN, folder, settleMs: 20 });
     assert.equal(synced.ok, true);
     const temp = await store.getAlbumBySlug(TEMP_MUSIC_SLUG);
+    const christmas = await store.getAlbumBySlug("temp-christmas-2026");
     const tempTrack = temp?.tracks[0];
     assert.ok(tempTrack);
+    assert.ok(christmas);
+    const between = await fetch(`${api}/api/admin/tracks/move`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ trackIds: [tempTrack.id], albumId: christmas.id }),
+    });
+    assert.equal(between.status, 200);
+    fs.renameSync(path.join(folder, "Folder Song.mp3"), path.join(folder, "Christmas 2026", "Folder Song.mp3"));
+    const relocated = await fetch(`${api}/api/sync/temp-music/relocated`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: "Folder Song.mp3", to: "Christmas 2026/Folder Song.mp3" }),
+    });
+    assert.equal(relocated.status, 200);
+    const placed = await syncTempMusicFolder({ api, token: TOKEN, folder, settleMs: 20 });
+    assert.equal(placed.ok, true);
+    const christmasAfterMove = await store.getAlbumBySlug("temp-christmas-2026");
+    assert.ok(christmasAfterMove?.tracks.some((track) => track.id === tempTrack.id));
+    assert.equal((await store.getAlbumBySlug(TEMP_MUSIC_SLUG))?.tracks.length, 0);
     const out = await fetch(`${api}/api/admin/tracks/move`, {
       method: "POST",
       headers,
@@ -116,10 +138,10 @@ test("admin can move songs onto an existing album or a new one", async () => {
     assert.equal(blocked.status, 400);
     const again = await syncTempMusicFolder({ api, token: TOKEN, folder, settleMs: 20 });
     assert.equal(again.ok, true);
-    const tempAfter = await store.getAlbumBySlug(TEMP_MUSIC_SLUG);
+    const christmasAfter = await store.getAlbumBySlug("temp-christmas-2026");
     const visionAfter = await store.getAlbumBySlug("move-other");
-    assert.equal(tempAfter?.tracks.length, 1);
-    assert.notEqual(tempAfter?.tracks[0]?.id, tempTrack.id);
+    assert.equal((await store.getAlbumBySlug(TEMP_MUSIC_SLUG))?.tracks.length, 0);
+    assert.ok(christmasAfter?.tracks.some((track) => track.id !== tempTrack.id && track.title === "Folder Song"));
     assert.ok(visionAfter?.tracks.some((track) => track.id === tempTrack.id));
   } finally {
     server.close();

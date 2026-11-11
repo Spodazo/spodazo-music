@@ -342,6 +342,46 @@ function briefDetail(detail: string): string {
   return line.slice(0, 180);
 }
 
+async function applyPendingFolderMoves(config: SyncConfig): Promise<void> {
+  let pending: { from: string; to: string }[] = [];
+  try {
+    const res = await fetch(`${config.api}/api/sync/temp-music`, {
+      headers: { Authorization: `Bearer ${config.token}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return;
+    const body = (await res.json()) as { pendingMoves?: { from: string; to: string }[] };
+    pending = body.pendingMoves || [];
+  } catch {
+    return;
+  }
+  for (const move of pending) {
+    const from = fileInside(config.folder, move.from);
+    const to = fileInside(config.folder, move.to);
+    if (!from || !to) continue;
+    try {
+      await fs.mkdir(path.dirname(to), { recursive: true });
+      const sourceReady = await fs.stat(from).then((stat) => stat.isFile()).catch(() => false);
+      const destReady = await fs.stat(to).then((stat) => stat.isFile()).catch(() => false);
+      if (sourceReady && destReady && from !== to) {
+        logLine(`[temp-music] could not move ${move.from} because ${move.to} already exists`);
+        continue;
+      }
+      if (sourceReady && from !== to) await fs.rename(from, to);
+      else if (!destReady) continue;
+      const res = await fetch(`${config.api}/api/sync/temp-music/relocated`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${config.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(move),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (res.ok) logLine(`[temp-music] moved ${move.from} to ${move.to}`);
+    } catch (err) {
+      logLine(`[temp-music] could not move ${move.from}: ${err instanceof Error ? err.message : "unexpected error"}`);
+    }
+  }
+}
+
 async function watchForever(): Promise<void> {
   const initial = loadSyncConfig();
   await fs.mkdir(initial.folder, { recursive: true });
@@ -355,13 +395,19 @@ async function watchForever(): Promise<void> {
     logLine(line);
   };
   const run = async () => {
-    if (running || Date.now() < quietUntil) return;
+    if (running) return;
     running = true;
     const stall = setTimeout(() => {
       logLine("[temp-music] sync stalled, restarting watcher");
       process.kill(process.pid, "SIGKILL");
     }, STALL_MS);
     try {
+      try {
+        await applyPendingFolderMoves(loadSyncConfig());
+      } catch (err) {
+        logOnce(`[temp-music] could not move a folder song: ${err instanceof Error ? err.message : "unexpected error"}`);
+      }
+      if (Date.now() < quietUntil) return;
       let result: SyncResult;
       try {
         result = await syncTempMusicFolder(loadSyncConfig());
