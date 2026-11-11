@@ -1,7 +1,8 @@
 /**
  * Safari/PWA playback helpers.
- * Desktop plays immediately. A phone tap opens one audio route and calls play() together.
- * Later songs stay on that route. A route opened after the tap stays silent until the next tap.
+ * Desktop plays immediately through its own meter. A phone plays the audio element itself.
+ * Opening a Web Audio route on a phone, even just for the level bars, locks every browser
+ * on that phone until it is restarted. A tap must not create one.
  * After a call, Bluetooth route change, or mobile pause, keep the same element. Rebuilding it
  * plays after the tap and the song stops.
  * Bluetooth with a live WebAudio graph must retire the shared AudioContext, remount, and play natively.
@@ -989,10 +990,6 @@ export function playSong(
   const dead = forceReload || !sameSong(audio, url);
   if (continuation) {
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
-    // Join the route the first tap opened. Creating one here stays silent until the next tap.
-    if (!nativeOutputOnly && !graphs.has(audio) && sharedPlaybackContext()) {
-      attachOutput(audio, targetVolume);
-    }
   } else {
     unlockAudio(audio);
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
@@ -1055,12 +1052,9 @@ export function setPlaybackSession() {
 export function unlockAudio(audio?: HTMLAudioElement | null) {
   noteUserPlay();
   if (!audio || !isMobilePlayback()) return;
-  const allowAttachWhilePlaying = nativeOutputOnly;
   nativeOutputOnly = false;
-  // A song already playing on the element stays there. The tap that ends a Bluetooth
-  // remount is allowed to open a fresh route.
-  if (!graphs.has(audio) && !audio.paused && !allowAttachWhilePlaying) return;
-  const graph = attachOutput(audio);
+  // Do not attach a graph. Capturing the element is what locks the phone until a restart.
+  const graph = graphs.get(audio);
   if (!graph) return;
   const state = graph.ctx.state as string;
   if (state === "suspended" || state === "interrupted") void graph.ctx.resume();
