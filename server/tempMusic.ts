@@ -287,7 +287,10 @@ const syncUpload = multer({
           sha256: crypto.createHash("sha256").update(data).digest("hex"),
           size: data.length,
         };
-        if (shouldStripAudioUpload(file)) stripUploadedSong(info.filename);
+        if (shouldStripAudioUpload(file)) {
+          stripUploadedSong(info.filename).then(() => cb(null, info), cb);
+          return;
+        }
         cb(null, info);
       });
     },

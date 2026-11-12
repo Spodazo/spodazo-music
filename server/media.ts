@@ -677,12 +677,22 @@ export async function convertStoredImages(dir = imagesDir()): Promise<Map<string
   return renamed;
 }
 
-export function stripUploadedSong(filename: string) {
+/**
+ * Strip tags, and turn 48 kHz uploads into 44.1 kHz.
+ * A 48 kHz file is what iPhone plays as a scratch, or starts a second late.
+ * Resample happens here, not only at boot, so a song uploaded after startup is safe.
+ */
+export async function stripUploadedSong(filename: string): Promise<void> {
   if (!filename) return;
+  const full = path.join(songsDir(), filename);
   try {
-    if (prepareMp3(path.join(songsDir(), filename))) {
-      console.log(`[media] prepared upload ${filename}`);
+    const stripped = prepareMp3(full);
+    if (await resampleMp3ForPhone(full)) {
+      console.log(`[media] resampled upload ${filename} to 44.1 kHz for iPhone`);
+      prepareMp3(full);
+      return;
     }
+    if (stripped) console.log(`[media] prepared upload ${filename}`);
   } catch (err) {
     console.error(`[media] could not prepare ${filename}:`, err);
   }

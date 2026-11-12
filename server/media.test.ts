@@ -4,7 +4,9 @@ import os from "os";
 import path from "path";
 import sharp from "sharp";
 import test from "node:test";
-import { assetVersion, audioFileVersion, audioUrl, bumpContentRevision, contentRevision, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, mp3SampleRate, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { assetVersion, audioFileVersion, audioUrl, bumpContentRevision, contentRevision, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, mp3SampleRate, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, stripUploadedSong, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -94,6 +96,41 @@ test("iPhone songs must be 44.1 kHz, and the live files are 48 kHz", () => {
   at441.set([0xff, 0xfb, 0xb0, 0x44]);
   assert.equal(mp3SampleRate(at48), 48000);
   assert.equal(mp3SampleRate(at441), 44100);
+});
+
+test("a 48 kHz upload is resampled to 44.1 before it can scratch on iPhone", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "spodazo-resample-"));
+  const previous = process.env.MUSIC_DATA_DIR;
+  process.env.MUSIC_DATA_DIR = root;
+  const songs = path.join(root, "songs");
+  fs.mkdirSync(songs);
+  const file = path.join(songs, "carol.mp3");
+  try {
+    await promisify(execFile)("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=0.4",
+      "-ar",
+      "48000",
+      "-codec:a",
+      "libmp3lame",
+      "-b:a",
+      "192k",
+      file,
+    ]);
+    assert.equal(mp3SampleRate(fs.readFileSync(file)), 48000);
+    await stripUploadedSong("carol.mp3");
+    const prepared = fs.readFileSync(file);
+    assert.equal(mp3SampleRate(prepared), 44100);
+    assert.equal(prepared.subarray(0, 3).toString("ascii") === "ID3", false);
+    if (isVbrMp3(prepared)) assert.ok(xingFrameLength(prepared, 0) > 0);
+  } finally {
+    if (previous === undefined) delete process.env.MUSIC_DATA_DIR;
+    else process.env.MUSIC_DATA_DIR = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("mp3DataOffset skips an ID3v2 tag and leaves a raw MP3 alone", () => {

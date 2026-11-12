@@ -45,8 +45,7 @@ const upload = multer({
           return;
         }
         if (info?.filename && shouldStripAudioUpload(file)) {
-          stripUploadedSong(info.filename);
-          cb(null, info);
+          stripUploadedSong(info.filename).then(() => cb(null, info), cb);
           return;
         }
         if (info?.filename && shouldConvertImageUpload(file)) {
