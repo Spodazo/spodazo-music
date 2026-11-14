@@ -1750,6 +1750,29 @@ button.t-play-icon {
   gap: 8px;
   width: 196px;
 }
+.album-cover-item.dragging {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.album-cover-item.drop-target .album-cover-tile {
+  outline: 2px dashed var(--amber);
+  outline-offset: 3px;
+}
+.album-cover-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+.album-cover-actions .drag-handle {
+  flex: none;
+  min-height: 30px;
+  margin: 0;
+  padding: 0 10px;
+  touch-action: none;
+}
+.album-cover-actions .album-cover-edit { flex: 1; }
 .admin .album-cover-tile {
   position: relative;
   width: 196px;

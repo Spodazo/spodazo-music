@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ChangeEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { PALETTES, paletteById } from "@shared/palettes";
 import { DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, publicCurator } from "@shared/seed-data";
 import { isSyncAlbumSlug, TEMP_MUSIC_SLUG } from "@shared/tempMusic";
@@ -17,6 +17,7 @@ import {
   fetchAlbums,
   fetchPlayerSetup,
   moveTracks,
+  reorderAlbums,
   reorderTracks,
   setTrackArchived,
   trackFileUrl,
@@ -619,6 +620,7 @@ export default function AdminPage() {
           setAlbumSetupOpen(true);
         }}
         onCreate={() => setCreateAlbumOpen(true)}
+        onReordered={setAlbums}
       />
 
       {selected ? (
@@ -1340,21 +1342,83 @@ function AlbumCoverRow({
   onSelect,
   onEdit,
   onCreate,
+  onReordered,
 }: {
   albums: AlbumListItem[];
   selectedId: string | null;
   onSelect: (slug: string) => Promise<void>;
   onEdit: (slug: string) => Promise<void>;
   onCreate: () => void;
+  onReordered: (albums: AlbumListItem[]) => void;
 }) {
+  const [rows, setRows] = useState(albums);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+  const drag = useRef<{ id: string; x: number; y: number; moved: boolean } | null>(null);
+
+  useEffect(() => {
+    setRows(albums);
+  }, [albums]);
+
+  function albumIdAt(x: number, y: number, ignoreId: string): string | null {
+    const source = document.querySelector<HTMLElement>(`[data-album-id="${CSS.escape(ignoreId)}"]`);
+    if (source) source.style.pointerEvents = "none";
+    const hit = document.elementFromPoint(x, y);
+    if (source) source.style.pointerEvents = "";
+    const item = hit?.closest<HTMLElement>("[data-album-id]");
+    return item?.dataset.albumId || null;
+  }
+
+  function startDrag(event: PointerEvent<HTMLButtonElement>, id: string) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    drag.current = { id, x: event.clientX, y: event.clientY, moved: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveDrag(event: PointerEvent<HTMLButtonElement>) {
+    const current = drag.current;
+    if (!current) return;
+    if (!current.moved && Math.hypot(event.clientX - current.x, event.clientY - current.y) < 6) return;
+    current.moved = true;
+    setDraggingId(current.id);
+    const target = albumIdAt(event.clientX, event.clientY, current.id);
+    setOverId(target);
+  }
+
+  async function finishDrag(event: PointerEvent<HTMLButtonElement>, commit: boolean) {
+    const current = drag.current;
+    drag.current = null;
+    setDraggingId(null);
+    setOverId(null);
+    if (!current?.moved || !commit) return;
+    const target = albumIdAt(event.clientX, event.clientY, current.id);
+    if (!target || target === current.id) return;
+    const next = moveById(rows, current.id, target);
+    if (next === rows) return;
+    setRows(next);
+    try {
+      onReordered(await reorderAlbums(next.map((album) => album.id)));
+    } catch {
+      setRows(albums);
+    }
+  }
+
   return (
     <section className="card album-setup-gallery">
       <h2>Album Setup</h2>
+      <p className="hint">Drag the handle to reorder albums. That order is what the site shows.</p>
       <div className="album-cover-row">
-        {albums.map((album) => {
+        {rows.map((album) => {
           const coverUrl = album.thumbUrl || album.heroUrl;
+          const dragging = draggingId === album.id;
+          const over = overId === album.id;
           return (
-            <div key={album.id} className="album-cover-item">
+            <div
+              key={album.id}
+              className={`album-cover-item${dragging ? " dragging" : ""}${over ? " drop-target" : ""}`}
+              data-album-id={album.id}
+            >
               <button
                 type="button"
                 className={`album-cover-tile${selectedId === album.id ? " selected" : ""}`}
@@ -1362,7 +1426,7 @@ function AlbumCoverRow({
                 onClick={() => void onSelect(album.slug)}
               >
                 {coverUrl ? (
-                  <img src={coverUrl} alt="" />
+                  <img src={coverUrl} alt="" draggable={false} />
                 ) : (
                   <span className="album-cover-empty">
                     <span className="album-cover-name">{album.title}</span>
@@ -1370,9 +1434,23 @@ function AlbumCoverRow({
                 )}
                 {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
               </button>
-              <button type="button" className="album-cover-edit" onClick={() => void onEdit(album.slug)}>
-                Edit
-              </button>
+              <div className="album-cover-actions">
+                <button
+                  type="button"
+                  className="drag-handle"
+                  title="Drag to reorder"
+                  aria-label={`Reorder ${album.title}`}
+                  onPointerDown={(event) => startDrag(event, album.id)}
+                  onPointerMove={moveDrag}
+                  onPointerUp={(event) => void finishDrag(event, true)}
+                  onPointerCancel={(event) => void finishDrag(event, false)}
+                >
+                  ⋮⋮
+                </button>
+                <button type="button" className="album-cover-edit" onClick={() => void onEdit(album.slug)}>
+                  Edit
+                </button>
+              </div>
             </div>
           );
         })}
