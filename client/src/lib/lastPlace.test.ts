@@ -64,6 +64,7 @@ test("only an album path is restored after the phone relaunches the app", () => 
   assert.equal(isRestorablePath("/willow-songs"), true);
   assert.equal(isRestorablePath("/"), false);
   assert.equal(isRestorablePath("/admin"), false);
+  assert.equal(isRestorablePath("/playlists"), false);
   assert.equal(isRestorablePath("//evil"), false);
 });
 

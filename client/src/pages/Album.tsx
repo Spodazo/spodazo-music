@@ -36,8 +36,10 @@ import { copyText, songShareUrl } from "../lib/shareLink";
 import { lyricLines } from "@shared/lyrics";
 import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-data";
 import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
+import AddToPlaylist from "../components/AddToPlaylist";
 import { imageIsHot, LIST_THUMB_WIDTH, revealLoadedImage, withImageWidth } from "../lib/images";
 import { applyPalette } from "../lib/palette";
+import { playlistSongFromTrack } from "../lib/playlists";
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -1084,7 +1086,10 @@ export default function AlbumPage() {
       </aside>
       <section className="track-panel">
         <div className="album-head">
-          <AlbumsBack onLeave={leaveAlbumForHome} />
+          <div className="album-head-nav">
+            <AlbumsBack onLeave={leaveAlbumForHome} />
+            <Link href="/playlists" className="playlist-jump">Playlists</Link>
+          </div>
           <div className="album-title-box">
             <h1 className="alb-name2">{album.title}</h1>
             {albumCoverUrl ? (
@@ -1197,6 +1202,7 @@ export default function AlbumPage() {
               key={item.id}
               track={item}
               albumSlug={album.slug}
+              albumTitle={album.title}
               index={index}
               durationLabel={durations[item.id] || item.durationLabel}
               active={active === index}
@@ -1462,6 +1468,7 @@ function PlayingBars() {
 function TrackRow({
   track,
   albumSlug,
+  albumTitle,
   index,
   durationLabel,
   active,
@@ -1477,6 +1484,7 @@ function TrackRow({
 }: {
   track: PublicTrack;
   albumSlug: string;
+  albumTitle: string;
   index: number;
   durationLabel?: string;
   active: boolean;
@@ -1568,6 +1576,12 @@ function TrackRow({
         {track.scripture ? <div className="t-subtitle">{track.scripture}</div> : null}
       </div>
       <div className="t-actions">
+        <AddToPlaylist
+          song={playlistSongFromTrack(
+            { slug: albumSlug, title: albumTitle },
+            durationLabel ? { ...track, durationLabel } : track,
+          )}
+        />
         <button
           type="button"
           className={`t-repeat${repeatOneOn ? " on" : ""}`}

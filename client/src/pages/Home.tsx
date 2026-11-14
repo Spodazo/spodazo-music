@@ -139,6 +139,7 @@ export default function HomePage() {
   return (
     <main className="home">
       <AdminLoginLink />
+      <Link href="/playlists" className="home-playlists">Playlists</Link>
       <div className="home-brand">
         {setup.logoUrl ? (
           <img className="home-logo" src={setup.logoUrl} alt={setup.appName} decoding="sync" fetchPriority="high" />

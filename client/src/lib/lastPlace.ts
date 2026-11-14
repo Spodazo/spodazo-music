@@ -28,7 +28,7 @@ function standaloneApp(): boolean {
 export function isRestorablePath(path: string): boolean {
   if (!path.startsWith("/") || path.startsWith("//") || path.includes("://")) return false;
   const [pathname] = path.split(/[?#]/);
-  if (!pathname || pathname === "/" || pathname.startsWith("/admin")) return false;
+  if (!pathname || pathname === "/" || pathname.startsWith("/admin") || pathname === "/playlists") return false;
   return pathname.slice(1).length > 0 && !pathname.slice(1).includes("/");
 }
 
