@@ -1,31 +1,34 @@
 import type { PublicAlbum, PublicTrack } from "@shared/types";
+import {
+  cleanPlaylistName,
+  MAX_PLAYLIST_NAME,
+  MAX_PLAYLIST_SONGS,
+  MAX_PLAYLISTS,
+  sanitizePlaylists,
+  type PlaylistSongRef,
+  type UserPlaylist,
+} from "@shared/playlists";
+
+export {
+  cleanPlaylistName,
+  MAX_PLAYLIST_NAME,
+  MAX_PLAYLIST_SONGS,
+  MAX_PLAYLISTS,
+  type PlaylistSongRef,
+  type UserPlaylist,
+} from "@shared/playlists";
+export { mergePlaylists, sanitizePlaylists } from "@shared/playlists";
 
 export const PLAYLISTS_KEY = "spodazo-playlists-v1";
 export const PLAYLISTS_CHANGED_EVENT = "spodazo-playlists-changed";
-export const MAX_PLAYLISTS = 40;
-export const MAX_PLAYLIST_SONGS = 300;
-export const MAX_PLAYLIST_NAME = 60;
-
-export type PlaylistSongRef = {
-  trackId: string;
-  albumSlug: string;
-  title: string;
-  albumTitle: string;
-  scripture: string;
-  instrumental: boolean;
-  imageUrl: string;
-  audioUrl: string;
-  durationLabel: string;
-};
-
-export type UserPlaylist = {
-  id: string;
-  name: string;
-  updatedAt: number;
-  songs: PlaylistSongRef[];
-};
 
 export type PlaylistResult = { playlist: UserPlaylist } | { error: string };
+
+let onWrite: (() => void) | null = null;
+
+export function setPlaylistWriteHook(hook: (() => void) | null) {
+  onWrite = hook;
+}
 
 function storage(): Storage | null {
   try {
@@ -46,32 +49,6 @@ function emit() {
 function newId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
   return `pl-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-export function cleanPlaylistName(name: string): string {
-  return name.replace(/\s+/g, " ").trim().slice(0, MAX_PLAYLIST_NAME);
-}
-
-function isSong(value: unknown): value is PlaylistSongRef {
-  if (!value || typeof value !== "object") return false;
-  const song = value as PlaylistSongRef;
-  return typeof song.trackId === "string"
-    && song.trackId.length > 0
-    && typeof song.albumSlug === "string"
-    && song.albumSlug.length > 0
-    && typeof song.title === "string"
-    && typeof song.albumTitle === "string"
-    && typeof song.audioUrl === "string"
-    && song.audioUrl.startsWith("/");
-}
-
-function isPlaylist(value: unknown): value is UserPlaylist {
-  if (!value || typeof value !== "object") return false;
-  const playlist = value as UserPlaylist;
-  return typeof playlist.id === "string"
-    && playlist.id.length > 0
-    && typeof playlist.name === "string"
-    && Array.isArray(playlist.songs);
 }
 
 export function albumsForPlaylistPicker<T extends { hidden?: boolean }>(albums: T[], admin: boolean): T[] {
@@ -95,26 +72,43 @@ export function playlistSongFromTrack(
   };
 }
 
-export function readPlaylists(): UserPlaylist[] {
+export function hasPlaylistRecord(): boolean {
+  try {
+    return Boolean(storage()?.getItem(PLAYLISTS_KEY));
+  } catch {
+    return false;
+  }
+}
+
+export function readPlaylistRecords(): UserPlaylist[] {
   try {
     const raw = storage()?.getItem(PLAYLISTS_KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isPlaylist).map((playlist) => ({
-      id: playlist.id,
-      name: cleanPlaylistName(playlist.name) || "Playlist",
-      updatedAt: Number.isFinite(playlist.updatedAt) ? playlist.updatedAt : 0,
-      songs: playlist.songs.filter(isSong).slice(0, MAX_PLAYLIST_SONGS),
-    }));
+    return sanitizePlaylists(JSON.parse(raw) as unknown);
   } catch {
     return [];
   }
 }
 
-function writePlaylists(playlists: UserPlaylist[]) {
-  storage()?.setItem(PLAYLISTS_KEY, JSON.stringify(playlists));
+export function readPlaylists(): UserPlaylist[] {
+  return readPlaylistRecords().filter((playlist) => !playlist.deleted);
+}
+
+function writeRecords(records: UserPlaylist[], sync = true) {
+  storage()?.setItem(PLAYLISTS_KEY, JSON.stringify(sanitizePlaylists(records)));
   emit();
+  if (sync) onWrite?.();
+}
+
+function saveVisible(playlists: UserPlaylist[]) {
+  const tombstones = readPlaylistRecords().filter((playlist) => playlist.deleted);
+  const ids = new Set(playlists.map((playlist) => playlist.id));
+  writeRecords([...playlists, ...tombstones.filter((playlist) => !ids.has(playlist.id))]);
+}
+
+/** Replace the local copy with the account copy without sending it straight back. */
+export function writePlaylistRecords(records: UserPlaylist[]) {
+  writeRecords(records, false);
 }
 
 export function subscribePlaylists(listener: () => void): () => void {
@@ -129,7 +123,7 @@ export function createPlaylist(name: string): PlaylistResult {
   if (playlists.length >= MAX_PLAYLISTS) return { error: "You have as many playlists as this device can keep." };
   const playlist: UserPlaylist = { id: newId(), name: cleaned, updatedAt: Date.now(), songs: [] };
   try {
-    writePlaylists([playlist, ...playlists]);
+    saveVisible([playlist, ...playlists]);
   } catch {
     return { error: "This device could not save the playlist." };
   }
@@ -145,7 +139,7 @@ export function renamePlaylist(id: string, name: string): PlaylistResult {
   const playlist = { ...playlists[index], name: cleaned, updatedAt: Date.now() };
   playlists[index] = playlist;
   try {
-    writePlaylists(playlists);
+    saveVisible(playlists);
   } catch {
     return { error: "This device could not save the playlist." };
   }
@@ -154,14 +148,18 @@ export function renamePlaylist(id: string, name: string): PlaylistResult {
 
 export function deletePlaylist(id: string) {
   try {
-    writePlaylists(readPlaylists().filter((playlist) => playlist.id !== id));
+    const records = readPlaylistRecords();
+    const index = records.findIndex((playlist) => playlist.id === id && !playlist.deleted);
+    if (index < 0) return;
+    records[index] = { ...records[index], deleted: true, updatedAt: Date.now(), songs: [] };
+    writeRecords(records);
   } catch {
     /* private mode */
   }
 }
 
 export function addPlaylistSong(id: string, song: PlaylistSongRef): PlaylistResult {
-  if (!isSong(song)) return { error: "That song could not be added." };
+  if (!song.audioUrl?.startsWith("/") || !song.trackId || !song.albumSlug) return { error: "That song could not be added." };
   const playlists = readPlaylists();
   const index = playlists.findIndex((playlist) => playlist.id === id);
   if (index < 0) return { error: "That playlist is no longer on this device." };
@@ -175,7 +173,7 @@ export function addPlaylistSong(id: string, song: PlaylistSongRef): PlaylistResu
   };
   playlists[index] = playlist;
   try {
-    writePlaylists(playlists);
+    saveVisible(playlists);
   } catch {
     return { error: "This device could not save the playlist." };
   }
@@ -189,11 +187,11 @@ export function removePlaylistSong(id: string, trackId: string): UserPlaylist | 
   const playlist: UserPlaylist = {
     ...playlists[index],
     updatedAt: Date.now(),
-    songs: playlists[index].songs.filter((song) => song.trackId !== trackId),
+    songs: playlists[index].songs.filter((item) => item.trackId !== trackId),
   };
   playlists[index] = playlist;
   try {
-    writePlaylists(playlists);
+    saveVisible(playlists);
   } catch {
     return null;
   }
@@ -206,11 +204,11 @@ export function replacePlaylistSongs(id: string, songs: PlaylistSongRef[]): User
   if (index < 0) return null;
   const playlist: UserPlaylist = {
     ...playlists[index],
-    songs: songs.filter(isSong).slice(0, MAX_PLAYLIST_SONGS),
+    songs: songs.filter((song) => song.audioUrl?.startsWith("/") && song.trackId).slice(0, MAX_PLAYLIST_SONGS),
   };
   playlists[index] = playlist;
   try {
-    writePlaylists(playlists);
+    saveVisible(playlists);
   } catch {
     return null;
   }

@@ -5,6 +5,7 @@ import pg from "pg";
 import { albums, curator, playerSetup, tracks } from "../shared/schema";
 import { albumSetupFromPlayer, DEFAULT_CATALOG, DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, ECHOES_ALBUM, LEGACY_ECHOES_THUMB, SITE_COPYRIGHT, normalizeCurator, normalizePlayerSetup, publicCurator, refreshedSeedLyrics, seedLyricsForTrack } from "../shared/seed-data";
 import { normalizePaletteId } from "../shared/palettes";
+import { mergePlaylists, sanitizePlaylists, type UserPlaylist } from "../shared/playlists";
 import type { Album, AlbumListItem, Curator, CuratorRecord, PlayerSetup, PublicAlbum, PublicTrack, Track } from "../shared/types";
 import { audioUrl, COLLECTION_COVER_WIDTH, durationLabelForFile, HOME_CARD_WIDTH, imageUrl } from "./media";
 import { catalogPath, ensureDataDirs } from "./paths";
@@ -60,6 +61,8 @@ export interface MusicStore {
   getCurator(): Promise<Curator>;
   getCuratorRecord(): Promise<CuratorRecord>;
   updateCurator(input: Partial<CuratorRecord>): Promise<Curator>;
+  getAdminPlaylists(): Promise<UserPlaylist[]>;
+  saveAdminPlaylists(incoming: unknown): Promise<UserPlaylist[]>;
 }
 
 function nowIso(): string {
@@ -130,7 +133,13 @@ function playerSetupRecord(setup: PlayerSetup) {
   };
 }
 
-type CatalogFile = { albums: Album[]; tracks: Track[]; player?: PlayerSetup; curator?: CuratorRecord };
+type CatalogFile = {
+  albums: Album[];
+  tracks: Track[];
+  player?: PlayerSetup;
+  curator?: CuratorRecord;
+  playlists?: unknown;
+};
 
 export class JsonMusicStore implements MusicStore {
   constructor() {
@@ -229,6 +238,7 @@ export class JsonMusicStore implements MusicStore {
       })),
       player: raw.player,
       curator: raw.curator,
+      playlists: raw.playlists,
     };
   }
 
@@ -296,6 +306,18 @@ export class JsonMusicStore implements MusicStore {
     catalog.curator = normalizeCurator({ ...catalog.curator, ...input });
     this.write(catalog);
     return publicCurator(catalog.curator);
+  }
+
+  async getAdminPlaylists(): Promise<UserPlaylist[]> {
+    return sanitizePlaylists(this.read().playlists);
+  }
+
+  async saveAdminPlaylists(incoming: unknown): Promise<UserPlaylist[]> {
+    const catalog = this.read();
+    const merged = mergePlaylists(sanitizePlaylists(incoming), sanitizePlaylists(catalog.playlists));
+    catalog.playlists = merged;
+    this.write(catalog);
+    return merged;
   }
 
   async getTrackById(id: string): Promise<PublicTrack | null> {
@@ -565,6 +587,13 @@ export class PostgresMusicStore implements MusicStore {
         ...playerSetupRecord(DEFAULT_PLAYER_SETUP),
       });
     }
+    await this.db.execute(sql`
+      CREATE TABLE IF NOT EXISTS admin_playlists (
+        id TEXT PRIMARY KEY,
+        document TEXT NOT NULL DEFAULT '[]',
+        updated_at TIMESTAMPTZ DEFAULT now()
+      )
+    `);
     const existingCurator = await this.db.select({ id: curator.id }).from(curator).limit(1);
     if (existingCurator.length === 0) {
       await this.db.insert(curator).values({
@@ -867,6 +896,29 @@ export class PostgresMusicStore implements MusicStore {
         set: { ...next, updatedAt: new Date() },
       });
     return publicCurator(next);
+  }
+
+  async getAdminPlaylists(): Promise<UserPlaylist[]> {
+    const result = await this.db.execute(sql`SELECT document FROM admin_playlists WHERE id = 'site'`);
+    const rows = Array.isArray(result)
+      ? result as Array<{ document?: string }>
+      : ((result as { rows?: Array<{ document?: string }> }).rows || []);
+    try {
+      return sanitizePlaylists(JSON.parse(String(rows[0]?.document || "[]")));
+    } catch {
+      return [];
+    }
+  }
+
+  async saveAdminPlaylists(incoming: unknown): Promise<UserPlaylist[]> {
+    const merged = mergePlaylists(sanitizePlaylists(incoming), await this.getAdminPlaylists());
+    const document = JSON.stringify(merged);
+    await this.db.execute(sql`
+      INSERT INTO admin_playlists (id, document, updated_at)
+      VALUES ('site', ${document}, now())
+      ON CONFLICT (id) DO UPDATE SET document = excluded.document, updated_at = now()
+    `);
+    return merged;
   }
 }
 

@@ -153,4 +153,26 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal("passwordHash" in curator, false);
   const afterName = await store.getAlbumBySlug("echoes");
   assert.equal(afterName?.copyright, DEFAULT_PLAYER_SETUP.copyright);
+
+  const savedPlaylists = await store.saveAdminPlaylists([{
+    id: "desktop",
+    name: "Sunday",
+    updatedAt: 10,
+    songs: [{
+      trackId: "t1",
+      albumSlug: "echoes",
+      title: "Echoes of the Storm",
+      albumTitle: "Echoes",
+      scripture: "",
+      instrumental: false,
+      imageUrl: "/media/images/a.webp",
+      audioUrl: "/media/audio/a/play?v=1",
+      durationLabel: "1:00",
+    }],
+  }]);
+  assert.equal(savedPlaylists[0]?.name, "Sunday");
+  const fromPhone = await store.saveAdminPlaylists([]);
+  assert.equal(fromPhone.find((playlist) => playlist.id === "desktop")?.name, "Sunday");
+  await store.updateAlbum(echoes.id, { title: "Echoes renamed" });
+  assert.equal((await store.getAdminPlaylists()).find((playlist) => playlist.id === "desktop")?.name, "Sunday");
 });

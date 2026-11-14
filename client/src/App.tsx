@@ -1,8 +1,10 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch } from "wouter";
 import AdminPage from "./pages/Admin";
 import AlbumPage from "./pages/Album";
 import HomePage from "./pages/Home";
+import { syncAdminPlaylists } from "./lib/playlistSync";
+import { hasPlaylistRecord } from "./lib/playlists";
 
 const PlaylistsPage = lazy(() => import("./pages/Playlists"));
 
@@ -15,6 +17,11 @@ function PlaylistsRoute() {
 }
 
 export default function App() {
+  useEffect(() => {
+    if (!hasPlaylistRecord()) return;
+    void syncAdminPlaylists();
+  }, []);
+
   return (
     <Switch>
       <Route path="/" component={HomePage} />

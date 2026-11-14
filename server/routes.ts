@@ -296,6 +296,16 @@ export function registerRoutes(app: Express): void {
     res.json({ admin: Boolean(req.session?.admin) });
   });
 
+  app.get("/api/admin/playlists", requireAdmin, async (_req, res) => {
+    res.set(NO_STORE_HEADERS);
+    res.json({ playlists: await (await getStore()).getAdminPlaylists() });
+  });
+
+  app.put("/api/admin/playlists", requireAdmin, async (req, res) => {
+    res.set(NO_STORE_HEADERS);
+    res.json({ playlists: await (await getStore()).saveAdminPlaylists(req.body?.playlists) });
+  });
+
   app.post("/api/admin/login", async (req, res) => {
     const password = String(req.body?.password || "");
     const store = await getStore();

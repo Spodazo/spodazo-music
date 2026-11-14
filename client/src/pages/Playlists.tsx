@@ -36,6 +36,7 @@ import {
   type PlaylistSongRef,
   type UserPlaylist,
 } from "../lib/playlists";
+import { syncAdminPlaylists } from "../lib/playlistSync";
 import type { AlbumListItem, PublicAlbum } from "@shared/types";
 
 const VOLUME = 0.85;
@@ -71,8 +72,29 @@ function PlaylistIndex() {
   const [playlists, setPlaylists] = useState<UserPlaylist[]>(() => readPlaylists());
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [onAccount, setOnAccount] = useState(false);
 
   useEffect(() => subscribePlaylists(() => setPlaylists(readPlaylists())), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pull = () => {
+      void syncAdminPlaylists().then((list) => {
+        if (cancelled || !list) return;
+        setOnAccount(true);
+        setPlaylists(list);
+      });
+    };
+    pull();
+    const onVisible = () => {
+      if (!document.hidden) pull();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
 
   function onCreate(event: FormEvent) {
     event.preventDefault();
@@ -91,7 +113,11 @@ function PlaylistIndex() {
       <Link href="/" className="albums-back playlist-back">Albums</Link>
       <div className="playlist-index-main">
         <h1>Your playlists</h1>
-        <p className="playlist-device-note">Saved on this device. No account needed.</p>
+        <p className="playlist-device-note">
+          {onAccount
+            ? "Saved to your login, so this computer and your phone show the same playlists."
+            : "Saved on this device. No account needed."}
+        </p>
         <form className="playlist-create" onSubmit={onCreate}>
           <input
             value={name}
@@ -126,6 +152,7 @@ function PlaylistDetail({ id }: { id: string }) {
   const [, navigate] = useLocation();
   const [playlist, setPlaylist] = useState<UserPlaylist | null>(() => readPlaylists().find((item) => item.id === id) || null);
   const [name, setName] = useState(playlist?.name || "");
+  const [onAccount, setOnAccount] = useState(false);
   const [adding, setAdding] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [active, setActive] = useState<number | null>(null);
@@ -149,6 +176,29 @@ function PlaylistDetail({ id }: { id: string }) {
   useEffect(() => {
     songsRef.current = playlist?.songs || [];
   }, [playlist]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const pull = () => {
+      void syncAdminPlaylists().then((list) => {
+        if (cancelled || !list) return;
+        setOnAccount(true);
+        const next = list.find((item) => item.id === id);
+        if (!next) return;
+        setPlaylist(next);
+        setName(next.name);
+      });
+    };
+    pull();
+    const onVisible = () => {
+      if (!document.hidden) pull();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [id]);
 
   useEffect(() => {
     activeRef.current = active;
@@ -461,7 +511,10 @@ function PlaylistDetail({ id }: { id: string }) {
               onBlur={onRename}
             />
           </form>
-          <p className="alb-tag">{songs.length} {songs.length === 1 ? "song" : "songs"} · saved on this device</p>
+          <p className="alb-tag">
+            {songs.length} {songs.length === 1 ? "song" : "songs"}
+            {onAccount ? " · saved to your login" : " · saved on this device"}
+          </p>
         </div>
         <div className="album-hero">
           <div className="hero-play">

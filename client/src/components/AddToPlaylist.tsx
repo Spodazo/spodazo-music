@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
+import { syncAdminPlaylists } from "../lib/playlistSync";
 import {
   addPlaylistSong,
   cleanPlaylistName,
@@ -27,6 +28,9 @@ export default function AddToPlaylist({ song }: { song: PlaylistSongRef }) {
     if (!open) return;
     const refresh = () => setPlaylists(readPlaylists());
     refresh();
+    void syncAdminPlaylists().then((list) => {
+      if (list) setPlaylists(list);
+    });
     return subscribePlaylists(refresh);
   }, [open]);
 
@@ -105,7 +109,7 @@ export default function AddToPlaylist({ song }: { song: PlaylistSongRef }) {
         onClick={stop}
       >
         <p className="playlist-menu-title">Add to a playlist</p>
-        <p className="playlist-menu-note">Saved on this device.</p>
+        <p className="playlist-menu-note">Saved on this device. Your login also keeps them on your other devices.</p>
         {playlists.length ? (
           <ul className="playlist-menu-list">
             {playlists.map((playlist) => {

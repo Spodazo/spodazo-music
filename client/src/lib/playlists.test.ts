@@ -9,6 +9,7 @@ import {
   playlistSongFromTrack,
   PLAYLISTS_KEY,
   readPlaylists,
+  mergePlaylists,
   removePlaylistSong,
   renamePlaylist,
 } from "./playlists";
@@ -107,6 +108,14 @@ test("songs without a same-site audio address are ignored", () => {
     songs: [{ trackId: "a", albumSlug: "echoes", title: "Remote", albumTitle: "Echoes", audioUrl: "https://evil.example/song.mp3" }],
   }]));
   assert.equal(readPlaylists()[0].songs.length, 0);
+});
+
+test("a playlist saved on one device stays when the other device has not saved one", () => {
+  const desktop = [{ id: "a", name: "Sunday", updatedAt: 5, songs: [] }];
+  assert.equal(mergePlaylists(desktop, [])[0]?.name, "Sunday");
+  assert.equal(mergePlaylists([], desktop)[0]?.name, "Sunday");
+  const removed = [{ id: "a", name: "Sunday", updatedAt: 9, songs: [], deleted: true }];
+  assert.equal(mergePlaylists(desktop, removed).some((playlist) => !playlist.deleted), false);
 });
 
 test("hidden albums are offered only to an admin", () => {
