@@ -2745,6 +2745,9 @@ button.t-play-icon {
   cursor: pointer;
 }
 .song-adder-albums button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--text);
   background: var(--bg3);
   border: 1px solid var(--border);

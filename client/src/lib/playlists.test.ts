@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addPlaylistSong,
+  albumsForPlaylistPicker,
   createPlaylist,
   deletePlaylist,
   MAX_PLAYLIST_SONGS,
@@ -106,6 +107,15 @@ test("songs without a same-site audio address are ignored", () => {
     songs: [{ trackId: "a", albumSlug: "echoes", title: "Remote", albumTitle: "Echoes", audioUrl: "https://evil.example/song.mp3" }],
   }]));
   assert.equal(readPlaylists()[0].songs.length, 0);
+});
+
+test("hidden albums are offered only to an admin", () => {
+  const albums = [
+    { title: "Echoes", hidden: false },
+    { title: "Temp Music", hidden: true },
+  ];
+  assert.deepEqual(albumsForPlaylistPicker(albums, false).map((album) => album.title), ["Echoes"]);
+  assert.deepEqual(albumsForPlaylistPicker(albums, true).map((album) => album.title), ["Echoes", "Temp Music"]);
 });
 
 test("a playlist stops accepting songs once it is full", () => {

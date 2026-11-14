@@ -17,12 +17,14 @@ import {
   unlockAudio,
   watchPlaybackRoute,
 } from "../lib/audioCache";
+import { adminMe, fetchAlbums } from "../lib/api";
 import { prefetchAlbum, readCachedAlbum } from "../lib/albumCache";
 import { loadHomeAlbums, readCachedAlbums } from "../lib/homeCache";
 import { parseDurationLabel } from "../lib/listeningTime";
 import { imageIsHot, LIST_THUMB_WIDTH, revealLoadedImage, withImageWidth } from "../lib/images";
 import {
   addPlaylistSong,
+  albumsForPlaylistPicker,
   createPlaylist,
   deletePlaylist,
   playlistSongFromTrack,
@@ -626,23 +628,33 @@ function SongAdder({
   playlist: UserPlaylist;
   onChange: (playlist: UserPlaylist) => void;
 }) {
-  const [albums, setAlbums] = useState<AlbumListItem[]>(() => readCachedAlbums().filter((album) => !album.hidden));
+  const [albums, setAlbums] = useState<AlbumListItem[]>(() => albumsForPlaylistPicker(readCachedAlbums(), false));
   const [album, setAlbum] = useState<PublicAlbum | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    loadHomeAlbums()
-      .then((list) => {
-        if (!cancelled) setAlbums(list.filter((item) => !item.hidden));
-      })
-      .catch((err: Error) => {
-        if (!cancelled && !albums.length) setError(err.message);
-      });
+    void (async () => {
+      let admin = false;
+      try {
+        admin = (await adminMe()).admin;
+      } catch {
+        admin = false;
+      }
+      if (cancelled) return;
+      try {
+        const list = admin ? await fetchAlbums() : await loadHomeAlbums();
+        if (!cancelled) setAlbums(albumsForPlaylistPicker(list, admin));
+      } catch (err) {
+        if (!cancelled && albumsForPlaylistPicker(readCachedAlbums(), false).length === 0) {
+          setError(err instanceof Error ? err.message : "Could not load albums");
+        }
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [albums.length]);
+  }, []);
 
   function choose(slug: string) {
     setError("");
@@ -680,6 +692,7 @@ function SongAdder({
             onClick={() => choose(item.slug)}
           >
             {item.title}
+            {item.hidden ? <span className="hidden-badge">Hidden</span> : null}
           </button>
         ))}
       </div>

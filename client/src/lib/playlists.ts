@@ -74,6 +74,10 @@ function isPlaylist(value: unknown): value is UserPlaylist {
     && Array.isArray(playlist.songs);
 }
 
+export function albumsForPlaylistPicker<T extends { hidden?: boolean }>(albums: T[], admin: boolean): T[] {
+  return admin ? albums : albums.filter((album) => !album.hidden);
+}
+
 export function playlistSongFromTrack(
   album: Pick<PublicAlbum, "slug" | "title">,
   track: Pick<PublicTrack, "id" | "title" | "scripture" | "instrumental" | "imageUrl" | "audioUrl" | "durationLabel">,
