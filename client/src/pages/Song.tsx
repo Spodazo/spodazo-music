@@ -12,6 +12,15 @@ import {
 } from "../lib/audioCache";
 import { imageIsHot, revealLoadedImage } from "../lib/images";
 
+function introductionParagraphs(text: string): string[] {
+  const body = text.replace(/^\s*Introduction\s*\r?\n+/i, "").replace(/\r\n/g, "\n").trim();
+  if (!body) return [];
+  const blocks = body.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
+  if (blocks.length > 1) return blocks;
+  const lines = body.split("\n").map((line) => line.trim()).filter(Boolean);
+  return lines.length > 1 ? lines : [body];
+}
+
 type SharedSong = {
   albumTitle: string;
   albumSlug: string;
@@ -89,6 +98,7 @@ export default function SongPage() {
   }
 
   const track = song?.track;
+  const introduction = track ? introductionParagraphs(track.introduction) : [];
   const lines = track && !track.instrumental ? lyricLines(track.lyrics) : [];
 
   return (
@@ -122,7 +132,13 @@ export default function SongPage() {
           {phoneRestartNote ? (
             <p className="phone-restart-note" role="status">If this keeps happening, restart your phone once.</p>
           ) : null}
-          {track.introduction ? <p className="song-share-intro">{track.introduction}</p> : null}
+          {introduction.length ? (
+            <div className="song-share-intro">
+              {introduction.map((paragraph, index) => (
+                <p key={index}>{paragraph}</p>
+              ))}
+            </div>
+          ) : null}
           {lines.length ? (
             <div className="lyrics-text song-share-lyrics">
               {lines.map((line, index) => (

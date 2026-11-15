@@ -2598,11 +2598,22 @@ button.t-play-icon {
   border-radius: 8px;
   box-shadow: var(--cover-shadow);
 }
-.song-share-scripture,
-.song-share-intro {
+.song-share-scripture {
   color: var(--muted);
   font-size: 0.85rem;
 }
+.song-share-intro {
+  margin-top: 16px;
+  text-align: left;
+}
+.song-share-intro p {
+  margin: 0 0 0.9em;
+  color: var(--text2);
+  font-size: 0.945rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+.song-share-intro p:last-child { margin-bottom: 0; }
 .song-share-lyrics {
   margin-top: 18px;
   text-align: left;
