@@ -16,7 +16,7 @@ import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-d
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { writeLastPlace } from "../lib/lastPlace";
 import { applyPalette } from "../lib/palette";
-import { isAdminOnlyAlbumSlug } from "@shared/privateAlbums";
+import { visibleHomeAlbums } from "@shared/privateAlbums";
 
 function useFitOneLine(text: string) {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -74,13 +74,6 @@ function CardImage({
   );
 }
 
-function albumsForHome(albums: AlbumListItem[]): AlbumListItem[] {
-  return albums.filter((album) => {
-    if (isAdminOnlyAlbumSlug(album.slug)) return album.hidden;
-    return !album.hidden;
-  });
-}
-
 function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolean }) {
   const hasOwnBackground = Boolean(album.heroPortrait && album.heroPortrait !== album.thumb);
   const backgroundUrl = hasOwnBackground ? album.heroUrl : "";
@@ -108,7 +101,7 @@ function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolea
 }
 
 export default function HomePage() {
-  const [albums, setAlbums] = useState<AlbumListItem[]>(() => albumsForHome(readCachedAlbums()));
+  const [albums, setAlbums] = useState<AlbumListItem[]>(() => visibleHomeAlbums(readCachedAlbums()));
   const [setup, setSetup] = useState<PlayerSetup>(() => {
     const cached = readCachedSetup();
     if (cached) {
@@ -125,7 +118,7 @@ export default function HomePage() {
     writeLastPlace({ path: "/" });
     const load = () => {
       loadHomeAlbums()
-        .then((list) => setAlbums(albumsForHome(list)))
+        .then((list) => setAlbums(visibleHomeAlbums(list)))
         .catch((err: Error) => setError(err.message));
       loadHomeSetup()
         .then((next) => {
