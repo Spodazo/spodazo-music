@@ -1,9 +1,12 @@
-export function songSharePath(albumSlug: string, trackSlug: string): string {
-  return `/${encodeURIComponent(albumSlug)}#${encodeURIComponent(trackSlug)}`;
+export function songSharePath(albumSlug: string, trackSlug: string, hidden = false): string {
+  const album = encodeURIComponent(albumSlug);
+  const track = encodeURIComponent(trackSlug);
+  if (hidden) return `/song/${album}/${track}`;
+  return `/${album}#${track}`;
 }
 
-export function songShareUrl(origin: string, albumSlug: string, trackSlug: string): string {
-  return `${origin.replace(/\/$/, "")}${songSharePath(albumSlug, trackSlug)}`;
+export function songShareUrl(origin: string, albumSlug: string, trackSlug: string, hidden = false): string {
+  return `${origin.replace(/\/$/, "")}${songSharePath(albumSlug, trackSlug, hidden)}`;
 }
 
 export async function copyText(text: string): Promise<boolean> {

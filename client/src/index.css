@@ -2581,6 +2581,33 @@ button.t-play-icon {
 .palette-choice-swatches { display: flex; gap: 4px; }
 .palette-choice span { font-size: calc(12px * 1.2); color: var(--muted); }
 
+.song-share-card {
+  width: min(440px, 100%);
+  text-align: center;
+}
+.song-share-card h1 {
+  margin: 12px 0 6px;
+  font-family: "Playfair Display", serif;
+  font-weight: 400;
+}
+.song-share-cover {
+  width: min(280px, 100%);
+  aspect-ratio: 1;
+  object-fit: cover;
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  box-shadow: var(--cover-shadow);
+}
+.song-share-scripture,
+.song-share-intro {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.song-share-lyrics {
+  margin-top: 18px;
+  text-align: left;
+  white-space: pre-wrap;
+}
 .home-playlists {
   align-self: flex-start;
   margin: 0 0 18px;

@@ -45,6 +45,15 @@ export function readCachedAlbum(slug: string): PublicAlbum | null {
   }
 }
 
+export function forgetCachedAlbum(slug: string) {
+  if (!slug) return;
+  try {
+    storage()?.removeItem(cacheKey(slug));
+  } catch {
+    /* private mode */
+  }
+}
+
 export function writeCachedAlbum(album: PublicAlbum) {
   try {
     storage()?.setItem(cacheKey(album.slug), JSON.stringify(album));

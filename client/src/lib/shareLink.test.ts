@@ -8,4 +8,8 @@ test("song share links use the album path and song hash", () => {
     songShareUrl("https://spodazomusic.com", "vision", "house-of-many-mansions"),
     "https://spodazomusic.com/vision#house-of-many-mansions",
   );
+  assert.equal(
+    songSharePath("heart-songs", "our-song", true),
+    "/song/heart-songs/our-song",
+  );
 });

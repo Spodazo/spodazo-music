@@ -24,6 +24,14 @@ function noteCatalogChange() {
   bumpContentRevision();
 }
 
+async function findSharedSong(albumSlug: string, trackSlug: string) {
+  const album = await (await getStore()).getAlbumBySlug(albumSlug);
+  if (!album) return null;
+  const track = album.tracks.find((item) => item.slug === trackSlug || item.key === trackSlug);
+  if (!track?.file) return null;
+  return { album, track };
+}
+
 const disk = multer.diskStorage({
   destination: (_req, file, cb) => {
     const dir = file.fieldname === "audio" ? songsDir() : imagesDir();
@@ -275,6 +283,42 @@ export function registerRoutes(app: Express): void {
     res.set(NO_STORE_HEADERS);
     res.json(req.session?.admin ? list : list.filter((album) => !album.hidden));
     void warmHomeCardImages(list);
+  });
+
+  app.get("/api/songs/:albumSlug/:trackSlug/play", async (req, res) => {
+    const found = await findSharedSong(req.params.albumSlug, req.params.trackSlug);
+    const file = found?.track.file || "";
+    const full = file ? path.join(songsDir(), path.basename(file)) : "";
+    if (!found || !file || !fs.existsSync(full)) {
+      res.status(404).end();
+      return;
+    }
+    sendSongFile(res, full);
+  });
+
+  app.get("/api/songs/:albumSlug/:trackSlug", async (req, res) => {
+    const found = await findSharedSong(req.params.albumSlug, req.params.trackSlug);
+    if (!found) {
+      res.status(404).json({ error: "Song not found" });
+      return;
+    }
+    const { album, track } = found;
+    res.set(NO_STORE_HEADERS);
+    res.json({
+      albumTitle: album.title,
+      albumSlug: album.slug,
+      track: {
+        title: track.title,
+        slug: track.slug,
+        scripture: track.scripture,
+        lyrics: track.lyrics,
+        introduction: track.introduction,
+        instrumental: track.instrumental,
+        imageUrl: track.imageUrl,
+        durationLabel: track.durationLabel || "",
+        playUrl: `/api/songs/${encodeURIComponent(album.slug)}/${encodeURIComponent(track.slug)}/play`,
+      },
+    });
   });
 
   app.get("/api/albums/:slug", async (req, res) => {

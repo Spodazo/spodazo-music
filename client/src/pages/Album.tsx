@@ -26,7 +26,7 @@ import {
   startBackgroundPlaybackGuard,
   settleRoutePlayback,
 } from "../lib/audioCache";
-import { prefetchAlbum, prefetchAlbumImages, readCachedAlbum, refreshAlbum } from "../lib/albumCache";
+import { forgetCachedAlbum, prefetchAlbum, prefetchAlbumImages, readCachedAlbum, refreshAlbum } from "../lib/albumCache";
 import { CATALOG_REFRESH_EVENT } from "../lib/appUpdate";
 import { persistedSessionRestoreAllowed, readLastPlace, shouldApplyHashRestore, writeLastPlace } from "../lib/lastPlace";
 import { fetchPlayerSetup } from "../lib/api";
@@ -39,6 +39,7 @@ import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import AddToPlaylist from "../components/AddToPlaylist";
 import { imageIsHot, LIST_THUMB_WIDTH, revealLoadedImage, withImageWidth } from "../lib/images";
 import { applyPalette } from "../lib/palette";
+import { isAdminOnlyAlbumSlug } from "@shared/privateAlbums";
 import { playlistSongFromTrack } from "../lib/playlists";
 
 function formatTime(seconds: number): string {
@@ -158,11 +159,18 @@ function CopyrightLines({ text }: { text: string }) {
   );
 }
 
+function rememberedPublicAlbum(slug: string): PublicAlbum | null {
+  if (!slug || isAdminOnlyAlbumSlug(slug)) return null;
+  const cached = readCachedAlbum(slug);
+  if (!cached || cached.hidden) return null;
+  return cached;
+}
+
 export default function AlbumPage() {
   const [, params] = useRoute("/:slug");
   const slug = params?.slug || "";
   const [album, setAlbum] = useState<PublicAlbum | null>(() => {
-    const cached = readCachedAlbum(slug);
+    const cached = rememberedPublicAlbum(slug);
     if (cached) {
       applyPalette(cached.color);
       document.title = `${cached.title} — ${cached.artists}`;
@@ -236,20 +244,28 @@ export default function AlbumPage() {
   }
 
   useEffect(() => {
-    const cached = readCachedAlbum(slug);
+    const cached = rememberedPublicAlbum(slug);
     if (cached) {
       setAlbum(cached);
       applyPalette(cached.color);
       document.title = `${cached.title} — ${cached.artists}`;
       prefetchAlbumImages(cached);
     }
+    const hideMissingAlbum = (err: Error) => {
+      if (/not found/i.test(err.message)) {
+        forgetCachedAlbum(slug);
+        setAlbum(null);
+      }
+      setError(err.message);
+    };
     prefetchAlbum(slug)
       .then((data) => {
         setAlbum(data);
         applyPalette(data.color);
         document.title = `${data.title} — ${data.artists}`;
+        setError("");
       })
-      .catch((err: Error) => setError(err.message));
+      .catch(hideMissingAlbum);
     fetchPlayerSetup()
       .then(setSetup)
       .catch(() => undefined);
@@ -1203,6 +1219,7 @@ export default function AlbumPage() {
               track={item}
               albumSlug={album.slug}
               albumTitle={album.title}
+              albumHidden={album.hidden}
               index={index}
               durationLabel={durations[item.id] || item.durationLabel}
               active={active === index}
@@ -1469,6 +1486,7 @@ function TrackRow({
   track,
   albumSlug,
   albumTitle,
+  albumHidden,
   index,
   durationLabel,
   active,
@@ -1485,6 +1503,7 @@ function TrackRow({
   track: PublicTrack;
   albumSlug: string;
   albumTitle: string;
+  albumHidden: boolean;
   index: number;
   durationLabel?: string;
   active: boolean;
@@ -1503,7 +1522,7 @@ function TrackRow({
 
   async function copyLink(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
-    const url = songShareUrl(window.location.origin, albumSlug, track.slug);
+    const url = songShareUrl(window.location.origin, albumSlug, track.slug, albumHidden);
     if (await copyText(url)) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1600);

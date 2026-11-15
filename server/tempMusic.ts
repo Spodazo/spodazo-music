@@ -232,7 +232,7 @@ export async function songFileIsPrivate(filename: string): Promise<boolean> {
   const store = await getStore();
   const list = await store.listAlbums();
   for (const item of list) {
-    if (!isSyncAlbumSlug(item.slug)) continue;
+    if (!item.hidden && !isSyncAlbumSlug(item.slug)) continue;
     const album = await store.getAlbumById(item.id);
     if (!album) continue;
     if ([...album.tracks, ...album.archivedTracks].some((track) => track.file === filename)) return true;
