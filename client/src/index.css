@@ -490,7 +490,7 @@ button.portrait-cover.enlarged {
 
 .album-head {
   flex: none;
-  padding: 28px 32px 0;
+  padding: 28px 76px 0 32px;
 }
 .album-title-box {
   display: flex;
@@ -2233,7 +2233,7 @@ button.t-play-icon {
     text-align: center;
   }
   .album-head .albums-back { display: none; }
-  .album-head { padding: 14px 12px 0; }
+  .album-head { padding: 14px 72px 0 12px; }
   .album-title-box { gap: 10px; padding: 8px 10px; }
   .album-cover-thumb { width: 76px; height: 76px; }
   .album-head .alb-name2 { font-size: 1.1rem; }
@@ -2372,6 +2372,10 @@ button.t-play-icon {
   .admin-login {
     top: max(18px, calc(env(safe-area-inset-top) + 10px));
     right: max(16px, calc(env(safe-area-inset-right) + 8px));
+  }
+  .home-playlists {
+    top: max(18px, calc(env(safe-area-inset-top) + 10px));
+    left: max(16px, calc(env(safe-area-inset-left) + 8px));
   }
   .home {
     padding-top: env(safe-area-inset-top);
@@ -2620,8 +2624,11 @@ button.t-play-icon {
   white-space: pre-wrap;
 }
 .home-playlists {
-  align-self: flex-start;
-  margin: 0 0 18px;
+  position: fixed;
+  top: 18px;
+  left: 20px;
+  z-index: 40;
+  margin: 0;
   color: var(--amber);
   text-decoration: none;
   letter-spacing: 0.16em;
@@ -2633,8 +2640,8 @@ button.t-play-icon {
 .album-head-nav {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-start;
+  gap: 20px;
 }
 .playlist-jump,
 .playlist-nav-link,
