@@ -6,7 +6,7 @@ import sharp from "sharp";
 import test from "node:test";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { assetVersion, audioFileVersion, audioUrl, bumpContentRevision, contentRevision, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, mp3SampleRate, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, stripUploadedSong, trackDownloadName, warmHomeCardImages, xingFrameLength } from "./media";
+import { assetVersion, audioFileVersion, audioUrl, bumpContentRevision, contentRevision, convertStoredImages, convertUploadedImage, encodeIco, FAVICON_PUBLIC_FILES, faviconPublicPath, formatDuration, HOME_CARD_WIDTH, imageUrl, isVbrMp3, LIST_THUMB_WIDTH, mp3DataOffset, mp3DurationSeconds, mp3SampleRate, parseImageWidth, prepareFaviconSet, prepareMp3, preparedImagePath, removeSongFile, shouldConvertImageUpload, shouldStripAudioUpload, stripMp3Tags, stripUploadedSong, trackDownloadName, trimWhiteMargins, warmHomeCardImages, xingFrameLength } from "./media";
 
 function mpegFrame(header: number[], size: number, fill = 0x22) {
   const frame = Buffer.alloc(size, fill);
@@ -433,4 +433,25 @@ test("prepareFaviconSet writes every browser icon size from any source image", a
   assert.equal(ico.readUInt16LE(2), 1);
   assert.equal(ico.readUInt16LE(4), 3);
   assert.equal(faviconPublicPath("nope.png"), null);
+});
+
+test("trimWhiteMargins removes a white mat and keeps the artwork", async () => {
+  const width = 200;
+  const height = 160;
+  const raw = Buffer.alloc(width * height * 3, 255);
+  for (let y = 12; y < height - 12; y += 1) {
+    for (let x = 16; x < width - 16; x += 1) {
+      const i = (y * width + x) * 3;
+      raw[i] = 180;
+      raw[i + 1] = 40;
+      raw[i + 2] = 40;
+    }
+  }
+  const png = await sharp(raw, { raw: { width, height, channels: 3 } }).png().toBuffer();
+  const fitted = await trimWhiteMargins(png);
+  const meta = await sharp(fitted).metadata();
+  assert.ok((meta.width || 0) < width);
+  assert.ok((meta.height || 0) < height);
+  assert.ok((meta.width || 0) >= 120);
+  assert.ok((meta.height || 0) >= 96);
 });

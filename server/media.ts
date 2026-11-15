@@ -491,6 +491,25 @@ export function shouldConvertImageUpload(file: {
   return file.mimetype.startsWith("image/") || /\.(jpe?g|png|gif|webp|tiff?|avif|bmp)$/i.test(file.originalname);
 }
 
+/**
+ * Drop a near-white mat around album and song art.
+ * A trim that would eat most of the picture is left alone.
+ */
+export async function trimWhiteMargins(input: Buffer): Promise<Buffer> {
+  const meta = await sharp(input).metadata();
+  const width = meta.width || 0;
+  const height = meta.height || 0;
+  if (width < 32 || height < 32) return input;
+  const trimmed = await sharp(input)
+    .trim({ background: "#ffffff", threshold: 18 })
+    .toBuffer({ resolveWithObject: true });
+  const nextW = trimmed.info.width || width;
+  const nextH = trimmed.info.height || height;
+  if (nextW === width && nextH === height) return input;
+  if (nextW < width * 0.6 || nextH < height * 0.6 || nextW < 32 || nextH < 32) return input;
+  return trimmed.data;
+}
+
 export async function convertUploadedImage(filename: string, dir = imagesDir()): Promise<string> {
   const source = path.join(dir, filename);
   const ext = path.extname(filename);
@@ -498,8 +517,9 @@ export async function convertUploadedImage(filename: string, dir = imagesDir()):
   const destName = ext.toLowerCase() === ".webp" ? filename : uniqueFileName(dir, `${stem}.webp`);
   const dest = path.join(dir, destName);
   const tmp = `${dest}.converting`;
-  await sharp(source)
-    .rotate()
+  const rotated = await sharp(source).rotate().toBuffer();
+  const fitted = await trimWhiteMargins(rotated);
+  await sharp(fitted)
     .resize(2400, 2400, { fit: "inside", withoutEnlargement: true })
     .webp({ quality: 82 })
     .toFile(tmp);
@@ -660,6 +680,29 @@ export async function resampleStoredSongs(dir = songsDir()): Promise<number> {
 
 const RASTER_IMAGE = /\.(jpe?g|png|gif|tiff?|avif|bmp)$/i;
 const SKIP_STORED_IMAGE = /^(favicon|apple-touch-icon)/i;
+
+/** Trim white mats from artwork already stored as WebP. */
+export async function trimStoredArtwork(dir = imagesDir()): Promise<number> {
+  if (!fs.existsSync(dir)) return 0;
+  let changed = 0;
+  for (const name of fs.readdirSync(dir)) {
+    if (name.startsWith(".") || SKIP_STORED_IMAGE.test(name) || !name.toLowerCase().endsWith(".webp")) continue;
+    const full = path.join(dir, name);
+    try {
+      const input = fs.readFileSync(full);
+      const fitted = await trimWhiteMargins(input);
+      if (fitted === input) continue;
+      const tmp = `${full}.trimming`;
+      await sharp(fitted).webp({ quality: 82 }).toFile(tmp);
+      fs.renameSync(tmp, full);
+      changed += 1;
+      console.log(`[media] trimmed white margin from ${name}`);
+    } catch (err) {
+      console.error(`[media] could not trim ${name}:`, err);
+    }
+  }
+  return changed;
+}
 
 export async function convertStoredImages(dir = imagesDir()): Promise<Map<string, string>> {
   const renamed = new Map<string, string>();

@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import { registerRoutes } from "./routes";
 import { htmlWithSiteIcons } from "./htmlIcons";
-import { convertStoredImages, prepareFaviconSet, resampleStoredSongs, stripStoredSongs, warmHomeCardImages } from "./media";
+import { convertStoredImages, prepareFaviconSet, resampleStoredSongs, stripStoredSongs, trimStoredArtwork, warmHomeCardImages } from "./media";
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore, remapImageFilenames } from "./storage";
@@ -44,6 +44,7 @@ async function start() {
   }
   try {
     await remapImageFilenames(await convertStoredImages());
+    await trimStoredArtwork();
   } catch (err) {
     console.error("[media] stored image conversion failed:", err);
   }
