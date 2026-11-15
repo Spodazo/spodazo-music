@@ -235,7 +235,7 @@ test("a mobile tap does not construct an AudioContext", async () => {
     await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
     assert.equal(constructed, 0);
     assert.equal(audio.paused, false);
-    assert.equal(audio.muted, true);
+    assert.equal(audio.muted, false);
   } finally {
     restore();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
@@ -266,7 +266,7 @@ test("desktop level meter stays at full volume and is not the playback graph", (
 test("desktop playSong starts unmuted at full volume", async () => {
   const audio = fakeAudio();
   await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
-  assert.equal(audio.muted, true);
+  assert.equal(audio.muted, false);
   assert.equal(audio.volume, 1);
   assert.equal(audio.paused, false);
 });
@@ -283,7 +283,7 @@ test("mobile playSong starts unmuted with one play call", async () => {
   try {
     await playSong(audio as unknown as HTMLAudioElement, "/media/songs/a.mp3", 0, false, 1);
     assert.equal(plays, 1);
-    assert.equal(audio.muted, true);
+    assert.equal(audio.muted, false);
     assert.equal(audio.volume, 1);
     assert.equal(audio.paused, false);
   } finally {
@@ -306,8 +306,8 @@ test("playback helpers never prefetch, blob-play, or wait on the playhead", () =
   assert.doesNotMatch(src, /caches\.open/);
   assert.match(src, /MOBILE_HEADER_HOLD_MS/);
   const play = src.slice(src.indexOf("export function playSong"), src.indexOf("export async function dropLegacyAudioCaches"));
-  assert.match(play, /openStartGate/);
-  assert.match(play, /audio\.muted = true/);
+  assert.doesNotMatch(play, /openStartGate/);
+  assert.doesNotMatch(play, /audio\.muted = true/);
   assert.equal(play.split("audio.play(").length - 1, 1);
   assert.match(src, /interruptionend/);
   assert.match(src, /devicechange/);
@@ -833,7 +833,7 @@ test("a mobile continuation stays unmuted when keepAudible is set", async () => 
   const audio = fakeAudio();
   try {
     await playSong(audio as unknown as HTMLAudioElement, "/media/songs/b.mp3", 0, true, 1, true);
-    assert.equal(audio.muted, true);
+    assert.equal(audio.muted, false);
     assert.equal(audio.volume, 1);
   } finally {
     restore();
@@ -888,8 +888,8 @@ test("auto-advance on the same element keeps the live MediaElementSource audible
     assert.equal(sourceCreates, 1);
     await playSong(audio, "/media/songs/b.mp3", 0, true, 0.85, true);
     assert.equal(sourceCreates, 1);
-    assert.equal(audio.muted, true);
-    assert.equal(audio.volume, 0.85);
+    assert.equal(audio.muted, false);
+    assert.ok(gains.includes(0.85));
   } finally {
     restoreUa();
     if (previous) Object.defineProperty(window, "AudioContext", { configurable: true, value: previous });
@@ -1001,7 +1001,7 @@ test("the next mobile song reuses the live audio context instead of opening a si
     await playSong(next, "/media/songs/b.mp3", 0, true, 0.85, true);
     assert.equal(created.length, 1);
     assert.equal(created[0].closed, false);
-    assert.equal(next.muted, true);
+    assert.equal(next.muted, false);
     assert.equal(next.volume, 0.85);
   } finally {
     restoreUa();
@@ -1051,7 +1051,7 @@ test("a mobile continuation does not open an audio context outside a tap", async
   try {
     await playSong(audio as unknown as HTMLAudioElement, "/media/songs/b.mp3", 0, true, 0.85, true);
     assert.equal(constructed, 0);
-    assert.equal(audio.muted, true);
+    assert.equal(audio.muted, false);
     assert.equal(audio.volume, 0.85);
   } finally {
     restoreUa();
@@ -1431,7 +1431,7 @@ test("a keepAudible remount at song start stays unmuted", async () => {
     attachOutput(first, 0.85);
     releaseOutput(first);
     await playSong(remount, "/media/songs/a.mp3", 0.05, true, 0.85, true);
-    assert.equal(remount.muted, true);
+    assert.equal(remount.muted, false);
     assert.equal(remount.volume, 0.85);
   } finally {
     restoreUa();

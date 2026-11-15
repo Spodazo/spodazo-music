@@ -1026,17 +1026,11 @@ export function playSong(
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
   }
 
-  // One play() for the tap. A second play() after Safari's startup pause
-  // is the start-stop-start-then-dead pattern on a phone.
-  const coldStart = !resume;
-  if (coldStart) {
-    audio.muted = true;
-    audio.volume = targetVolume;
-  } else {
-    gateOpen = true;
-    audio.muted = false;
-    setOutput(audio, targetVolume);
-  }
+  // One play() for the tap, unmuted. Starting muted and opening later
+  // stays silent on a phone, and a second play() drops the song.
+  gateOpen = true;
+  audio.muted = false;
+  setOutput(audio, targetVolume);
   if (dead && resume) {
     const fix = () => {
       if (gen !== playGen || !sameSong(audio, url)) return;
@@ -1050,9 +1044,7 @@ export function playSong(
     };
     audio.addEventListener("loadedmetadata", fix, { once: true });
   }
-  const played = audio.play().then(() => undefined);
-  if (coldStart) void openStartGate(audio, url, targetVolume, gen);
-  return played;
+  return audio.play().then(() => undefined);
 }
 
 export async function dropLegacyAudioCaches(): Promise<void> {
