@@ -17,7 +17,7 @@ import {
   type TempMusicFile,
 } from "../shared/tempMusic";
 import type { Album } from "../shared/types";
-import { bumpContentRevision, removeSongFile, shouldStripAudioUpload, stripUploadedSong } from "./media";
+import { bumpContentRevision, contentRevision, removeSongFile, shouldStripAudioUpload, stripUploadedSong } from "./media";
 import { dataDir, ensureDataDirs, songsDir, uniqueFileName } from "./paths";
 import { getStore, type MusicStore } from "./storage";
 
@@ -227,17 +227,39 @@ export function ensureTempMusicAlbum(): Promise<Album> {
   return withTempMusicLock(() => ensureTempMusicAlbumUnlocked());
 }
 
-export async function songFileIsPrivate(filename: string): Promise<boolean> {
-  if (!filename) return false;
+let privateFileCache: { revision: string; names: Set<string> } | null = null;
+
+async function privateSongFiles(): Promise<Set<string>> {
+  const revision = `${dataDir()}\0${contentRevision()}`;
+  if (privateFileCache?.revision === revision) return privateFileCache.names;
+  const names = new Set<string>();
   const store = await getStore();
   const list = await store.listAlbums();
   for (const item of list) {
     if (!item.hidden && !isSyncAlbumSlug(item.slug)) continue;
     const album = await store.getAlbumById(item.id);
     if (!album) continue;
-    if ([...album.tracks, ...album.archivedTracks].some((track) => track.file === filename)) return true;
+    for (const track of [...album.tracks, ...album.archivedTracks]) {
+      if (track.file) names.add(track.file);
+    }
   }
-  return false;
+  privateFileCache = { revision, names };
+  return names;
+}
+
+export function resetPrivateSongFileCache(): void {
+  privateFileCache = null;
+}
+
+/**
+ * Hidden and Temp Music files stay off the public player.
+ * The set is remembered until the catalog changes, so a Range request is not
+ * held while every album is loaded. A late first byte is what Safari plays as
+ * a jump and a scratch at the start of the song.
+ */
+export async function songFileIsPrivate(filename: string): Promise<boolean> {
+  if (!filename) return false;
+  return (await privateSongFiles()).has(filename);
 }
 
 function requireSync(req: Request, res: Response): boolean {

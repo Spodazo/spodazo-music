@@ -1,6 +1,8 @@
 /**
  * Safari/PWA playback helpers.
- * Desktop plays immediately through its own meter. A phone plays the audio element itself.
+ * Desktop plays the element itself, immediately, at full volume. Capturing it for the
+ * level bars puts a ScriptProcessor on the song, which scratches and jumps the playhead
+ * at the start of every track. A phone plays the element itself too.
  * Opening a Web Audio route on a phone, even just for the level bars, locks every browser
  * on that phone until it is restarted. A tap must not create one.
  * After a call, Bluetooth route change, or mobile pause, keep the same element. Rebuilding it
@@ -960,7 +962,7 @@ export function watchPlaybackMeter(paint: (levels: [number, number, number]) => 
 export function playbackMeterLevels(): [number, number, number] {
   const audio = playingElement();
   if (!audio) return easeMeter([0, 0, 0]);
-  if (desktopTaps.has(audio) || desktopAnalyser(audio)) return liveLevels;
+  if (desktopTaps.has(audio)) return liveLevels;
   const analyser = outputAnalyser(audio);
   if (!analyser) return easeMeter([0, 0, 0]);
   if (!meterBins || meterBins.length !== analyser.frequencyBinCount) {
@@ -980,10 +982,6 @@ export function playSong(
 ): Promise<void> {
   const gen = ++playGen;
   outputNeedsRebuild = false;
-  if (!isMobilePlayback()) {
-    primePlaybackMeter();
-    attachDesktopLevelTap(audio);
-  }
   const resume = isResumeTime(time);
   const mobile = isMobilePlayback();
   const continuation = keepAudible && mobile;

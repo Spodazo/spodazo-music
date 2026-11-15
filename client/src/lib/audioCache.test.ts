@@ -202,6 +202,7 @@ test("a phone tap plays the element and does not open a Web Audio route", () => 
   const unlock = src.slice(src.indexOf("export function unlockAudio"), src.indexOf("export function waitForAudible"));
   assert.doesNotMatch(play, /attachOutput\(/);
   assert.doesNotMatch(play, /createMediaElementSource/);
+  assert.doesNotMatch(play, /attachDesktopLevelTap/);
   assert.doesNotMatch(unlock, /attachOutput\(/);
   assert.doesNotMatch(unlock, /new AudioContext|webkitAudioContext/);
 });
