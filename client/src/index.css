@@ -709,13 +709,13 @@ button.portrait-cover.enlarged {
   background: currentColor;
   transform-origin: center bottom;
   animation-name: eq-bounce;
-  animation-duration: 0.7s;
+  animation-duration: 1.05s;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
-.t-eq i:nth-child(1) { animation-duration: 0.55s; animation-delay: -0.2s; }
-.t-eq i:nth-child(2) { animation-duration: 0.85s; animation-delay: -0.45s; }
-.t-eq i:nth-child(3) { animation-duration: 0.65s; animation-delay: -0.1s; }
+.t-eq i:nth-child(1) { animation-duration: 0.83s; animation-delay: -0.3s; }
+.t-eq i:nth-child(2) { animation-duration: 1.28s; animation-delay: -0.68s; }
+.t-eq i:nth-child(3) { animation-duration: 0.98s; animation-delay: -0.15s; }
 @keyframes eq-bounce {
   0%, 100% { transform: scaleY(0.2); }
   50% { transform: scaleY(1); }
@@ -2634,6 +2634,26 @@ button.t-play-icon {
   margin-top: 18px;
   text-align: left;
   white-space: pre-wrap;
+}
+.song-share-intro + .song-share-lyrics .lyrics-label {
+  margin-top: 4px;
+  padding-top: 16px;
+  position: relative;
+}
+.song-share-intro + .song-share-lyrics .lyrics-label::before {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--amber) 62%, transparent) 22%,
+    color-mix(in srgb, var(--amber) 62%, transparent) 78%,
+    transparent
+  );
 }
 .home-playlists {
   position: fixed;

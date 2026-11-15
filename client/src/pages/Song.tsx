@@ -141,6 +141,7 @@ export default function SongPage() {
           ) : null}
           {lines.length ? (
             <div className="lyrics-text song-share-lyrics">
+              <div className="lyrics-label">Lyrics</div>
               {lines.map((line, index) => (
                 <span key={index}>
                   {index > 0 ? "\n" : null}
