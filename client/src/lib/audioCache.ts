@@ -759,19 +759,52 @@ function waitMs(ms: number): Promise<void> {
   });
 }
 
+/** Hide the Xing frame, then open. A later play() is what makes a phone drop the song. */
+export function openerShouldRelease(currentTime: number, elapsedMs: number): boolean {
+  if (currentTime > 1 && elapsedMs < 400) return false;
+  if (currentTime >= START_OFFSET) return true;
+  return elapsedMs >= 70;
+}
+
+export function openerShouldPark(currentTime: number, elapsedMs: number): boolean {
+  return elapsedMs < 400 && currentTime > 1;
+}
+
 async function openStartGate(audio: HTMLAudioElement, url: string, targetVolume: number, gen: number) {
-  await waitMs(MOBILE_HEADER_HOLD_MS);
+  const started = performance.now();
+  await new Promise<void>((resolve) => {
+    let timer = 0;
+    const finish = () => {
+      audio.removeEventListener("timeupdate", check);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const check = () => {
+      if (gen !== playGen || !sameSong(audio, url)) {
+        finish();
+        return;
+      }
+      const elapsed = performance.now() - started;
+      if (openerShouldPark(audio.currentTime, elapsed)) {
+        try {
+          audio.currentTime = 0;
+        } catch {
+          /* the new file is still opening */
+        }
+        window.clearTimeout(timer);
+        timer = window.setTimeout(check, 70);
+        return;
+      }
+      if (openerShouldRelease(audio.currentTime, elapsed)) finish();
+    };
+    audio.addEventListener("timeupdate", check);
+    timer = window.setTimeout(check, 70);
+  });
   if (gen !== playGen || !sameSong(audio, url)) return;
-  // Safari often pauses during the opener after a reboot or a cold audio session.
-  // Leaving muted/gain 0 is the "playhead moves, speakers silent" bug — unmute
-  // even if paused. Do not play() after this timeout (Safari drops the gesture).
+  // Unmute only. play() here is outside the tap, and a phone then drops the song.
   audio.muted = false;
   gateOpen = true;
-  if (audio.paused) {
-    setOutput(audio, targetVolume);
-    return;
-  }
-  fadeOutput(audio, targetVolume, MOBILE_HEADER_FADE_MS, gen);
+  setOutput(audio, targetVolume);
 }
 
 /** Low, mid, and high energy from an FFT frame. Each value is 0–1. */
@@ -993,11 +1026,17 @@ export function playSong(
     if (dead) assignSrc(audio, url, resume ? time : 0, forceReload);
   }
 
-  // One play() for the tap. A mute, and a second play() after Safari's startup
-  // pause, is the start-stop-start-then-dead pattern on a phone.
-  gateOpen = true;
-  audio.muted = false;
-  setOutput(audio, targetVolume);
+  // One play() for the tap. A second play() after Safari's startup pause
+  // is the start-stop-start-then-dead pattern on a phone.
+  const coldStart = !resume;
+  if (coldStart) {
+    audio.muted = true;
+    audio.volume = targetVolume;
+  } else {
+    gateOpen = true;
+    audio.muted = false;
+    setOutput(audio, targetVolume);
+  }
   if (dead && resume) {
     const fix = () => {
       if (gen !== playGen || !sameSong(audio, url)) return;
@@ -1011,7 +1050,9 @@ export function playSong(
     };
     audio.addEventListener("loadedmetadata", fix, { once: true });
   }
-  return audio.play().then(() => undefined);
+  const played = audio.play().then(() => undefined);
+  if (coldStart) void openStartGate(audio, url, targetVolume, gen);
+  return played;
 }
 
 export async function dropLegacyAudioCaches(): Promise<void> {
