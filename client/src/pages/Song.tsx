@@ -122,7 +122,7 @@ export default function SongPage() {
           <h1>{track.title}</h1>
           <p className="playlist-device-note">{song.albumTitle}</p>
           {track.scripture ? <p className="song-share-scripture">{track.scripture}</p> : null}
-          {track.vocals ? <p className="song-share-vocals">Vocals: {track.vocals}</p> : null}
+          {track.vocals ? <p className="song-share-vocals">{track.vocals}</p> : null}
           <button
             type="button"
             className="btn-play-all"
