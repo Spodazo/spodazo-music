@@ -432,6 +432,14 @@ test("desktop keeps its audio session untouched", () => {
   }
 });
 
+test("the volume slider follows the finger and sets the listener level immediately", () => {
+  const src = readFileSync(new URL("../pages/Album.tsx", import.meta.url), "utf8");
+  const slider = src.slice(src.indexOf('className="vol-slider"'), src.indexOf('className="m-meta"'));
+  assert.match(slider, /onInput=/);
+  assert.match(slider, /restoreMobileOutput\(audioRef\.current, volume\)/);
+  assert.match(slider, /aria-label="Volume"/);
+});
+
 test("the album page sets the phone session to playback before any tap opens the route", () => {
   const src = readFileSync(new URL("../pages/Album.tsx", import.meta.url), "utf8");
   const start = src.lastIndexOf("useEffect(() => {", src.indexOf("void dropLegacyAudioCaches();"));

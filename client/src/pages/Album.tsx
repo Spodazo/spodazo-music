@@ -17,7 +17,6 @@ import {
   releaseOutputForRouteChange,
   restoreMobileOutput,
   sameSong,
-  setOutputLevel,
   setPlaybackSession,
   START_OFFSET,
   unlockAudio,
@@ -1373,10 +1372,13 @@ export default function AlbumPage() {
                 max="1"
                 step="0.02"
                 defaultValue="0.85"
-                onChange={(event) => {
-                  const volume = Number(event.target.value);
+                aria-label="Volume"
+                onPointerDown={(event) => event.stopPropagation()}
+                onInput={(event) => {
+                  const volume = Number(event.currentTarget.value);
+                  if (!Number.isFinite(volume)) return;
                   userVolRef.current = volume;
-                  setOutputLevel(audioRef.current, volume);
+                  restoreMobileOutput(audioRef.current, volume);
                 }}
               />
             </div>
