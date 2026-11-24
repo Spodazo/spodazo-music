@@ -16,7 +16,7 @@ import { copyrightLines, creditLine, DEFAULT_PLAYER_SETUP } from "@shared/seed-d
 import type { AlbumListItem, PlayerSetup } from "@shared/types";
 import { writeLastPlace } from "../lib/lastPlace";
 import { applyPalette } from "../lib/palette";
-import { visibleHomeAlbums } from "@shared/privateAlbums";
+import { isLinkOnlyAlbum, visibleHomeAlbums } from "@shared/privateAlbums";
 
 function useFitOneLine(text: string) {
   const ref = useRef<HTMLParagraphElement>(null);
@@ -92,7 +92,7 @@ function AlbumCard({ album, priority }: { album: AlbumListItem; priority: boolea
         )}
       </div>
       <div className="album-card-body">
-        <h2>{album.title}{album.hidden ? <span className="hidden-badge">Hidden</span> : null}</h2>
+        <h2>{album.title}{album.hidden ? <span className="hidden-badge">{isLinkOnlyAlbum(album) ? "Link only" : "Hidden"}</span> : null}</h2>
         {album.artists ? <p className="album-card-artists">{album.artists}</p> : null}
         <p>{album.trackCount} {album.trackCount === 1 ? "song" : "songs"}</p>
       </div>

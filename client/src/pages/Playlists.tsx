@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useLocation, useRoute } from "wouter";
+import { isLinkOnlyAlbum } from "@shared/privateAlbums";
 import {
   assignSrc,
   dropLegacyAudioCaches,
@@ -745,7 +746,7 @@ function SongAdder({
             onClick={() => choose(item.slug)}
           >
             {item.title}
-            {item.hidden ? <span className="hidden-badge">Hidden</span> : null}
+            {item.hidden ? <span className="hidden-badge">{isLinkOnlyAlbum(item) ? "Link only" : "Hidden"}</span> : null}
           </button>
         ))}
       </div>

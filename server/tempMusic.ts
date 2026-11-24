@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import type { Express, Request, Response } from "express";
 import multer from "multer";
+import { isLinkOnlyAlbum } from "../shared/privateAlbums";
 import { titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import {
   isSyncAlbumSlug,
@@ -236,6 +237,7 @@ async function privateSongFiles(): Promise<Set<string>> {
   const store = await getStore();
   const list = await store.listAlbums();
   for (const item of list) {
+    if (isLinkOnlyAlbum(item)) continue;
     if (!item.hidden && !isSyncAlbumSlug(item.slug)) continue;
     const album = await store.getAlbumById(item.id);
     if (!album) continue;

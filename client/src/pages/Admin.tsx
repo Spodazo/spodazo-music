@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject } from "react";
 import { PALETTES, paletteById } from "@shared/palettes";
+import { isLinkOnlyAlbum } from "@shared/privateAlbums";
 import { DEFAULT_CURATOR, DEFAULT_PLAYER_SETUP, publicCurator } from "@shared/seed-data";
 import { isSyncAlbumSlug, TEMP_MUSIC_SLUG } from "@shared/tempMusic";
 import type { AlbumListItem, Curator, PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
@@ -1293,10 +1294,12 @@ function AlbumForm({
           name="hidden"
           type="checkbox"
           value="true"
-          defaultChecked={album ? album.hidden || isSyncAlbumSlug(album.slug) : true}
-          disabled={album ? isSyncAlbumSlug(album.slug) : false}
+          defaultChecked={album ? album.hidden || isSyncAlbumSlug(album.slug) || isLinkOnlyAlbum(album) : true}
+          disabled={album ? isSyncAlbumSlug(album.slug) || isLinkOnlyAlbum(album) : false}
         />{" "}
-        Hide from the public site. You can still play it while signed in as admin.
+        {album && isLinkOnlyAlbum(album)
+          ? "This album stays off the home page. Anyone with the album link can open and play it."
+          : "Hide from the public site. You can still play it while signed in as admin."}
         {album && isSyncAlbumSlug(album.slug) ? " This album stays hidden." : ""}
       </label>
       <div className="form-actions">
@@ -1432,7 +1435,7 @@ function AlbumCoverRow({
                     <span className="album-cover-name">{album.title}</span>
                   </span>
                 )}
-                {album.hidden ? <span className="hidden-badge">Hidden</span> : null}
+                {album.hidden ? <span className="hidden-badge">{isLinkOnlyAlbum(album) ? "Link only" : "Hidden"}</span> : null}
               </button>
               <div className="album-cover-actions">
                 <button

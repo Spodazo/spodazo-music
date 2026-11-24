@@ -38,7 +38,7 @@ import type { PlayerSetup, PublicAlbum, PublicTrack } from "@shared/types";
 import AddToPlaylist from "../components/AddToPlaylist";
 import { imageIsHot, LIST_THUMB_WIDTH, revealLoadedImage, withImageWidth } from "../lib/images";
 import { applyPalette } from "../lib/palette";
-import { isAdminOnlyAlbumSlug } from "@shared/privateAlbums";
+import { isAdminOnlyAlbumSlug, isLinkOnlyAlbum } from "@shared/privateAlbums";
 import { playlistSongFromTrack } from "../lib/playlists";
 
 function formatTime(seconds: number): string {
@@ -161,7 +161,7 @@ function CopyrightLines({ text }: { text: string }) {
 function rememberedPublicAlbum(slug: string): PublicAlbum | null {
   if (!slug || isAdminOnlyAlbumSlug(slug)) return null;
   const cached = readCachedAlbum(slug);
-  if (!cached || cached.hidden) return null;
+  if (!cached || (cached.hidden && !isLinkOnlyAlbum(cached))) return null;
   return cached;
 }
 

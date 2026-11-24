@@ -8,7 +8,7 @@ import { convertStoredImages, prepareFaviconSet, resampleStoredSongs, stripStore
 import { ensureDataDirs, syncBundledImages } from "./paths";
 import { ensureSessionTable, sessionMiddleware } from "./session";
 import { getStore, remapImageFilenames } from "./storage";
-import { enforceAdminOnlyAlbums } from "./privateAlbums";
+import { enforceAdminOnlyAlbums, enforceLinkOnlyAlbums } from "./privateAlbums";
 import { ensureTempMusicAlbum } from "./tempMusic";
 
 process.on("unhandledRejection", (reason) => {
@@ -34,6 +34,7 @@ async function start() {
   await getStore();
   try {
     await enforceAdminOnlyAlbums();
+    await enforceLinkOnlyAlbums();
   } catch (err) {
     console.error("[private] could not hide admin-only albums:", err);
   }

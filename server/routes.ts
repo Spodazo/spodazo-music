@@ -2,6 +2,7 @@ import type { Express, NextFunction, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
+import { isLinkOnlyAlbum } from "../shared/privateAlbums";
 import { slugify, titleFromAudioFile, uniqueSlug } from "../shared/seed-data";
 import { isSyncAlbumSlug } from "../shared/tempMusic";
 import type { PlayerSetup } from "../shared/types";
@@ -324,7 +325,7 @@ export function registerRoutes(app: Express): void {
   app.get("/api/albums/:slug", async (req, res) => {
     const store = await getStore();
     const album = await store.getAlbumBySlug(req.params.slug);
-    if (!album || (album.hidden && !req.session?.admin)) {
+    if (!album || (album.hidden && !req.session?.admin && !isLinkOnlyAlbum(album))) {
       res.status(404).json({ error: "Album not found" });
       return;
     }
@@ -467,6 +468,7 @@ export function registerRoutes(app: Express): void {
       res.status(400).json({ error: "Desktop folders create these albums automatically" });
       return;
     }
+    if (isLinkOnlyAlbum(fields)) fields.hidden = true;
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
     if (files?.thumb?.[0]) fields.thumb = files.thumb[0].filename;
     if (files?.artist?.[0]) fields.artistThumb = files.artist[0].filename;
@@ -490,6 +492,9 @@ export function registerRoutes(app: Express): void {
     const fields = albumFields(req.body, true);
     if (isSyncAlbumSlug(current.slug)) {
       fields.slug = current.slug;
+      fields.hidden = true;
+    }
+    if (isLinkOnlyAlbum({ slug: fields.slug ?? current.slug, title: fields.title ?? current.title })) {
       fields.hidden = true;
     }
     if (files?.hero?.[0]) fields.heroPortrait = files.hero[0].filename;
@@ -748,7 +753,9 @@ export function registerRoutes(app: Express): void {
     const store = await getStore();
     const current = await store.getAlbumById(req.params.id);
     const hidden =
-      (current ? isSyncAlbumSlug(current.slug) : false) || req.body?.hidden === true || req.body?.hidden === "true";
+      (current ? isSyncAlbumSlug(current.slug) || isLinkOnlyAlbum(current) : false) ||
+      req.body?.hidden === true ||
+      req.body?.hidden === "true";
     const updated = await store.updateAlbum(req.params.id, { hidden });
     if (!updated) {
       res.status(404).json({ error: "Album not found" });
