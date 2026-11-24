@@ -22,6 +22,7 @@ export type Track = {
   n: number;
   title: string;
   scripture: string;
+  vocals: string;
   file: string;
   img: string;
   key: string;

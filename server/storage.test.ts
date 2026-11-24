@@ -46,6 +46,7 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
     n: 1,
     title: "First Light",
     scripture: "Psalm 1",
+    vocals: "Brody Vale",
     file: "first-light.mp3",
     img: "first-light.webp",
     key: "s1",
@@ -59,6 +60,8 @@ test("JSON store seeds Echoes and supports album/track admin writes", async () =
   assert.equal(loaded.tracks.length, 1);
   assert.equal(loaded.tracks[0].id, track.id);
   assert.equal(loaded.tracks[0].introduction, "A short note before the lyrics.");
+  assert.equal(loaded.tracks[0].vocals, "Brody Vale");
+  assert.equal((await store.updateTrack(track.id, { vocals: "Eden Blue" }))?.vocals, "Eden Blue");
   assert.equal(loaded.tracks[0].durationLabel, "");
 
   const xing = Buffer.alloc(576, 0);

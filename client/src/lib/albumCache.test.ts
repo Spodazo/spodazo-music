@@ -52,6 +52,7 @@ function track(partial: Partial<PublicTrack> = {}): PublicTrack {
     n: 1,
     title: "Echoes of the Storm",
     scripture: "Job 5",
+    vocals: "",
     file: "Echoes of the Storm.mp3",
     img: "Echoes of the Storm.webp",
     key: "",

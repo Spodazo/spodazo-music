@@ -116,6 +116,7 @@ function trackFields(body: Request["body"], albumId?: string) {
   }
   if (body.slug !== undefined) fields.slug = String(body.slug || slugify(String(body.title || "")));
   if (body.scripture !== undefined) fields.scripture = String(body.scripture || "");
+  if (body.vocals !== undefined) fields.vocals = String(body.vocals || "");
   if (body.lyrics !== undefined) fields.lyrics = String(body.lyrics || "");
   if (body.introduction !== undefined) fields.introduction = String(body.introduction || "");
   if (body.instrumental !== undefined) {
@@ -312,6 +313,7 @@ export function registerRoutes(app: Express): void {
         title: track.title,
         slug: track.slug,
         scripture: track.scripture,
+        vocals: track.vocals,
         lyrics: track.lyrics,
         introduction: track.introduction,
         instrumental: track.instrumental,

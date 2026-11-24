@@ -816,6 +816,12 @@ button.m-cover.enlarged {
   margin-top: 2px;
   opacity: 0.8;
 }
+.t-vocals {
+  font-family: Inter, sans-serif;
+  font-size: 0.62rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
 .t-dur {
   font-size: 0.72rem;
   color: var(--text2);
@@ -1106,6 +1112,13 @@ button.t-play-icon {
 .m-subtitle {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-top: 2px;
+  text-align: center;
+}
+.m-vocals {
+  font-family: Inter, sans-serif;
+  font-size: 0.72rem;
   color: var(--muted);
   margin-top: 2px;
   text-align: center;
@@ -2240,7 +2253,8 @@ button.t-play-icon {
     display: block;
     padding: 0 18px;
   }
-  .m-subtitle {
+  .m-subtitle,
+  .m-vocals {
     padding: 0 18px;
     text-align: center;
   }
@@ -2273,6 +2287,7 @@ button.t-play-icon {
   .t-eq { height: 36px; }
   .t-title { font-size: 0.78rem; white-space: normal; }
   .t-subtitle { font-size: 0.58rem; }
+  .t-vocals { font-size: 0.58rem; }
   .site-footer { padding: 10px 12px; }
   .hero-thumb { width: 76px; height: 76px; }
   .lightbox-card img {
@@ -2616,6 +2631,12 @@ button.t-play-icon {
 }
 .song-share-scripture {
   color: var(--muted);
+  font-size: 0.85rem;
+}
+.song-share-vocals {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-family: Inter, sans-serif;
   font-size: 0.85rem;
 }
 .song-share-intro {

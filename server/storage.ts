@@ -32,6 +32,7 @@ export type TrackInput = {
   n?: number;
   title: string;
   scripture?: string;
+  vocals?: string;
   file?: string;
   img?: string;
   key?: string;
@@ -78,6 +79,7 @@ function hydrateTrack(track: Track) {
     ...track,
     archived: Boolean(track.archived),
     introduction: track.introduction || "",
+    vocals: track.vocals || "",
     imageUrl: imageUrl(track.img),
     audioUrl: audioUrl(track.file),
     durationLabel: durationLabelForFile(track.file),
@@ -235,6 +237,7 @@ export class JsonMusicStore implements MusicStore {
         ...track,
         archived: Boolean(track.archived),
         introduction: track.introduction || "",
+        vocals: track.vocals || "",
       })),
       player: raw.player,
       curator: raw.curator,
@@ -378,6 +381,7 @@ export class JsonMusicStore implements MusicStore {
       n: input.n || siblings.length + 1,
       title: input.title,
       scripture: input.scripture || "",
+      vocals: input.vocals || "",
       file: input.file || "",
       img: input.img || "",
       key: input.key || "",
@@ -488,6 +492,7 @@ function rowTrack(row: typeof tracks.$inferSelect): Track {
     n: row.n,
     title: row.title,
     scripture: row.scripture,
+    vocals: row.vocals || "",
     file: row.file,
     img: row.img,
     key: row.key,
@@ -536,6 +541,7 @@ export class PostgresMusicStore implements MusicStore {
         n INTEGER NOT NULL,
         title TEXT NOT NULL,
         scripture TEXT NOT NULL DEFAULT '',
+        vocals TEXT NOT NULL DEFAULT '',
         file TEXT NOT NULL DEFAULT '',
         img TEXT NOT NULL DEFAULT '',
         key TEXT NOT NULL DEFAULT '',
@@ -552,6 +558,7 @@ export class PostgresMusicStore implements MusicStore {
     await this.db.execute(sql`ALTER TABLE albums ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false`);
     await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT false`);
     await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS introduction TEXT NOT NULL DEFAULT ''`);
+    await this.db.execute(sql`ALTER TABLE tracks ADD COLUMN IF NOT EXISTS vocals TEXT NOT NULL DEFAULT ''`);
     await this.db.execute(sql`
       CREATE TABLE IF NOT EXISTS player_setup (
         id TEXT PRIMARY KEY,
@@ -757,6 +764,7 @@ export class PostgresMusicStore implements MusicStore {
         n: input.n ?? 1,
         title: input.title,
         scripture: input.scripture || "",
+        vocals: input.vocals || "",
         file: input.file || "",
         img: input.img || "",
         key: input.key || "",
@@ -775,6 +783,7 @@ export class PostgresMusicStore implements MusicStore {
     if (input.n !== undefined) patch.n = input.n;
     if (input.title !== undefined) patch.title = input.title;
     if (input.scripture !== undefined) patch.scripture = input.scripture;
+    if (input.vocals !== undefined) patch.vocals = input.vocals;
     if (input.file !== undefined) patch.file = input.file;
     if (input.img !== undefined) patch.img = input.img;
     if (input.key !== undefined) patch.key = input.key;

@@ -1702,6 +1702,7 @@ function TrackAdmin({
           <div className="track-admin-info">
             <strong>{track.title}</strong>
             <div>{track.scripture || (track.lyrics ? "" : "Add subtitle, lyrics, and cover later")}</div>
+            {track.vocals ? <div>Vocals: {track.vocals}</div> : null}
           </div>
           <div className="track-admin-actions">
             <button
@@ -1950,6 +1951,8 @@ function TrackForm({
           <input name="scripture" defaultValue={track?.scripture} placeholder="Shown under the song title" />
         </div>
       </div>
+      <label>Vocals</label>
+      <input name="vocals" defaultValue={track?.vocals} placeholder="Shown under the subtitle" />
       <div className="row-2">
         <div>
           <label>{track ? "Replace MP3" : "Audio file"}</label>

@@ -549,6 +549,7 @@ export function registerTempMusicRoutes(app: Express): void {
             key: slug,
             lyrics: moved?.lyrics || "",
             introduction: moved?.introduction || "",
+            vocals: moved?.vocals || "",
             instrumental: Boolean(moved?.instrumental),
             slug,
           });

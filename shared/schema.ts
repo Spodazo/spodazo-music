@@ -49,6 +49,7 @@ export const tracks = pgTable("tracks", {
   n: integer("n").notNull(),
   title: text("title").notNull(),
   scripture: text("scripture").notNull().default(""),
+  vocals: text("vocals").notNull().default(""),
   file: text("file").notNull().default(""),
   img: text("img").notNull().default(""),
   key: text("key").notNull().default(""),

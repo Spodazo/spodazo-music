@@ -756,6 +756,7 @@ export const ECHOES_TRACKS: Track[] = TRACK_META.map((track) => ({
   n: track.n,
   title: track.title,
   scripture: track.scripture,
+  vocals: "",
   file: track.file,
   img: track.img,
   key: track.key,

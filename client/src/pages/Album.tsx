@@ -1385,6 +1385,7 @@ export default function AlbumPage() {
                 <div className="m-title-stack">
                   <div className="m-title">{track.title}</div>
                   {track.scripture ? <div className="m-subtitle">{track.scripture}</div> : null}
+                  {track.vocals ? <div className="m-vocals">Vocals: {track.vocals}</div> : null}
                 </div>
                 <button className="btn-close" onClick={closeModal} title="Close" aria-label="Close">
                   <IconClose />
@@ -1576,6 +1577,7 @@ function TrackRow({
         </div>
         {isPlaying ? <div className="t-now">Playing</div> : null}
         {track.scripture ? <div className="t-subtitle">{track.scripture}</div> : null}
+        {track.vocals ? <div className="t-vocals">Vocals: {track.vocals}</div> : null}
       </div>
       <div className="t-actions">
         <AddToPlaylist
