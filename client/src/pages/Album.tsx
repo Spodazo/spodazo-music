@@ -1363,6 +1363,7 @@ export default function AlbumPage() {
                 </button>
               </div>
             </div>
+            {isMobilePlayback() ? null : (
             <div className="vol-wrap">
               <IconVolume />
               <input
@@ -1382,6 +1383,7 @@ export default function AlbumPage() {
                 }}
               />
             </div>
+            )}
             <div className="m-meta">
               <div className="m-title-row">
                 <div className="m-title-stack">
