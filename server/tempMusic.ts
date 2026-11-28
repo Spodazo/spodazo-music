@@ -625,8 +625,11 @@ export function registerTempMusicRoutes(app: Express): void {
             .map(([, entry]) => entry.trackId),
         );
         const waitingIds = new Set(state.pendingMoves.map((move) => move.trackId));
+        const knownIds = new Set(Object.values(state.files).map((entry) => entry.trackId));
         for (const track of [...(live?.tracks || []), ...(live?.archivedTracks || [])]) {
           if (syncedIds.has(track.id) || waitingIds.has(track.id)) continue;
+          // Added in Admin, so there is no folder file to mirror. Leave it on the album.
+          if (!knownIds.has(track.id)) continue;
           await store.deleteTrack(track.id);
           if (track.file) removeSongFile(track.file);
           removed.push(track.title);

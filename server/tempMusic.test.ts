@@ -264,6 +264,37 @@ test("Desktop folder syncs into a private Temp Music album", async () => {
     const movedAudio = await fetch(`${api}/media/songs/${encodeURIComponent(christmasSongs[0].file)}`);
     assert.equal(movedAudio.status, 404);
 
+    const christmasAlbumId = (await store.getAlbumBySlug("temp-christmas-2026"))?.id;
+    assert.ok(christmasAlbumId);
+    await store.createTrack({
+      albumId: christmasAlbumId,
+      title: "Added In Admin",
+      file: "added-in-admin.mp3",
+      slug: "added-in-admin",
+    });
+    const kept = await syncTempMusicFolder(config);
+    assert.equal(kept.ok, true);
+    if (!kept.ok) return;
+    assert.equal(kept.removed, 0);
+    const withAdminSong = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      albums: { title: string; tracks: { title: string }[] }[];
+    };
+    const keptTitles = (withAdminSong.albums.find((album) => album.title === "Christmas 2026")?.tracks || []).map((track) => track.title);
+    assert.deepEqual(keptTitles.sort(), ["Added In Admin", "Private"]);
+
+    fs.rmSync(path.join(christmas, "Private.mp3"));
+    const droppedSong = await syncTempMusicFolder(config);
+    assert.equal(droppedSong.ok, true);
+    if (!droppedSong.ok) return;
+    assert.equal(droppedSong.removed, 1);
+    const afterDrop = (await (await fetch(`${api}/api/sync/temp-music`, { headers: { Authorization: `Bearer ${TOKEN}` } })).json()) as {
+      albums: { title: string; tracks: { title: string }[] }[];
+    };
+    assert.deepEqual(
+      afterDrop.albums.find((album) => album.title === "Christmas 2026")?.tracks.map((track) => track.title),
+      ["Added In Admin"],
+    );
+
     fs.rmSync(christmas, { recursive: true });
     const dropped = await syncTempMusicFolder(config);
     assert.equal(dropped.ok, true);

@@ -367,7 +367,15 @@ export default function AdminPage() {
   const [setupOpen, setSetupOpen] = useState(false);
   const [albumSetupOpen, setAlbumSetupOpen] = useState(false);
   const [createAlbumOpen, setCreateAlbumOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  const noticeTimer = useRef<number | null>(null);
   const player = useAdminPlayer();
+
+  function showNotice(message: string) {
+    setNotice(message);
+    if (noticeTimer.current) window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(""), 6000);
+  }
 
   async function refresh() {
     const list = await fetchAlbums();
@@ -588,6 +596,7 @@ export default function AdminPage() {
               const list = await fetchAlbums();
               setAlbums(list);
               await loadAlbum(slug);
+              showNotice("Album saved.");
             }}
             onCancel={() => setAlbumSetupOpen(false)}
           />
@@ -608,6 +617,8 @@ export default function AdminPage() {
           />
         </AdminDialog>
       ) : null}
+
+      {notice ? <p className="admin-notice" role="status">{notice}</p> : null}
 
       <AlbumCoverRow
         albums={albums}
@@ -651,6 +662,7 @@ export default function AdminPage() {
             onPlayAll={() => player.playAlbum(selected)}
             albums={albums}
             onChange={async () => { await loadAlbum(selected.slug); }}
+            onNotice={showNotice}
             onMoved={async (slug) => {
               setAlbums(await fetchAlbums());
               await loadAlbum(slug);
@@ -663,6 +675,7 @@ export default function AdminPage() {
               const list = await fetchAlbums();
               setAlbums(list);
               await loadAlbum(slug);
+              showNotice("Album saved.");
             }}
             onDeleted={async () => {
               if (player.queue?.albumId === selected.id) player.stop();
@@ -1577,6 +1590,7 @@ function TrackAdmin({
   onPlayAll,
   onChange,
   onMoved,
+  onNotice,
 }: {
   album: PublicAlbum;
   albums: AlbumListItem[];
@@ -1587,6 +1601,7 @@ function TrackAdmin({
   onPlayAll: () => void;
   onChange: () => Promise<void>;
   onMoved: (slug: string) => Promise<void>;
+  onNotice: (message: string) => void;
 }) {
   const [editing, setEditing] = useState<PublicTrack | null>(null);
   const [rows, setRows] = useState(album.tracks);
@@ -1656,7 +1671,7 @@ function TrackAdmin({
         {album.slug === TEMP_MUSIC_SLUG
           ? "Songs in the Desktop folder “Temp Music” sync here. A subfolder becomes its own album. Drag to set the order — the folder will not change it. "
           : isSyncAlbumSlug(album.slug)
-            ? `This album is the “${album.title}” folder inside Temp Music on the Desktop. `
+            ? `This album is the “${album.title}” folder inside Temp Music on the Desktop. A song you add here stays on the album. `
             : ""}
         Drag the handle to reorder songs. Play a track here, or download the live MP3 to keep a copy.
       </p>
@@ -1737,7 +1752,10 @@ function TrackAdmin({
         albumId={album.id}
         track={null}
         nextNumber={album.tracks.length + 1}
-        onSaved={onChange}
+        onSaved={async () => {
+          await onChange();
+          onNotice("Song added.");
+        }}
         onCancel={() => undefined}
       />
       <ArchiveList
@@ -1778,6 +1796,7 @@ function TrackAdmin({
             onSaved={async () => {
               setEditing(null);
               await onChange();
+              onNotice("Song saved.");
             }}
             onCancel={() => setEditing(null)}
           />
